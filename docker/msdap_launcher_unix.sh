@@ -40,6 +40,8 @@ fi
 MSDAP_IMAGE_LOCAL = $(docker images -q ftwkoopmans/msdap:"$VERSION") >/dev/null 2>&1
 if [ -z "$MSDAP_IMAGE_LOCAL" ]; then
   docker pull ftwkoopmans/msdap:"$VERSION"
+  # exit script on docker pull error
+  [ $? -eq 0 ] || exit 1
 fi
 
 

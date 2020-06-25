@@ -55,12 +55,19 @@ if($msdap_image_local -eq $null) {
   } catch {
     Write-Host "An error occurred @ docker pull:"
     Write-Host $_
+    pause
+	Exit 1
+  }
+
+  if($LastExitCode -ne 0) {
+    pause
+    Exit $LastExitCode
   }
 }
 
 
 ### stop and remove all previous instances by image name
-$container_id_remove = (docker ps -a  | findstr -i msdap | % {$_ -replace " .*", ""})
+$container_id_remove = (docker ps -a | findstr -i msdap | % {$_ -replace " .*", ""})
 # docker ps -a | awk '{ print $1,$2 }' | grep msdap | awk '{print $1 }'
 if($container_id_remove -ne $null) {
   Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Stopping up-and-running MS-DAP containers (if any) ..."
