@@ -1,0 +1,186 @@
+---
+output: 
+  rmarkdown::github_document:
+    html_preview: true
+    toc: true
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.path = "images/dea-",
+  comment = "#>"
+)
+```
+
+```{r setup, include = FALSE}
+devtools::load_all()
+
+# ! change to some temporary working directory on your computer !
+setwd("C:/temp/")
+```
+
+
+
+This vignette demonstrates how you can plug custom functions into the MS-DAP pipeline.
+
+
+## prepare the dataset of analysis
+
+One could use any dataset to demonstrate the use of custom functions for normalization or DEA. Here we again use the Skyline dataset from the LFQbench study bundled with MS-DAP (see other vignettes for refs and data sources).
+
+
+```{r}
+library(msdap)
+
+f <- system.file("extdata", "Skyline_HYE124_TTOF5600_64var_it2.tsv.gz", package = "msdap")
+dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys = F, acquisition_mode = "dia")
+
+dataset = sample_metadata_custom(dataset, group_regex_array = c(A = "007|009|011", B = "008|010|012") )
+
+dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
+
+print(dataset$samples %>% select(sample_id, group))
+```
+
+
+## custom normalization function
+
+We here implement a simple normalization approach to illustrate the technique for providing MS-DAP with a custom normalization function. The code below implements quantile normalization.
+
+The hard requirements to make this work are:
+
+1) your normalization function must have a unique name that does not overlap with common R functions (bad name: 'mean'). So pick names 'mynorm_quantile' or 'my_norm_v1'
+
+2) the function must have the following parameters: x_as_log2, mask_sample_groups
+- x_as_log2 = log2 transformed peptide intensity data matrix, where each row is a peptide and each column a sample
+- mask_sample_groups = array of characters that describes the sample grouping (which columns belong to the same sample group). you must implement this argument when creating your function, but you may choose to not use this information while normalizing (as we do in the example below)
+
+3) return data has to be of the _exact_ same format as x_as_log2 (but with normalized abundance values)
+
+
+```{r}
+my_norm = function(x_as_log2, mask_sample_groups = NA) {
+  cat("Example custom normalization implementation, my_norm(), scaling all samples by some quantile\n")
+  quantile_for_normalization = 0.95
+  # value at quantile x for each column/sample
+  scale_per_sample = matrixStats::colQuantiles(x_as_log2, probs = quantile_for_normalization, na.rm=T)
+  # instead of scaling samples such that quantile x is zero, adjust by mean shift so output values are of the same order as input
+  scale_per_sample = scale_per_sample - mean(scale_per_sample)
+  # apply scaling to each column (transpose, scale 'rows', then transpose again)
+  return(t(t(x_as_log2) - scale_per_sample))
+}
+```
+
+
+now that we have implemented a normalization function, let's run a very basic data matrix to test if it works;
+```{r}
+mock_data = cbind(1:6, 2:7, 0:5)
+print(mock_data)
+print(my_norm(mock_data))
+```
+
+In the last section of this document, we'll use this new normalization function in MS-DAP
+
+
+
+## custom DEA function
+
+Below we have implemented a simplified DEA function that applies the a t.test() on protein abundances.
+
+The first two requirements from the previous section apply here was well, but the list of required parameters here is;
+
+- peptides; long-format tibble of peptide data. For most use-cases, we advise using either the peptide- or protein-level ExpressionSet
+- samples; tibble with sample metadata, take note of the columns 'sample_id' and 'condition' so you can classify samples into conditions while A/B testing
+- eset_peptides; ExpressionSet for peptides
+- eset_proteins; ExpressionSet for proteins (collapsed peptide-level data)
+- input_intensities_are_log2 = boolean that tells you whether the intensities are log2 transformed (they are by default, but could change in future, so implement a check like below)
+
+The return data must be a tibble with these columns;
+
+- protein_id
+- pvalue
+- qvalue
+- foldchange.log2
+- algo_de = name of your algorithm. must be a non-empty character string uniquely indicating the name/label of your method. DO NOT use names already used by other methods in this pipeline, like 'ebayes'
+
+The example code, together with code comments, should provide a code skeleton for the implementation of your custom DEA algorithm.
+
+```{r}
+my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_intensities_are_log2) {
+  ### 1) from provided protein-level data; extract the protein intensity matrix, to which condition each sample belongs and find the columns matching groups 1 and 2
+  x = Biobase::exprs(eset_proteins)
+  # transform to log2 if input data is non-log
+  if (!input_intensities_are_log2) {
+    x = log2(x)
+  }
+  # set non-finite values to NA
+  x[!is.finite(x)] = NA
+  # extract groups
+  x_groups = pData(eset_proteins)$condition
+  x_groups_unique = unique(x_groups)
+  # assume there are 2 groups
+  stopifnot(length(x_groups_unique) == 2)
+  cols_grp1 = x_groups == x_groups_unique[1]
+  cols_grp2 = x_groups == x_groups_unique[2]
+
+  ### 2) calculate p-values for each protein
+  pval = rep(NA, nrow(x))
+  for(i in 1:nrow(x)) {
+    i_tt = t.test(x[i,cols_grp1], x[i,cols_grp2], alternative = "two.sided", paired = FALSE, var.equal = FALSE)
+    pval[i] = i_tt$p.value
+  }
+  # log2 fold-change
+  log2FC = rowMeans(x[,cols_grp2,drop=F], na.rm=T) - rowMeans(x[,cols_grp1,drop=F], na.rm=T)
+
+  ### 3) create a result tibble that contains all columns required for downstream compatability with this pipeline; protein_id, pvalue, qvalue, foldchange.log2, algo_de
+  result = tibble(protein_id = rownames(x),
+                  pvalue = pval,
+                  qvalue = p.adjust(pval, method = "fdr"),
+                  foldchange.log2 = log2FC,
+                  # the name of your algorithm. must be a non-empty character string uniquely indicating the name/label of your method (eg; do NOT use names already used by other methods in this pipeline, like 'ebayes')
+                  algo_de = "my_dea_stats")
+
+  cat("Example custom DEA implementation, my_dea_stats(), yielded", sum(is.finite(result$qvalue) & result$qvalue<=0.01), "hits at qvalue<=0.01\n")
+  return(result)
+}
+```
+
+
+## let's run MS-DAP !
+
+To use a custom function, we just write the _name of the R function_ as parameters. Do not confuse this with the 'algo_de' name given in the result tibble of your dea function, that is merely the label used in output plots and tables. We remember the LFQbench dataset is a comparison of 2 conditions with 3 replicated measurements each, and apply feature selection rules accordingly.
+
+note that 'dea_norm_modebetween_protein_eset' is a crucial parameter in this case, while testing our custom normalization function.
+
+```{r}
+dataset = analysis_quickstart(dataset,
+                              filter_min_detect = 2,
+                              filter_min_quant = 3,
+                              norm_algorithm = "my_norm", # custom norm !
+                              dea_norm_modebetween_protein_eset = FALSE, # do not apply additional normalization on protein-level after roll-up from "my_norm" normalized peptides to protein-level
+                              dea_algorithm = c("ebayes", "my_dea_stats"), # we use good ol' eBayes for reference, and our custom dea !
+                              dea_qvalue_threshold = 0.05,
+                              dea_log2foldchange_threshold = NA, # estimate a fold-change threshold for proteins to be significant
+                              output_qc_report = FALSE, # disabled in this document, but do create a QC report when testing code to review those volcano's, p-value and foldchange distributions !
+                              output_peptide_plots = "none",
+                              output_dir = getwd(), # optionally, change the output directory (now files are printed to the working directory)
+                              output_within_timestamped_subdirectory = FALSE)
+```
+
+
+Print the number of significant proteins
+```{r}
+print(dataset$de_proteins %>% 
+        group_by(algo_de) %>% 
+        summarise(`1% FDR` = sum(qvalue <= 0.01),
+                  `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
+```
+
+
+A simple Venn diagram of proteins at 1% FDR for each method shows our custom function identifies a subset of the results from limma's ebayes function, so we verified that the example implementation doesn't yield random stuff.
+```{r}
+gplots::venn(list(ebayes=dataset$de_proteins %>% filter(algo_de=="ebayes" & qvalue <= 0.01) %>% pull(protein_id),
+                  my_dea_stats=dataset$de_proteins %>% filter(algo_de=="my_dea_stats" & qvalue <= 0.01) %>% pull(protein_id)))
+```
+

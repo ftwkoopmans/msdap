@@ -1,0 +1,164 @@
+
+#' the set of available normalization algorithms
+#' @export
+normalization_algorithms = function() {
+  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "modebetween")
+}
+
+
+
+#' Normalize a numeric matrix
+#'
+#' @param x_as_log2 the numeric matrix, all values must be log2 transformed
+#' @param algorithm the normalization algorithm to apply. Either one of the built-in options, see normalization_algorithms(), or the name of your custom normalization function (see online documentation/examples)
+#' @param mask_sample_groups a character array of the same length as the number of columns in the provided data matrix, describing the grouping of each column/sample
+#'
+#' @importFrom limma normalizeCyclicLoess
+#' @importFrom vsn justvsn
+#' @export
+normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA) {
+  #input validation; not a valid input object, silently return
+  if (!is.matrix(x_as_log2) || nrow(x_as_log2) == 0 || ncol(x_as_log2) < 2 || length(algorithm) != 1 || is.na(algorithm) || algorithm == "") {
+    return(x_as_log2)
+  }
+
+  if (any(rowSums(!is.na(x_as_log2)) == 0)) {
+    append_log("Remove all rows that have only NA values prior to normalization", type = "error")
+  }
+
+  x_as_log2[!is.finite(x_as_log2)] = NA
+  valid_mask = length(mask_sample_groups) == ncol(x_as_log2) && all(!is.na(mask_sample_groups) & mask_sample_groups != "")
+
+  if (algorithm == "median") {
+    return(normalize_median(x_as_log2))
+  }
+
+  if (algorithm == "loess") {
+    # limma package
+    return(limma::normalizeCyclicLoess(x_as_log2, iterations = 10, method = "fast"))
+  }
+
+  if (algorithm == "rlr") {
+    # implementation from MSqRob, application of MASS package
+    return(normalize_rlr(x_as_log2))
+  }
+
+  if (algorithm == "vsn") {
+    # vsn package
+    return(suppressMessages(vsn::justvsn(2^x_as_log2))) # justvsn wants non-log input
+  }
+
+  if (algorithm == "vwmb") {
+    if (!valid_mask) {
+      append_log("vwmb normalization requires a definition of sample groups for within- and between-group normalization", type = "error")
+    }
+    return(normalize_vwmb(x_as_log2, groups=mask_sample_groups)) # use default settings
+  }
+
+  if (algorithm == "modebetween") {
+    if (!valid_mask) {
+      append_log("'mode between' normalization requires a definition of sample groups for between-group normalization", type = "error")
+    }
+    return(normalize_vwmb(x_as_log2, groups=mask_sample_groups, metric_within = "")) # disable within-group normalization
+  }
+
+  if (algorithm == "msempire") {
+    if (!valid_mask) {
+      append_log("MS-EmpiRe normalization requires a definition of sample groups for within-group normalization", type = "error")
+    }
+    if (length(unique(mask_sample_groups)) != 2) {
+      append_log("MS-EmpiRe normalization only supports normalization between 2 groups", type = "error")
+    }
+    capture.output(result <- log2(suppressMessages(normalize_msempire(2^x_as_log2, mask_sample_groups))))
+    return(result)
+  }
+
+  # guess if the user provided some custom function for normalization
+  if (algorithm %in% ls(envir=.GlobalEnv)) {
+    f = match.fun(algorithm)
+    result = f(x_as_log2 = x_as_log2, mask_sample_groups = mask_sample_groups)
+    # validation checks on expected output, to facilitate debugging/feedback for custom implementations
+    if(!is.matrix(result) || nrow(result) != nrow(x_as_log2) || ncol(result) != ncol(x_as_log2) || colnames(result) != colnames(x_as_log2) || mode(result) != "numeric" || any(!is.na(result) & is.infinite(result))) {
+      append_log(sprintf("provided custom function for normalization '%s' must return a numeric matrix (either NA or numeric values, no infinites) with the same dimensions and column names as the input matrix", algorithm), type = "error")
+    }
+    return(result)
+  }
+
+  # fall-through for unknown params
+  append_log(paste("unsupported normalization parameter:", algorithm), type = "error")
+}
+
+
+#' simply scale samples by median value
+#' @param x_as_log2 log2 transformed abundance values
+#' @param ... remaining parameters are ignored
+#' @importFrom matrixStats colMedians
+normalize_median = function(x_as_log2, ...) {
+  s = matrixStats::colMedians(x_as_log2, na.rm=T)
+  s = s - mean(s)
+  # slightly faster than looping columns  or  t(t(x_as_log2) - scale_per_sample)
+  return(x_as_log2 - rep(s, rep.int(nrow(x_as_log2), ncol(x_as_log2))) )
+}
+
+
+
+#' adapted from msEmpiRe::normalize(), supports any input matrix + definition of groups
+#' input expected as finite values, not log transformed
+#' @param x todo
+#' @param mask_sample_groups todo
+#'
+#' @importFrom Biobase ExpressionSet annotatedDataFrameFrom fData pData exprs
+#' @importFrom msEmpiRe normalize
+normalize_msempire = function(x, mask_sample_groups) {
+  # create mock Biobase::ExpressionSet
+  eset_input = Biobase::ExpressionSet(
+    assayData = x,
+    featureData = Biobase::annotatedDataFrameFrom(x, byrow = T),
+    protocolData = Biobase::annotatedDataFrameFrom(x, byrow = F)
+  )
+  rn = paste0("s", 1:nrow(x))
+  Biobase::fData(eset_input) = data.frame(sequence = rn, row.names = rn, stringsAsFactors = T)
+  Biobase::pData(eset_input) = data.frame(samples = colnames(x), condition = mask_sample_groups, row.names = colnames(x), stringsAsFactors = F)
+
+  # actual normalization
+  eset_norm = msEmpiRe::normalize(eset_input)
+  x_norm = Biobase::exprs(eset_norm)
+  x_norm[!is.finite(x_norm) | x_norm == 0] = NA
+  return(x_norm)
+}
+
+
+
+#' sourced from MSqRob package, original code @ https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R
+#' @param exprs todo
+#' @param weights todo
+#'
+#' @importFrom MASS rlm
+normalize_rlr_MSqRob_implementation = function(exprs, weights = NULL) {
+  mediandata = apply(exprs, 1, "median", na.rm = TRUE)
+  flag1 = 1
+  for (j in 1:ncol(exprs)) {
+    LRfit = MASS::rlm(as.matrix(exprs[, j]) ~ mediandata, weights = weights, na.action = na.exclude)
+    Coeffs = LRfit$coefficients
+    a = Coeffs[2]
+    b = Coeffs[1]
+    if (flag1 == 1) {
+      globalfittedRLR = (exprs[, j] - b) / a
+      flag1 = 2
+    }
+    else {
+      globalfittedRLR = cbind(globalfittedRLR, (exprs[, j] - b) / a)
+    }
+  }
+  return(globalfittedRLR)
+}
+
+
+
+#' placeholder title
+#' @param x todo
+normalize_rlr = function(x) {
+  y = normalize_rlr_MSqRob_implementation(x)
+  dimnames(y) = dimnames(x)
+  return(y)
+}

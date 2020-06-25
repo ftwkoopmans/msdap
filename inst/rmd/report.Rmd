@@ -1,0 +1,566 @@
+---
+title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
+subtitle: 'version: beta 0.2.2  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+fontsize: 11pt
+geometry: margin=0.5in
+---
+
+
+```{r setup, include=FALSE}
+# setting crop=NULL prevents PDF cropping, while it desirable in many cases it produces problems we cannot currently resolve on unix systems
+knitr::opts_chunk$set(echo = FALSE, dpi=300, fig.width=7, fig.height=3.5, fig.align="center", tidy.opts=list(width.cutoff=80), tidy=TRUE, crop = NULL)
+```
+
+
+
+\newpage
+# Quality control
+
+The quality control figures in this section enable you to investigate reproducibility and global clustering of samples by visualizing:
+
+* number of peptides/proteins detected in each sample
+* dataset completeness
+* local effects in HPLC peptide retention time per sample
+* reproducibility of peptide quantification among replicates
+* PCA of all samples to visualize clustering
+
+The first set of quality control figures describes individual samples, thereafter group-level quality metrics are described and finally sample clustering is used to highlight structure in the entire dataset.
+
+
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=3}
+if(exists("ggplot_cscore_histograms") && length(ggplot_cscore_histograms) > 0) {
+  cat("## DIA confidence score distributions \n\n")
+  cat("DIA data was used as input for this analysis. Below histograms visualize both target (green) and decoy (grey) cscores in each sample, indicating how confident the input software was in the identification of peptides from the spectral library in the raw DIA data. Samples are ordered by the number of precursors quantified at q-value confidence threshold 0.01. At this threshold, the respective cscore and number of peptides is shown. \n\n")
+
+  for(p in ggplot_cscore_histograms) {
+    suppressWarnings(print(p))
+    cat('\n\n')
+  }
+}
+```
+
+
+## number of peptides and proteins
+These plots show the number of (target) peptides that are 'detected' per sample. For DDA, 'detected' implies the peptide has a MS/MS identification. Peptides quantified through match-between-runs (MBR) are quantified but not detected/identified. In case of DDA, we also show the number of peptides quantified through MBR. For DIA, we refer to a peptide as 'detected' if the confidence score (for identification) is <= 0.01.
+
+Samples in this plot are sorted by their experimental group, and then ordered and by their name within each group. This data is also available in the output table 'samples.xlsx'.
+
+
+```{r}
+# plot height scales with number of samples
+barplot_ht = min(9, 1.5 + 0.2 * nrow(dataset$samples))
+
+samples_metadata_counts_colors = samples_colors_long %>%
+  filter(!grepl("(detected|all)_(peptides|proteins)", prop)) %>%
+  left_join(dataset$samples %>% select(shortname, detected_peptides), by = "shortname") %>%
+  droplevels() # important to drop unused factor levels after filtering !
+
+samples_metadata_counts_colors$shortname = as.factor(samples_metadata_counts_colors$shortname)
+jit = runif(seq_along(levels(samples_metadata_counts_colors$shortname)), -0.2, 0.2)
+samples_metadata_counts_colors$sample_jitter = jit[as.numeric(samples_metadata_counts_colors$shortname)]
+
+sm_scatterplot_ht = min(10, 1.5 + 0.2 * length(levels(samples_metadata_counts_colors$prop)))
+```
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
+suppressWarnings(print(ggplot_sample_detect_counts_barplots(dataset$samples, samples_colors_long)))
+```
+
+
+\newpage
+### color-coding sample metadata
+
+The number of detected peptides in a sample, as compared to other samples within a dataset, can be used as a measure for sample quality. Color-coding individual samples for metadata that you provided as input (e.g. experiment batch, sample handling order, gel lanes, etc.) allows visual inspection as to whether these relate to the rate of successful peptide detection.
+
+The figure below aims to provide an overview of all sample metadata at a first glance. The y-axis shows all sample metadata. On each row all samples in the dataset are shown as a dot, each color-coded by the respective property shown on the y-axis (with minor vertical jitter for visual clarity). If there is a major effect of any experimental condition on the number of detected peptides, this is easily spotted as all outlier samples (extremes in number peptide detection, x-axis) will have the same color. The following figures expand this overview into a detailed figure for each sample property, those visualization are designed to further dive into each experimental condition and provide respective color legends.
+
+Note that the visualization of sample metadata in this report depends on user-provided input; each column in the metadata input table (besides sample names) that contains more than 1 unique value is automatically used as a factor for color-coding all figures in this section. So the data used for color-coding is also available in the output table 'samples.xlsx'.
+
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=sm_scatterplot_ht}
+print(ggplot_sample_detect_vs_metadata_scatterplot(samples_metadata_counts_colors))
+```
+
+
+**color-coding sample metadata, expanded**
+
+To further detail each sample property, each row in the above figure is now split into separate plots. Thus, a figure is generated for each experimental condition from the user-provided metadata (column in the samples table, it's name shown in the plot title).
+
+The y-axis shows all unique variables, the x-axis the number of detected peptides and each dot is a sample. The vertical line indicates the median value for each row. Colors are consistent with the above plot.
+
+For example: the first plot shows color-coding by the 'group' property, so each row represents a sample group. If samples in a particular group systematically yield fewer peptides than another group, a clear pattern will be visible.
+
+Note that the _exclude_ metadata is a user-provided indication of 'outlier samples' in the dataset that are excluded from downstream statistical analysis.
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+l = ggplot_sample_detect_vs_metadata_scatterplot_by_prop(samples_metadata_counts_colors)
+for(prp in names(l)) {
+  subchunkify(print(l[[prp]]$plot), unique_chunk_id = paste0("detect_vs_metadata_scatterplot_", prp), fig_height = min(10, 1.5 + 0.2 * l[[prp]]$n), fig_width = 7)
+  cat('\n\n')
+}
+```
+
+
+\newpage
+## data completeness
+
+To visualize how many peptides are consistently identified in multiple samples, the first figure summarizes how common missing values are in the entire dataset. Optimally, most peptides are identified in 100% of samples and this curve slowly falls of. The following figure shows for each sample whether its peptides are also present in other samples in the dataset or whether these are unique to a (minor) subset of samples. You can use this mark of experimental consistency to compare datasets generated by similar protocols and mass-spec acquisition.
+
+
+### cumulative distribution
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.width=5, fig.height=5}
+suppressWarnings(print(ggplot_peptide_detect_frequency_distribution(dataset$peptides, dataset$samples, include_quant = !isdia, remove_exclude_samples = TRUE)))
+```
+
+Samples flagged as 'exclude' (by user) are not taken into account in this figure. Exact values are shown for data points matching 90% and 50% of samples to convenience comparison between analyses (e.g. before/after configuring 'exclude' samples, or comparing between experiments of similar protocol).
+
+
+### peptide detection frequency
+
+Each identified peptide in a sample is classified and color-coded by the number of other samples where the same peptide is present. Visualization of the amount of peptides that overlap with other samples in the dataset, from peptides identified in most samples (red) to one-hit-wonders (blue), helps identify uncommon samples (more blue/green than other samples). 
+
+Optimally, the majority of peptides in each sample are red~orange with relatively few uniquely identified peptides (blue~green). Samples are sorted by the total amount of detected peptides.
+
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
+suppressWarnings(print(ggplot_peptide_detect_frequency(dataset$peptides, dataset$samples)))
+```
+
+
+
+
+\newpage
+## abundance distributions
+
+The figures in this subsection are used to identify unexpected mass-spec sensitivity or sample loading differences. Peptide data is shown as provided in input files, so peptide filtering nor intensity normalization has been applied yet (for proper QC, make sure the software that generated the input data did not apply normalization prior). If the dataset is DDA, match-between-runs (MBR) peptides are included in these distributions whereas for DIA only 'detected' peptides (based on confidence score threshold) are included.
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+p_intensity = plot_abundance_distributions(dataset$peptides, dataset$samples, isdia)
+
+print(p_intensity$intensity_distributions_all)
+cat('\n\n')
+for(p in p_intensity$intensity_distributions_bygroup) {
+  suppressWarnings(print(p))
+  cat('\n\n')
+}
+```
+
+ 
+
+
+\newpage
+## retention time 
+The figures in this section allow you to identify potential problems during HPLC elution, such as a temporarily blocking column, failing ionization spray or decreasing sensitivity over time. For each sample, all peptides that are also observed in a replicate (such that there is a point of reference available) are visualized.
+
+### retention time distributions 
+The density of the number of peptides eluting at each point in time. The figure below presents an overview of all samples that allows for the identification of outlier samples that follow distinct elution patterns. The following section shows details for each sample. Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
+
+```{r, echo=F, message=F, warning=F, results="asis"} 
+p_rt = plot_retention_time_v2(dataset$peptides, dataset$samples, isdia)
+suppressWarnings(print(p_rt$rt_distributions_all))
+``` 
+
+### retention time local effects 
+To investigate how each measurement differs from others, we visualize each sample as a 3 panel figure. First, the data is binned across the retention time dimension (x-axis). If a samples was marked as 'exclude' in the provided sample metadata, this is indicated in the plot title.
+
+The top panel shows the number of peptides in the input data, e.g. as recognized by the software that generated input for this pipeline, over time (black line). For reference, the grey line shows the median amount over all samples (note; if this is the exact same in all samples, the grey line may not be visible as it falls behind the black line).
+
+The middle panel indicates whether peptide retention times deviate from their median over all samples (blue line). The grey area depicts the 5% and 95% quantiles, respectively. The line width corresponds to the number of peptides eluting at that time (data from first panel). Analogously, the bottom panel shows the deviation in peptide abundance as compared to the median over all samples (red line).
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=4.75} 
+for(p in p_rt$rt_by_sample) {
+  suppressWarnings(print(p))
+  cat('\n\n') 
+}
+``` 
+
+
+
+
+\newpage
+## variation among replicates 
+The reproducibility of replicate measurements is expressed in three different analyses. First, the difference between peptide intensities in each sample are compared to the mean value among all replicates (foldchange distributions). Next, the Coefficient of Variation (CoV) is used as a metric for reproducibility to explore how much the CoV within a sample group can be improved by removing a single sample (eg; if CoV strongly improved after removing sample s, it could be regarded as an outlier). Finally, the CoV within each sample group is visualized as a boxplot and a violin plot, figures commonly seen in proteomics literature and useful for comparing across experiments (of similar protocol).
+
+### within-group foldchange distributions
+The foldchange of all peptides in a sample is compared to their respective mean value over all samples in the group. This visualizes how strongly each sample deviates from other samples in the same group which helps identify outlier samples. The same data was used as detailed in the "retention time" section above. Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.width=7, fig.height=4.5}
+p_group_mean_foldchange = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
+for(p in p_group_mean_foldchange) {
+  suppressWarnings(print(p))
+  cat('\n\n')
+}
+``` 
+
+
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+cat('\n\\newpage \n')
+cat("### CoV, leave-one-out \n\n")
+isplot_cov_loo = FALSE
+
+# if("intensity_qc_cov_loo" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_qc_cov_loo))) {
+if("intensity_qc_basic" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_qc_basic))) {
+  # generate figures
+  p_cov_loo = suppressWarnings(ggplot_coefficient_of_variation__leave_one_out(dataset$peptides, dataset$samples, samples_colors))
+  if(length(p_cov_loo) > 0 && "loo_bygroup" %in% names(p_cov_loo)) {
+    # print documentation
+    cat("The figures below describe the effect of removing a particular sample prior to within−group Coefficient of Variation (CoV) computation. The lower the CoV distribution is for a sample, the better reproducibility we get by excluding it. Only sample groups with at least 4 replicates can be used for this analysis, so 3 samples remain after leaving one out. Samples marked as 'exclude' in the provided sample metadata are included in these analyses (shown as dashed lines), and only peptides with at least 3 data points across replicates samples (after leave-one-out) are used for each CoV computation. \n\n")
+
+    # plot
+    for(p in p_cov_loo$loo_bygroup) {
+      suppressWarnings(print(p))
+      cat('\n\n') 
+      isplot_cov_loo = TRUE
+    }
+  }
+}
+
+# warning if figures could not be shown
+if(!isplot_cov_loo) {
+  cat("_No CoV leave-one-out computations could be made, the dataset lacks sample groups with at least 4 replicate samples._ \n\n")
+}
+``` 
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+if(exists("p_cov_loo") && length(p_cov_loo) > 0 && "loo_combined" %in% names(p_cov_loo)) {
+  suppressWarnings(print(p_cov_loo$loo_combined))
+}
+``` 
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+if(exists("p_cov_loo") && length(p_cov_loo) > 0 && "tbl_loo_cov" %in% names(p_cov_loo)) {
+  # cat('\n\\newpage \n')
+  rmarkdown_xtable_custom(p_cov_loo$tbl_loo_cov, caption = "CoV leave-one-out") #, align="lllllp{3.5in}")
+  # print(knitr::kable(p_cov_loo$tbl_loo_cov, format = "latex"))
+  cat('\n _Leave-one-out impact on within-group CoV (%)_ \n\n')
+  
+  ## dev note; could not refrain more fancy formatted tables from floating in large datasets, causing the table to end up at the bottom of the PDF...
+  # !! escape the % character as the caption is directly translated to latex by xtable (and otherwise we inject a comment character...). so we'd use "\\%"
+  # print(xtable::xtable(p_cov_loo$tbl_loo_cov, caption = "Leave-one-out impact on within-group CoV (percentage)", scalebox = 0.8, floating = FALSE), include.rownames = FALSE, comment=FALSE)
+  # print(kableExtra::kable_styling(knitr::kable(p_cov_loo$tbl_loo_cov, caption = "Leave-one-out impact on within-group CoV (percentage)", format = "latex", booktabs = TRUE), latex_options = c("striped", "hold_position")))
+  # knitr::kable(output, "latex", booktabs = TRUE, longtable = TRUE, caption = "Leave-one-out impact on within-group CoV (percentage)", scalebox = 0.8) %>% kableExtra::kable_styling(latex_options = c("hold_position", "repeat_header"))
+  # cat('\n\n')
+
+  ## dev note; as figure doesn't scale too well for large datasets, even with {r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
+  # print( gridExtra::grid.table(p_cov_loo$tbl_loo_cov, rows = NULL) )
+  # print( ggpubr::ggtexttable(p_cov_loo$tbl_loo_cov, rows = NULL, cols = colnames(p_cov_loo$tbl_loo_cov), theme = ggpubr::ttheme("classic")) )
+  # cat('\n _Leave-one-out impact on within-group CoV (%)_ \n\n')
+}
+``` 
+
+
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+cat('\n\\newpage \n')
+cat("### Coefficient of Variation \n\n")
+isplot_cov = FALSE
+if(any(!is.na(dataset$peptides$intensity_by_group))) {
+  p_cov = suppressWarnings(ggplot_coefficient_of_variation(dataset$peptides, dataset$samples, samples_colors))
+  if(length(p_cov) > 0 && "boxplot" %in% names(p_cov)) {
+    # print documentation
+    cat("The Coefficient of Variation (CoV) is a quality metric for the reproducibility of replicate measurements, here visualized using box- and violin-plots. \n\n")
+    cat("The same data was used as detailed in the \"retention time\" section above, with only peptides quantified in at least 3 replicates used for CoV computation in a group. Only samples that are NOT marked 'exclude' in the provided sample metadata and are in a sample group among at least 3 replicates are used for these figures. \n\n")
+
+    #plot
+    suppressWarnings(print(p_cov$boxplot))
+    isplot_cov = TRUE
+  } 
+}
+
+# warning if figures could not be shown
+if(!isplot_cov) {
+  cat("_No CoV computations could be made, the dataset lacks sample groups with at least 3 replicate samples._ \n\n")
+}
+``` 
+
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+if(exists("p_cov") && length(p_cov) > 0 && "violin" %in% names(p_cov)) {
+  suppressWarnings(print(p_cov$violin))
+}
+``` 
+
+
+
+
+\newpage
+## PCA 
+A visualization of the first three PCA dimensions illustrates sample clustering. The goal of these figures is to detect global effects from a quality control perspective, such as samples from the same experiment batch clustering together, not to be sensitive to a minor subset of differentially abundant proteins (for which specialized statistical models can be applied downstream). 
+
+If additional sample metadata was provided, such as experiment batch, sample-prep dates, gel, etc., multiple PCA figures will be generated with respective color-codings. Users are encouraged to provide relevant experiment information as sample metadata and use these figures to search for unexpected batch effects.
+
+The pcaMethods R package is used here to perform the Probabilistic PCA (PPCA). The set of peptides used for this analysis consists of those peptides that pass your filter criteria in every sample group. If any samples are marked as 'exclude' in the provided sample metadata, an additional PCA plot is generated with these samples included (depicting the 'exclude' samples as square symbols).
+
+**Rationale behind data filter** \
+As mentioned above, the aim of the PCA figures is to identify global effects. To achieve this, we compute sample distances on the subset of peptides identified in each group which prevents rarely detected peptides/proteins from having a disproportionate effect on sample clustering. This pertains not only to 'randomly detected contaminant proteins' but also to proteins with abundance levels near the detection limit, which may be detected in only a subset of samples (eg; some measurements will be more successful/sensitive than others).
+
+**Figure legends** \
+The first 3 principle components compared visually (1 _vs_ 2, 1 _vs_ 3, 2 _vs_ 3) on the rows. Left- and right-side panels on each row represent the same figure without and with sample labels. The principle components are shown on the axis labels together with their respective percentage of variance explained. Samples marked as 'exclude' in the provided sample metadata, if any, are visualized as square shapes.
+
+```{r, echo=F, message=F, warning=F, results="asis", fig.height=9.5, fig.pos='h'}
+
+if(any(dataset$samples$exclude) && "intensity_all_group_withexclude" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_all_group_withexclude))) {
+  tibw_withexclude = dataset$peptides %>% select(key_peptide, sample_id, intensity_all_group_withexclude) %>% filter(!is.na(intensity_all_group_withexclude)) %>%
+    pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group_withexclude)
+
+  # note that we select only the color-coding for sample groups for the PCA that includes outliers
+  p_pca__incl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_withexclude), dataset$samples, samples_colors %>% select(sample_id, shortname, group), label_samples_by_shortname = pca_label_samples_by_shortname))
+
+  cat('\n\\newpage \n')
+  cat(sprintf("\n**PCA of all samples, including those flagged as \'exclude\', using %d peptides** \\ \n", nrow(tibw_withexclude)))
+
+  for(p in p_pca__incl_outliers) {
+    suppressWarnings(print(p))
+    cat('\n\n')
+  }
+}
+
+
+if("intensity_all_group" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_all_group))) {
+  tibw_noexclude = dataset$peptides %>% select(key_peptide, sample_id, intensity_all_group) %>% filter(!is.na(intensity_all_group)) %>%
+    pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group)
+
+  cat('\n\\newpage \n')
+  cat(sprintf("\n**PCA only on samples not flagged as \'exclude\', using %d peptides** \\ \n", nrow(tibw_noexclude)))
+  
+  p_pca__excl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_noexclude), dataset$samples, samples_colors, label_samples_by_shortname = pca_label_samples_by_shortname))
+  for(p in p_pca__excl_outliers) {
+    suppressWarnings(print(p))
+    cat('\n\n')
+  }
+}
+```
+
+
+
+
+
+
+```{r echo=F, message=F, warning=F, results='asis'}
+if(length(l_contrast) > 0) {
+  cat("\n\\newpage \n# Differential abundance analysis \n\n")
+  cat('**goal: maximize reliable features for quantification** \n \n')
+  cat('In a pairwise analysis of two groups of samples, only peptides with N data-points in both groups are used for quantitative analysis (where N = defined by user settings). For example; if peptide *p* is consistently quantified in sample groups A and B but not in C/D/E, it can be used when comparing group A *versus* group B but should not be used in any other group comparisons. This approach is particularly suited to maximize the number of peptides used for statistical analysis in experimental designs with many sample groups. \n\n')
+  cat('A common alternative strategy is a global filtering approach where peptides are selected based on their properties in the overall dataset (eg; present in x% of samples or x% of replicates in all groups) and subsequentially the resulting data matrix is used for all downstream statistical analyses. In the example above where peptide *p* is present in a subset of sample groups, *p* would either be left out (not present in majority of samples in entire dataset) or erronously used when applying t-statistics to groups B and C (since *p* is not present in group C, it may differentially detected but there are no features available for quantitative analysis) \n\n')
+  
+  has_msqrob = "msqrob" %in% dataset$de_proteins$algo_de
+  has_msempire = "msempire" %in% dataset$de_proteins$algo_de
+  for(contr in names(l_contrast)) {
+    # cat('\n## ', contr, '\n\n')
+    cat('\n## ', unlist(lapply(strsplit(sub("^contrast:\\s*", "", contr), " vs ", fixed = T), function(x) paste(stringr::str_trunc(x, 35, "right"), collapse = " vs "))), '\n\n') # analogous to formatting contrast shortnames for table tib_report_stats_summary @ report main function
+    
+  
+    col_contr_intensity = get_column_intensity(dataset$peptides, contr)
+    cat("*", sprintf("**user setting:** using '%s' peptide filtering approach", names(col_contr_intensity)), " \n\n")
+  
+    tib_log = dataset$peptides %>% filter(!is.na(!!col_contr_intensity)) %>% summarise(n_precursor=n_distinct(peptide_id), n_prot=n_distinct(protein_id))
+    cat("*", sprintf("%d peptides in %d proteins remain in the current contrast after peptide filters and are used for the statistical analysis in this section", tib_log$n_precursor[1], tib_log$n_prot[1]), " \n\n")
+  
+    contr_line1 = dataset$de_proteins %>% filter(contrast == contr) %>% head(n=1)
+    cat("* qvalue threshold:", contr_line1 %>% pull(signif_threshold_qvalue), " \n\n")
+    cat("* log2 foldchange threshold:", contr_line1 %>% pull(signif_threshold_log2fc), " \n\n")
+  
+    cat('\n### volcano \n\n')
+    cat('The plot title shows the statistical model and contrast (sample groups in the comparison). Left- and right-side figure panels on each row represent the same figure without and with labels for the 25 proteins with lowest p-value. \n\n')
+    cat('Bottom figure panels have limited x- and y-axis. For datasets with a small number of strong outliers in p-value or fold-change, which may have a profound effect on the plot scales, this allows inspection of the remainder of the volcano plot without disproportionate influence by \'extreme\' values. \n\n')
+  
+    i=0
+    for(p in l_contrast[[contr]]$p_volcano_contrast) {
+      subchunkify(print(p), unique_chunk_id = paste0("volcano_", contr, "_", i), fig_height = 8, fig_width = 7)
+      cat('\n\n') 
+      i = i + 1
+    }
+  
+    cat('\n\\newpage \n')
+    cat('\n### foldchange distribution \n\n') 
+    cat('Distributions of estimated foldchanges produced by the statistical models. If the mode is far from 0, consider alternative normalization strategies. Do note the scale on the x-axis, for some experiments the foldchanges are very low which in turn may exaggerate this figure. \n\n') 
+  
+    if(has_msqrob) {
+      cat("*note; the MSqRob model tends to assign zero (log)foldchange for proteins with minor difference between conditions where the model is very sure the null hypothesis cannot be rejected (shrinkage by the ridge regression model). As a result, many foldchanges will be zero and the density plot for MSqRob may look like a spike instead of the expected Gaussian shape observed in other models* \n\n") 
+    }
+
+    subchunkify(print(l_contrast[[contr]]$p_foldchange_density), unique_chunk_id = paste0("foldchange_density_", contr), fig_height = 7, fig_width = 7)
+
+    cat('\n\\newpage \n')
+    cat('\n### p-value distribution \n\n') 
+    cat('Histogram of p-values computed by differential expression analysis algorithms, as-is, for quality-control inspection. The horizontal line indicates the expected counts assuming a uniform distribution (total number of p-values divided by number of histogram bins)\n\n')
+    cat('See further: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6164648/ \n\n')
+    cat('See further: http://varianceexplained.org/statistics/interpreting-pvalue-histogram/ \n\n')
+  
+    if(has_msqrob || has_msempire) {
+      cat("*note; the MSqRob and MS-EmpiRe models often yield p-value distributions that show a large peak at p-value 1, these are typically proteins with estimated log foldchanges at/near zero where these models are very sure the null hypothesis cannot be rejected* \n\n") 
+    }
+
+    subchunkify(print(l_contrast[[contr]]$p_pvalue_hist), unique_chunk_id = paste0("pvalue_hist_", contr), fig_height = 7, fig_width = 7)
+
+
+    ## differential detect
+    if(exists("dd_plots") && contr %in% names(dd_plots)) {
+      cat('\n\\newpage \n')
+      cat('\n### differential detect \n\n')
+      cat('Some proteins may not have peptides with sufficient abundance values for differential expression analysis, but do show strong differences in the number of detected peptides between sample groups. A simple z-score is computed for each protein based on the number of detected peptides per sample group. DEA is much more powerful for differential testing, but theze z-scores can offer complementary information in some experimental designs (e.g. a wildtype-knockout APMS study). \n\n')
+      cat('Below figure shows the distribution of these scores with thresholds at 2 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
+      
+      subchunkify(print(dd_plots[[contr]]), unique_chunk_id = paste0("dd_hist_", contr), fig_height = 4, fig_width = 4)
+      # cat('\n\n **top10 candidate genes:** \n\n')
+      # cat(paste(head(dd_plots[[contr]]$genes, 10), collapse = ", "), "\n")
+    }
+
+
+
+    cat('\n\\newpage \n')
+  }
+}
+``` 
+
+
+
+
+```{r, echo=F, message=F, warning=F, results="asis"} 
+if(exists("tib_report_stats_summary")) {
+  cat("\n\\newpage \n# Summary of differential testing \n\n")
+  cat("Differential Expression Analysis: number of proteins found statistically significant. \n\n")
+  #  The number of hits after optional post-hoc filtering by (absolute) foldchange is also shown.
+  
+  rmarkdown_xtable_custom(tib_report_stats_summary, caption = "Significant hits", align="lp{2in}lllp{3in}", scalebox = 0.9)
+  # print(xtable::xtable(tib_report_stats_summary, caption = "Significant hits", scalebox = 0.8), floating = FALSE, include.rownames = FALSE, comment=FALSE)
+  #knitr::kable(tib_report_stats_summary, caption = "Significant hits", format="latex", booktabs=TRUE) %>% kable_styling(latex_options="scale_down")
+  cat('\n\n')
+
+
+  ## differential detect
+  cat('\\bigskip \n\n')
+  cat('\\bigskip \n\n')
+  cat("Differential Detection: prioritize proteins with more peptide detections in some group. A simple metric to complement results from DEA, which is the main result (eg; consider proteins with too few data points for DEA). \n\n")
+  if(exists("tib_report_diffdetects_summary")) {
+    rmarkdown_xtable_custom(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", align="lp{2in}llp{3.5in}", scalebox = 0.9)
+    # print(kableExtra::column_spec(knitr::kable(tib_report_diffdetects_summary, format="latex", row.names = FALSE), 4, width = "4in"))
+    # print(xtable::xtable(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", scalebox = 0.8, floating = FALSE), include.rownames = FALSE, comment=FALSE)
+    cat('\n\n')
+  }
+
+}
+``` 
+
+
+
+
+
+```{r, results = 'asis', echo = F}
+if(exists("log_") && length(log_) > 0) {
+  cat('\n\\newpage \n')
+  cat('# log \n')
+  cat('\\scriptsize \n')
+
+  # if the log is a list assume the first element in each is the log message (eg; like logger.default(), where each entry has multiple values)
+  if(is.list(log_)) {
+    if(all(lengths(log_) >= 2)) {
+      # simply print text
+      for(i in seq_along(log_)) {
+        s = log_[[i]]
+        cat("[", s[2], "] ", s[1], " \n\n", sep="")
+      }
+      ### TODO: color-coding is a work-in-progress
+      # convert to 2-column matrix
+      # log_tib = as_tibble(matrix(unlist(lapply(log_, head, 2), use.names = F), ncol=2, byrow = T, dimnames=list(NULL, c("msg", "type"))))
+      # log_tib$clr = sapply(log_tib$type, log_type_to_color, format="latex")
+      # log_tib$msg_linewrap = stringr::str_wrap(log_tib$msg, width = 100)
+      # l = strsplit(log_tib$msg_linewrap, "\n", fixed=T)
+      # for(i in seq_along(l)) {
+      #   s = paste(sprintf("\\textcolor{%s}{%s}", log_tib$clr[i], escapeLatexSpecials(l[[i]]) ), collapse = "\n")
+      #   cat("\\textcolor{", log_tib$clr[i], "}{[", log_tib$type[i], "] ", s, "}  \n\n\n", sep="")
+      # }
+
+    } else {
+      log_ = unlist(lapply(log_, head, 1), use.names = F) # simplest solution; no color-coding
+      cat(gsub("\n", "  \n\n", paste(stringr::str_wrap(s, width = 100), collapse=" \\ \n"), fixed=T), "  \n\n\n")
+    }
+
+  } else {
+    # if(is.list(log_)) { log_ = unlist(lapply(log_, head, 1), use.names = F) } # simplest solution; no color-coding
+    for(s in log_) {
+      cat(gsub("\n", "  \n\n", paste(stringr::str_wrap(s, width = 100), collapse=" \\ \n"), fixed=T), "  \n\n\n")
+    }
+  }
+
+  cat('\n\\normalsize \n')
+}
+```
+
+
+\newpage
+# R command history
+
+This shows the history commands from your R script that starts this pipeline, thereby automatically documenting the parameters/settings used. All lines of executed code since (last) importing data using this R package are shown.
+
+**Using this feature**
+
+Do not use RStudio's `source` option to execute our pipeline since it will only write `source(...yourscript.R)` to the session history, and consequentially that is all you see in this 'code log'. Instead, select all lines in your script (`control + A`) and then "run" the selected code (either click the run button in RStudio, or use `control + enter`). All lines shown in this section are the same as shown in the RStudio 'History' pane (a tab on the top-right of its UI).
+
+\scriptsize
+
+```{r, results = 'asis', echo = F}
+#, you can reset these through the RStudio UI before making your 'final' analysis to generate a clean 'code log' (for advanced users, you can start your script with `rstudioapi::executeCommand("clearHistory")` to clear history)
+
+# try to format code (throws error if there are lines that yield syntax errors)
+formatted_code = tryCatch(subset_relevant_code_snippet_for_report(format_r_code(history_as_string)), error = function(e) {""})
+cat('```r \n')
+# on code format error, just produce the r history as-is
+if(length(formatted_code) == 1 && formatted_code == "") {
+  cat(paste(history_as_string, collapse=" \n"), " \n")
+} else {
+  cat(paste(formatted_code, collapse=" \n"), " \n")
+}
+cat('``` \n')
+
+if(length(formatted_code) == 1 && formatted_code == "") {
+  cat('\n\n *Could not pretty-print your R code. Perhaps there are syntax errors in your R history? If so, either clear your R history or restart RStudio to amend.* \n')
+}
+if(grepl("^\\s*source\\s*\\(", tail(history_as_string, 1))) {
+  cat('\n\n **Instead of using "source" to execute your script in RStudio,\nfollow above instructions to enable inclusion of your code/parameters in this report** \n')
+}
+```
+
+\normalsize
+
+
+\newpage
+# R session info
+
+The computer system and versioning of all R packages used to run this analysis are shown below to facilitate, in combination with the previous section, reproducibility.
+
+```{r, echo=F, message=F, warning=F, results="asis"}
+tmp = devtools::session_info()
+tib_platform = tibble(setting = names(tmp$platform), value = unlist(tmp$platform))
+tib_packages = as_tibble(tmp$packages)
+
+rmarkdown_xtable_custom(tib_platform)
+cat('\n _System_ \n\n')
+cat('\\bigskip \n\n')
+cat('\\bigskip \n\n')
+
+rmarkdown_xtable_custom(tib_packages %>% filter(!is_base & attached) %>% select(package, loadedversion, source))
+cat('\n _Attached packages_ \n\n')
+cat('\\bigskip \n\n')
+cat('\\bigskip \n\n')
+
+rmarkdown_xtable_custom(tib_packages %>% filter(!is_base & !attached) %>% select(package, loadedversion, source))
+cat('\n _Packages that are not attached_ \n\n')
+
+# knitr::kable(tib_platform, caption = "System")
+# knitr::kable(tib_packages %>% filter(!is_base & attached) %>% select(package, loadedversion, source), caption = "Attached packages")
+# knitr::kable(tib_packages %>% filter(!is_base & !attached) %>% select(package, loadedversion, source), caption = "Packages that are not attached")
+```

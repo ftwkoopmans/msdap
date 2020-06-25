@@ -1,0 +1,12 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^benchmark$
+^dev$
+^dist$
+^doc$
+^examples$
+^TODO$
+^TODO.txt$
+^README.Rmd$
+^README.md$
+^docker$

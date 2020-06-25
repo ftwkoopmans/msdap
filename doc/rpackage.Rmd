@@ -1,0 +1,200 @@
+---
+output:
+  github_document:
+    html_preview: true
+    toc: false
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  # fig.path = "man/figures/README-",
+  message = FALSE
+)
+```
+
+
+# Installing the MS-DAP R package
+
+This guide helps you install the MS-DAP R package and all of its software dependencies on your computer. If you are looking for the _Dockerized_ MS-DAP, [use this guide](docker.md).
+
+
+## prequisites
+
+You'll need to install the following system packages; netcdf and poppler
+
+**Ubuntu** (for Ubuntu 18.04 or older, see further https://github.com/ropensci/pdftools ):
+```
+sudo apt-get install libnetcdf-dev netcdf-bin libpoppler-cpp-dev
+```
+
+**Fedora**
+```
+sudo dnf install netcdf-devel netcdf poppler-cpp-devel
+```
+
+**MacOS**
+first, install Homebrew if you haven't:  https://brew.sh
+```
+brew install netcdf poppler automake
+export PKG_CONFIG_PATH=/usr/local/Cellar/zlib/1.2.8/lib/pkgconfig:/usr/local/lib/pkgconfig:/opt/X11/lib/pkgconfig
+```
+
+**troubleshooting**
+
+_poppler_ is a requirement for pdftools to function, which is used by MS-DAP to create PDF reports, if you have any trouble installing please check these resources:
+
+- https://github.com/ropensci/pdftools
+- https://github.com/politza/pdf-tools
+
+
+
+## installing R (if you have not already)
+
+An installation of R version 3.6 or newer is required, version 3.6.3 is recommended (4.0 is not supported yet, some of the packages we rely on are not compatible with 4.0 yet)
+
+**Ubuntu**
+```
+sudo apt-get install r-base r-base-dev
+```
+
+**Fedora**
+```
+sudo yum install R
+```
+
+**MacOS**
+- download and install _R-3.6.3.nn.pkg_ @ https://cran.r-project.org/bin/macosx/
+- make sure to select Tcl/Tk and Textinfo during installation
+
+**Windows**
+- base R 3.6.3 @ https://cloud.r-project.org/bin/windows/base/old/3.6.3/
+- Rtools35 @ https://cran.r-project.org/bin/windows/Rtools/history.html
+
+**all systems**
+finally, obtain RStudio Desktop (free edition) @ https://rstudio.com/products/rstudio/download/
+
+
+
+## install the MS-DAP R package
+
+Start RStudio (restart if it was already up-and-running to get a clean session) and run below code line-by-line so you can keep an eye on the results of each intermediate step in the RStudio console.
+
+Notes on windows; 
+
+1) when prompted to optionally compile packages from source you can simply select 'no' (to install a readily available binary instead). 
+2) As noted during the TinyTex installation, the two popup errors stating _"The code execution cannot proceed because luatex.dll ..."_ can be safely dismissed.
+
+```{r gh-installation, eval = FALSE}
+# 1) install prequisites
+install.packages(c("devtools", "tidyverse", "tinytex", "BiocManager"))
+# install LaTeX which is required to create the QC pdf report (documentation/help available at https://yihui.org/tinytex/ )
+tinytex::install_tinytex()
+# install packages from bioconductor
+BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma'), update=T, ask=F)
+
+# 2) install MS-DAP R package directly from github
+# first, make sure we don't halt on minor issues that can be ignored (eg; your R installation is a minor version behind)
+Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
+# install MS-DAP R package and all required dependencies (but don't check for updates on all packages, to minimize complexity)
+devtools::install_github("ftwkoopmans/msdap", upgrade = "never")
+
+# 3) if all went well, you can now load the msdap package.
+library(msdap)
+
+# If you get any warnings, no problem, you only need to be on the lookout for errors
+```
+
+
+## Quickstart example
+
+In this example we will analyze the Klaassen et al. (2018) dataset, assuming you have previously completed the installation steps above.
+
+- To immediately view the expected results, [click here to download the PDF report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf) we already prepared and uploaded.
+
+
+1) <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/master/examples/data/dataset_Klaassen2018_pmid26931375.zip">click here</a> to download the example dataset; a label-free WT/KO IP dataset @ Klaassen et al. 2018 (PMID 26931375) which we re-analyzed with MetaMorpheus.
+
+2) unzip the files, for instance to `C:/data/`. In this example, your data would be located at `C:/data/dataset_Klaassen2018_pmid26931375` 
+
+3) open RStudio and follow either the GUI or R-code quickstart guides below
+
+
+
+### Quickstart: graphical user interface
+
+Launching the GUI:
+
+- start the MS-DAP graphical user interface (GUI) by running the following R command in the RStudio console at the bottom-left of the RStudio interface: `msdap::gui()` 
+
+Data analysis steps:
+
+- upstream software: _MetaMorpheus_
+- input data: browse files > select _the folder where you extracted the dataset_ from the dropdown menu in the top-right > left-click the folder with the Klaassen et al. dataset in the _Directories_ panel > click select button on the bottom
+- fasta: browse files > select both fasta files: left-click the first, hold shift, left-click the second fasta file (note that this shows the files from the most recent directory) > click select button on the bottom
+- output directory: Optionally, change the location where the output files are stored. Note that MS-DAP results are stored in a subdirectory of the location you choose here.
+- _next_
+- load sample metadata table: double-click sample_metadata.xlsx
+- _next_
+- optionally, define a statistical contrast: drag and drop sample groups to 'A' and 'B' (or leave all groups at 'unused' to skip A/B testing)
+- identified sample count: 1
+- DEA algorithm: msqrob and msempire
+- _start analysis_
+- output log and result summary are shown in the GUI
+- output files can be found in the _output directory_
+
+
+
+### Quickstart: an example R script
+
+Use a snippet of R code that uses the MS-DAP R package to analyse the Klaassen et al. (2018) dataset that was pre-processed with MetaMorpheus and included with MS-DAP:
+
+- in the RStudio menu on the top-left; file > New File > R Script
+- copy/paste the below code snippet to the panel in center of the screen
+- importantly, adjust the file path in the `setwd()` command to the folder where you extracted the dataset!
+- run all lines of code: select all (by mouse drag or click anywhere then `control+A`)  >  click the `run` button on top of the code panel to run all selected lines
+- output log and result summary are shown at the bottom of the screen
+- output files can be found in the folder defined in `setwd()`
+
+
+```{r eval=FALSE}
+library(msdap)
+
+# !! importantly, adjust the below file path !!
+# set working directory. use forward slashes in file paths
+setwd("C:/data/dataset_Klaassen2018_pmid26931375")
+# load the dataset
+dataset = import_dataset_metamorpheus(path = getwd(), protein_qval_threshold = 0.05)
+# gather protein information, such as gene symbols, from fasta files
+dataset = import_fasta(dataset, files = c("UP000000589_10090.fasta", "UP000000589_10090_additional.fasta"))
+# optionally, we can apply filters to protein names. here we remove keratin and IGGs from the IP dataset
+dataset = remove_proteins_by_name(dataset, regular_expression = "ig \\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)")
+# import sample metadata and define a contrast for DEA
+dataset = import_sample_metadata(dataset, filename = "sample_metadata.xlsx")
+dataset = setup_contrasts(dataset, contrast_list = list(c("wt", "ko")))
+# run the pipeline. check the documentation by running the R command: ?analysis_quickstart
+dataset = analysis_quickstart(dataset,
+                              filter_min_detect = 1,
+                              filter_min_quant = 3,
+                              filter_by_contrast = FALSE,
+                              norm_algorithm = "msempire",
+                              dea_algorithm = c("ebayes", "msempire", "msqrob"),
+                              dea_qvalue_threshold = 0.05,
+                              dea_log2foldchange_threshold = NA,
+                              output_qc_report = TRUE,
+                              # note; within the Docker container, /data maps to the directory on your computer
+                              # defined when launching the MS-DAP Docker container
+                              output_dir = getwd(),
+                              output_within_timestamped_subdirectory = TRUE)
+# optionally, print a brief summary to console
+print_dataset_summary(dataset)
+```
+
+
+
+
+**troubleshooting**
+
+- if you encounter "installation path not writable" errors the user running R (/RStudio) may not have write access to the directory where the R packages are stored. Use the R command `.libPaths()` to print those locations. 
+  - For windows users, the most robust workaround is to start a command prompt as administrator (start > type `cmd` > right-click `run as administrator`), open a commandline R session (eg; on the cmd prompt, type `"C:\Program Files\R\R-3.6.3\bin\R.exe"`) and retry your package installation.

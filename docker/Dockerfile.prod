@@ -1,0 +1,40 @@
+FROM rocker/verse:3.6.3
+LABEL MAINTAINER="github.com/ftwkoopmans/msdap"
+
+# libpoppler is a pdftools requirement
+# libnetcdf is required downstream by R package ncdf4, which is an upstream dependency
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  libnetcdf-dev \
+  netcdf-bin \
+  libpoppler-cpp-dev
+
+# install missing tinytex packages
+RUN /opt/TinyTeX/bin/*/tlmgr install ifxetex ifluatex oberdiek graphics graphics-cfg graphics-def
+
+# useful for debugging shiny apps
+RUN R -e "install.packages('reactlog')"
+
+# explicitly use BiocManager for Bioconductor dependencies
+# (at the time of testing, seems more robust than relying on devtools to install our Bioconductor dependencies  @  ProtGenerics/MSnbase)
+RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn'), update=T, ask=F)"
+
+# hardcoded install of all CRAN dependencies; due to caching in `docker build` this saves a lot of time when updating the MS-DAP package (since dependencies are all cached after this line)
+RUN R -e "install.packages(c('bit64', 'crayon', 'data.table', 'devtools', 'doParallel', 'forcats', 'foreach', 'formatR', 'ggpubr', 'ggrepel', 'patchwork', 'gtools', 'knitr', 'xtable', 'lme4', 'MASS', 'Matrix', 'matrixStats', 'nloptr', 'openxlsx', 'pcaMethods', 'pdftools', 'pROC', 'purrr', 'RColorBrewer', 'readr', 'rmarkdown', 'scales', 'stringr', 'styler', 'tinytex', 'viridis', 'htmltools', 'htmlwidgets', 'shiny', 'shinyFiles', 'shinyjs', 'sortable', 'testthat'))"
+
+# install msdap R package from github
+RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.2', upgrade = 'never')"
+
+# make sure the rstudio user can install and upgrade packages
+RUN chown -R rstudio:rstudio /usr/local/lib/R/library
+RUN chown -R rstudio:rstudio /usr/local/lib/R/site-library
+
+# optionally, install example data
+COPY temp/exampledata /exampledata/
+RUN chown -R rstudio:rstudio /exampledata/*
+
+# our standard mount point: shared directory between host and container where we can store data
+RUN mkdir -m 777 /data
+
+# change default working directory for RStudio server to /data
+RUN echo "session-default-working-dir=/data" >> /etc/rstudio/rsession.conf
+RUN echo "session-default-new-project-dir=/data" >> /etc/rstudio/rsession.conf
