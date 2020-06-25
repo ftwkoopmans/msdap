@@ -1,7 +1,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-$VERSION = "0.2.2"
+$VERSION = "0.2.2xx"
 
 
 Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP launcher script for version: $VERSION"
@@ -55,12 +55,17 @@ if($msdap_image_local -eq $null) {
   } catch {
     Write-Host "An error occurred @ docker pull:"
     Write-Host $_
+	Exit 1
+  }
+
+  if($LastExitCode -ne 0) {
+    Exit $LastExitCode
   }
 }
 
 
 ### stop and remove all previous instances by image name
-$container_id_remove = (docker ps -a  | findstr -i msdap | % {$_ -replace " .*", ""})
+$container_id_remove = (docker ps -a | findstr -i msdap | % {$_ -replace " .*", ""})
 # docker ps -a | awk '{ print $1,$2 }' | grep msdap | awk '{print $1 }'
 if($container_id_remove -ne $null) {
   Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Stopping up-and-running MS-DAP containers (if any) ..."
