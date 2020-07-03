@@ -1,7 +1,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-$VERSION = "0.2.2"
+$VERSION = "0.2.3"
 
 
 Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP launcher script for version: $VERSION"
@@ -117,7 +117,8 @@ Start-Job {param($path) Start-Sleep 3; Start-Process $path } -Arg $url_rstudio |
 Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP container ..."
 
 ### docker run (mounting current directory on host as /data within container)
-docker run -p 3839:8787 -e PASSWORD=msdap -v ${PWD}:/data -it ftwkoopmans/msdap:$VERSION
+$timezone_utc_offset = [System.TimeZone]::CurrentTimeZone.GetUtcOffset([datetime]::Now).TotalHours
+docker run -p 3839:8787 -e PASSWORD=msdap -e HOST_TIMEZONE_UTC_OFFSET=$timezone_utc_offset -v ${PWD}:/data -it ftwkoopmans/msdap:$VERSION
 
 
 # don't close until user hits enter key (eg; when double-clicking the script in Windows Explorer, we don't want the powershell window to automatically close)

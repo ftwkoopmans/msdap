@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: beta 0.2.2  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: beta 0.2.3  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true

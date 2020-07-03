@@ -25,29 +25,36 @@ The demo stops short of inspecting the actual pipeline result files, you can ref
             are hidden) \> click settings
           - macOS; Docker \> menu bar \> Preferences
       - update settings
-          - resources \> advanced: set number of CPUs to use (if in
+          - resources \> advanced: set number of CPU cores to use (if in
             doubt, set to at least 4)
           - resources \> advanced: set amount of RAM to use (if in
-            doubt, set to at least 8GB at least)
+            doubt, set to at least 8GB)
           - resources \> file sharing: click the + symbol and select the
             directory that holds all your experimental data (eg;
             C:/data)
-  - rebooting your system after installing Docker Desktop (not strictly
-    required, but consider it a workaround for common issues)
+  - reboot your computer after installing Docker Desktop
 
 ## install Docker on Linux
 
 follow the official installation guide for your Linux distribution at:
 <https://docs.docker.com/engine/install/>
 
-## Start the Docker container using the launcher script
+## Start the Docker container
+
+This section shows 2 different approaches to start the MS-DAP Docker
+container; either use the all-in-one launcher script OR execute a few
+commands on the commandline. For typical use-cases, we recommend using
+the launcher script.
+
+### Launcher script
 
 A launcher script is provided for user convenience; it executes all
 commands needed to run the MS-DAP docker container. To do this manually
 instead, consult the next section for a step-by-step guide.
 
   - download the script for the MS-DAP version you want to use at the
-    [‘releases’ section of this github repository](/releases)
+    [‘releases’ section of this github
+    repository](https://github.com/ftwkoopmans/msdap/releases)
   - copy/move the launcher script to the directory that holds your
     experiment data (eg; `C:/data/proteomics/`)
       - the file location is important: only data with the directory
@@ -57,10 +64,13 @@ instead, consult the next section for a step-by-step guide.
   - run the script to launch MS-DAP
       - windows; right-click `msdap_launcher_windows.ps1` and select
         “Run with PowerShell”
-          - *note; upon first use, you may get a security warning since
-            this is a script you downloaded from the internet*
+          - *note; upon first use, you may see a security warning
+            because this script was downloaded from the internet*
       - macOS and Linux; execute the `msdap_launcher_unix.sh` script
-          - *note; on Linux, you need to make sure the Docker service is
+          - *note; if you are unfamiliar with using scripts,* [here is a
+            macOS
+            guide](https://support.apple.com/guide/terminal/make-a-file-executable-apdd100908f-06b3-4e63-8a87-32e71241bab4/mac)
+          - *note; on Linux, you need to make sure the Docker daemon is
             running prior to starting the script*
 
 note: to use a different MS-DAP version, simply change the version
@@ -68,7 +78,7 @@ number at the top of the launcher script. To view all available MS-DAP
 Docker containers, go to:
 <https://hub.docker.com/repository/docker/ftwkoopmans/msdap>
 
-### what does the script do?
+**what does the script do?**
 
   - if Docker is not up-and-running, start Docker
   - the launcher script will automatically download the MS-DAP container
@@ -78,7 +88,13 @@ Docker containers, go to:
   - your default web browser is launched and navigates to a local
     webserver within the Docker container @ <http://localhost:3839>
 
-## Start the Docker container from the commandline
+### commandline
+
+This section details each step involved in using the MS-DAP Docker
+container. Instead of following this multi-step process, you may find it
+easier to use the *launcher script* described in the previous section
+(and consider the below guide as a fall-back in case of technical issues
+with the launcher script).
 
 1)  First, make sure that Docker is up and running. For Windows and
     macOS, simply start the Docker Desktop application.
@@ -102,7 +118,7 @@ Docker containers, go to:
     command in the terminal (only have to do this ‘installation step’
     once):
 
-`docker pull ftwkoopmans/msdap:0.2.2`
+`docker pull ftwkoopmans/msdap:0.2.3`
 
 4)  Run the Docker container and give it access to the directory on your
     computer (the ‘host’ system) that contains the proteomics data.
@@ -111,7 +127,7 @@ Docker containers, go to:
     in the following command** (see further @ next subsection).
 
 <code>docker run -p 3839:8787 -e PASSWORD=msdap -v
-**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.2</code>
+**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.3</code>
 
 5)  Open a browser, such as Firefox or Chrome, and access MS-DAP at
     <http://localhost:3839> . You will be presented with a complete

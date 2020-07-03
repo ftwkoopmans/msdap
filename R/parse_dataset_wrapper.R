@@ -41,6 +41,9 @@ import_dataset__generic = function(path, type) {
   if(type == "metamorpheus") {
     return(import_dataset_metamorpheus(path))
   }
+  if(type == "encyclopedia") {
+    return(import_dataset_encyclopedia(path))
+  }
 
   append_log("unsupported dataset type", type="error")
 }

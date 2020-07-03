@@ -71,7 +71,8 @@ Differential Expression Analysis (DEA).
 
 Features planned for future releases:
 
-  - compatability with the recent R 4.0 release
+  - compatibility with the recent R 4.0 release
+  - expand upstream software support
   - integrate additional normalization/DEA algorithms
   - multiple group analysis (current version includes A/B testing)
   - labeled quantitative data; iTRAQ/TMT

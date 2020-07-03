@@ -3,7 +3,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-VERSION = "0.2.2"
+VERSION="0.2.3"
 
 
 ### OS
@@ -71,4 +71,4 @@ echo $'use control+C (or close this terminal window) to stop the container\n'
 
 
 ### docker run (mounting current directory on host as /data within container)
-docker run -p 3839:8787 -e PASSWORD=msdap -v $(pwd):/data -it ftwkoopmans/msdap:"$VERSION"
+docker run -p 3839:8787 -e PASSWORD=msdap -e HOST_TIMEZONE_UTC_OFFSET=$(date +%z) -v $(pwd):/data -it ftwkoopmans/msdap:"$VERSION"

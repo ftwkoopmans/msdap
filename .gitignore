@@ -10,7 +10,7 @@ Thumbs.db
 .RData
 .Ruserdata
 
-.*example_quickstart.R
+*example_quickstart.R
 /TODO
 /TODO.txt
 /doc/*.xlsx

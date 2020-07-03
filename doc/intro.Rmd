@@ -24,22 +24,23 @@ _For a hands-on tutorial that shows how to perform MS-DAP analyses together with
 
 ## abstract
 
-Essential steps in the interpretation of any mass spectrometry based proteomics experiment are quality control and statistical analysis of protein abundance levels. In this rapidly moving field novel algorithms are being developed and many tools have become available for the various downstream analysis steps of label-free proteomics data leading to an extensive patchwork of tools and analyses used throughout the proteomics community. With MS-DAP we present a data analysis pipeline that facilitates reproducible proteome science through extensive quality control, integration of state-of-the-art algorithms for differential testing and intuitive visualization and reporting. Feature selection criteria can be configured such that differential testing is only performed on the subset of reliably quantified peptides. Custom functions for normalization or differential expression analysis can be used as a plugin to encourage inclusion of future algorithmic innovations. This open-source software is available at: www.github.com/ftwkoopmans/msdap/
+Essential steps in the interpretation of any mass spectrometry based proteomics experiment are quality control and statistical analysis of protein abundance levels. In this rapidly moving field novel algorithms are being developed and many tools have become available for the various downstream analysis steps of label-free proteomics data leading to an extensive patchwork of tools and analyses used throughout the proteomics community. With MS-DAP we present a data analysis pipeline that facilitates reproducible proteome science through extensive quality control, integration of state-of-the-art algorithms for differential testing and intuitive visualization and reporting. Feature selection criteria can be configured such that differential testing is only performed on the subset of reliably quantified peptides. Custom functions for normalization or differential expression analysis can be used as a plugin to encourage inclusion of future algorithmic innovations.
 
 
-## Overview of the MS-DAP workflow
+## Features
 
 ![MS-DAP workflow](images/msdap-overview.png){width=50%}
 
-Features of MS-DAP (Downstream Analysis Pipeline for quantitative proteomics)
+MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 
 - Analysis independent of RAW data processing software
 - Wide selection of normalization algorithms and statistical models
 - Plugin architecture to support future algorithms
 - Standardized workflow, regardless of configured feature selection and data processing algorithms
-- Extensive data visualization, including both popular/common plots and novelties introduced by MS-DAP, covering many quality control aspects and your statistical testing results
+- Extensive data visualization, including both popular/common plots and novelties introduced by MS-DAP, covering many quality control aspects
 - The report is a single PDF, making your results easy to share online
 - The publication-grade figures are stored as vector graphics, so simply open the report PDF in Adobe Illustrator to include any of the MS-DAP visualizations as panels in your main figures
+- Available as a Docker container and R package
 
 
 ## Computational procedures involved in differential expression analysis
@@ -72,7 +73,7 @@ A second important step is to choose the normalization procedure. There are diff
 - Loess, from limma R package; normalizeCyclicLoess(log2_data, iterations = 10, method = "fast")
 - RLR, from MSqRob R package; normalizeRLR @ https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R
 - MS-EmpiRe, mode normalization as implemented in msEmpiRe R package
-- VWMB, Variation Within Mode Between (novel, unpublished)
+- VWMB, Variation Within Mode Between (novel, manuscript is a work-in-progress)
 - modebetween, application of VWMB to only normalize between groups (replicates within each group are all scaled in the exact same manner)
 
 

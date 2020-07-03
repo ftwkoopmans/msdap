@@ -335,7 +335,8 @@ update_protein_mapping = function(tib, pep2prot) {
 #' Refer to the implementation of \code{import_dataset_spectronaut} for an example on how to use this function.
 #' don't forget to set either "dia" or "dda" for dataset$acquisition_mode downstream if you implement this.
 #'
-#' @param filename the full file path of the input file
+#' @param filename the full file path of the input file. Either supply a filename, or a data table
+#' @param x input data table as a data.frame (or tibble, or data.table). Either supply a filename, or a data table
 #' @param attributes_required a list of attributes that must be present in the input file (eg; sample names, peptide IDs, intensity values, etc.)
 #' @param attributes_optional a list of optional attributes that we can do without downstream, like m/z
 #' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
@@ -345,15 +346,23 @@ update_protein_mapping = function(tib, pep2prot) {
 #' @param select_unique_precursor_per_modseq if multiple precursors are available for a modified sequence (eg; charge 2 and 3), should we make an effort to select the best or just return all of them ?
 #' @param custom_func_manipulate_DT_onload !expert use only! (there is intricate interplay between such pre-filtering and the code in this function); provide a function that manipulates the data.table after load. example implementation in the fragpipe parser.
 #'
-#' @importFrom data.table fread chmatch setkey setorder
+#' @importFrom data.table as.data.table fread chmatch setkey setorder
 #' @export
-import_dataset_in_long_format = function(filename, attributes_required, attributes_optional = list(), confidence_threshold = 0.01,
+import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_required=list(), attributes_optional = list(), confidence_threshold = 0.01,
                                          remove_peptides_never_above_confidence_threshold = TRUE, select_unique_precursor_per_modseq = TRUE,
                                          custom_func_manipulate_DT_onload = NULL,
                                          return_decoys = TRUE, do_plot = TRUE) {
-  # sanity check on input parameters
-  if (length(filename) != 1 || !is(filename, "character") || nchar(filename) < 3 || !file.exists(filename)) {
+  ### sanity check on input parameters
+  if ((length(filename) != 1 && length(x) == 0) || (length(filename) == 1 && length(x) > 0)) {
+    append_log(paste("'filename' OR 'x' parameter is required (but don't supply both):", filename), type = "error")
+  }
+  # if filename is supplied, check if it's valid
+  if (length(filename) == 1 && (!is(filename, "character") || nchar(filename) < 3 || !file.exists(filename))) {
     append_log(paste("'filename' parameter is not an existing file:", filename), type = "error")
+  }
+  # if data table is supplied, check if it's valid
+  if (length(x) > 0 && !is.data.frame(x)) {
+    append_log("'x' parameter must be of type: data.frame, tibble or data.table):", type = "error")
   }
   if(length(attributes_required) == 0 || !is(attributes_required, "list")) {
     append_log("'attributes_required' parameter must be a list", type = "error")
@@ -371,28 +380,37 @@ import_dataset_in_long_format = function(filename, attributes_required, attribut
     append_log(paste("From the minimal set of peptide attributes, the following are missing;", paste(setdiff(minimal_set_of_required, names(attributes_required)), collapse = ", ")), type = "error")
   }
 
-  # read just the first line and find indices of expected columns (named array where value = column index at input file, name = target column name)
-  headers = unlist(strsplit(readLines(filename, n = 1), "\t"))
+  is_file = length(filename) == 1
+  if (is_file) {
+    # read just the first line and find indices of expected columns (named array where value = column index at input file, name = target column name)
+    headers = unlist(strsplit(readLines(filename, n = 1), "\t"))
+  } else {
+    headers = colnames(x)
+  }
+
+  # this code is also checking for required data, so run even if data table is already in memory
   map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
   map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
 
-  # only read columns of interest to speed up file parsing
-  col_indices = c(map_required, map_optional)
-  DT = data.table::fread(filename, select = unique(col_indices), check.names = T, stringsAsFactors = F)
-  colnames(DT) = names(col_indices)[!duplicated(col_indices)]
-  # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
-  # j = index in 'col_indices' where we should borrow content from other column
-  for(j in which(duplicated(as.numeric(col_indices)))) {
-    j_source_column = names(col_indices)[col_indices == col_indices[j]][1]
-    DT[,names(col_indices)[j]] = DT[[j_source_column]]
+  if (is_file) {
+    # only read columns of interest to speed up file parsing
+    col_indices = c(map_required, map_optional)
+    DT = data.table::fread(filename, select = unique(col_indices), check.names = T, stringsAsFactors = F)
+    colnames(DT) = names(col_indices)[!duplicated(col_indices)]
+    # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
+    # j = index in 'col_indices' where we should borrow content from other column
+    for(j in which(duplicated(as.numeric(col_indices)))) {
+      j_source_column = names(col_indices)[col_indices == col_indices[j]][1]
+      DT[,names(col_indices)[j]] = DT[[j_source_column]]
+    }
+
+    ### inject function for custom manipulation of DT. example; for some input format, repair a column. for FragPipe, the modified peptide column is empty for peptides without a modification, so there is no column with proper modseq available. have to 'manually repair', but other than that we want to maintain this generic function
+    if(length(custom_func_manipulate_DT_onload) == 1 && !is.null(custom_func_manipulate_DT_onload) && is.function(custom_func_manipulate_DT_onload)) {
+      DT = custom_func_manipulate_DT_onload(DT)
+    }
+  } else {
+    DT = data.table::as.data.table(x)
   }
-
-
-  ### inject function for custom manipulation of DT. example; for some input format, repair a column. for FragPipe, the modified peptide column is empty for peptides without a modification, so there is no column with proper modseq available. have to 'manually repair', but other than that we want to maintain this generic function
-  if(length(custom_func_manipulate_DT_onload) == 1 && !is.null(custom_func_manipulate_DT_onload) && is.function(custom_func_manipulate_DT_onload)) {
-    DT = custom_func_manipulate_DT_onload(DT)
-  }
-
 
   ### first, see what data we can remove, and perform more expensive operations after
   if("isdecoy" %in% colnames(DT)) {

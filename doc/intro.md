@@ -1,6 +1,6 @@
 
   - [abstract](#abstract)
-  - [Overview of the MS-DAP workflow](#overview-of-the-ms-dap-workflow)
+  - [Features](#features)
   - [Computational procedures involved in differential expression
     analysis](#computational-procedures-involved-in-differential-expression-analysis)
       - [DEA-workflow: feature
@@ -50,15 +50,13 @@ criteria can be configured such that differential testing is only
 performed on the subset of reliably quantified peptides. Custom
 functions for normalization or differential expression analysis can be
 used as a plugin to encourage inclusion of future algorithmic
-innovations. This open-source software is available at:
-www.github.com/ftwkoopmans/msdap/
+innovations.
 
-## Overview of the MS-DAP workflow
+## Features
 
 ![MS-DAP workflow](images/msdap-overview.png)
 
-Features of MS-DAP (Downstream Analysis Pipeline for quantitative
-proteomics)
+MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 
   - Analysis independent of RAW data processing software
   - Wide selection of normalization algorithms and statistical models
@@ -67,11 +65,12 @@ proteomics)
     and data processing algorithms
   - Extensive data visualization, including both popular/common plots
     and novelties introduced by MS-DAP, covering many quality control
-    aspects and your statistical testing results
+    aspects
   - The report is a single PDF, making your results easy to share online
   - The publication-grade figures are stored as vector graphics, so
     simply open the report PDF in Adobe Illustrator to include any of
     the MS-DAP visualizations as panels in your main figures
+  - Available as a Docker container and R package
 
 ## Computational procedures involved in differential expression analysis
 
@@ -119,7 +118,8 @@ are different normalization algorithms available in MS-DAP:
   - RLR, from MSqRob R package; normalizeRLR @
     <https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R>
   - MS-EmpiRe, mode normalization as implemented in msEmpiRe R package
-  - VWMB, Variation Within Mode Between (novel, unpublished)
+  - VWMB, Variation Within Mode Between (novel, manuscript is a
+    work-in-progress)
   - modebetween, application of VWMB to only normalize between groups
     (replicates within each group are all scaled in the exact same
     manner)

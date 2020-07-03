@@ -112,15 +112,15 @@ msdap_shiny_ui = function() {
       id="screenData",
       shiny::h3("Step 1: import dataset"),
       shiny::hr(),
-      shiny::selectInput("software", "upstream software:", choices = c("DIA-NN" = "diann", FragPipe = "fragpipe", MaxQuant = "maxquant", MetaMorpheus = "metamorpheus", OpenMS = "openms", OpenSWATH = "openswath", Peaks = "peaks", ProteomeDiscoverer = "pd", "Skyline - DDA" = "skyline_dda", "Skyline - DIA" = "skyline_dia", Spectronaut = "spectronaut"), multiple = F),
+      shiny::selectInput("software", "upstream software:", choices = c("DIA-NN" = "diann", FragPipe = "fragpipe", MaxQuant = "maxquant", MetaMorpheus = "metamorpheus", OpenMS = "openms", OpenSWATH = "openswath", Peaks = "peaks", ProteomeDiscoverer = "pd", "Skyline - DDA" = "skyline_dda", "Skyline - DIA" = "skyline_dia", Spectronaut = "spectronaut", EncyclopeDIA = "encyclopedia"), multiple = F),
 
       shiny::p(shiny::strong("input data")),
       # dynamic UI: some input data requires a filepicker for directories while others just need the user to select a file
-      shiny::conditionalPanel(condition = "input.software == 'maxquant' || input.software == 'metamorpheus'", # this is a javascript expression (...)
+      shiny::conditionalPanel(condition = "input.software == 'maxquant' || input.software == 'metamorpheus' || input.software == 'encyclopedia'", # this is a javascript expression (...)
                               shiny::fluidRow(shiny::column(3, shinyFiles::shinyDirButton('dirDataset', label='browse files...', title='Please select a directory')),
                                               shiny::column(8, shiny::tagAppendAttributes(shiny::textOutput("dirDatasetResult"), style = paste(css_overflow_text, "background-color: #DDDDDD; color: #555;"), class="form-control"))
                               )),
-      shiny::conditionalPanel(condition = "input.software != 'maxquant' && input.software != 'metamorpheus'", # this is a javascript expression (...)
+      shiny::conditionalPanel(condition = "input.software != 'maxquant' && input.software != 'metamorpheus' && input.software != 'encyclopedia'", # this is a javascript expression (...)
                               shiny::fluidRow(shiny::column(3, shinyFiles::shinyFilesButton('fileDataset', label='browse files...', title='Please select a file', multiple=FALSE, viewtype = "detail")),
                                               shiny::column(8, shiny::tagAppendAttributes(shiny::textOutput("fileDatasetResult"), style = paste(css_overflow_text, "background-color: #DDDDDD; color: #555;"), class="form-control"))
                               )),

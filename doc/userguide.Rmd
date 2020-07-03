@@ -15,125 +15,10 @@ knitr::opts_chunk$set(
 
 This vignette describes the main functions of the MS-DAP R package.
 
-If you have not installed MS-DAP yet, check out the installation guides and example dataset for;
+If you have not installed MS-DAP yet, check out the installation guides and example dataset for. You can use either of these;
 
-1) [MS-DAP in a Docker container](docker.md) that includes everything required to get starting right away
+1) [MS-DAP in a Docker container](docker.md) that includes everything required to get started right away
 2) [MS-DAP R package](rpackage.md) that may be installed into a preexisting bioinformatics workflow
-
-
-
-# Preparing input data
-
-Instructions specific to each of the supported input software (eg; MaxQuant, Skyline, etc.) are described in this section.
-
-## MaxQuant
-No particular settings are needed, MS-DAP can use the output as-is (assuming the analyzed dataset was label-free).
-As input for MS-DAP, the 'txt' folder is required (typically nested somewhere in your raw data folder). example; C:/DATA/project_x/sample1/combined/txt
-If you want to save on diskspace, this is the minimum set of input files needed: evidence.txt, peptides.txt, proteinGroups.txt (but make sure to backup the parameters.txt/mqpar.xml and summary.txt files as well, to document your configuration and result summary).
-
-MS-DAP import function: `msdap::import_dataset_maxquant_evidencetxt()`
-
-
-## MetaMorpheus
-If you enable label-free quantification in a MetaMorpheus search, the output is compatible with MS-DAP.
-As input for MS-DAP simply point to the location of the search results output folder. example; C:/DATA/PXD007683/2019-10-14-19-20-46/Task2-SearchTask
-If you want to save on diskspace, this is the minimum set of input files needed: AllProteinGroups.tsv and AllQuantifiedPeaks.tsv (but make sure to backup the allResults.txt file and "Task Settings" folders as well, to document your configuration and result summary).
-
-MS-DAP import function: `msdap::import_dataset_metamorpheus()`
-
-
-## Skyline
-For both DDA and DIA datasets, a report with peptide abundances should be made that contains these columns: FileName, ProteinName, ModifiedSequence, PrecursorCharge, BestRetentionTime, TotalArea, annotation_QValue
-Preferably make a report with only target peptides, but if there are decoys in the dataset there should also be a column named "IsDecoy" (without quotes) that indicates decoys as 'decoy' or 'true'
-
-Since Skyline supports both DDA and DIA data, you will need to specify of which type your data is when importing a dataset.
-
-MS-DAP import function: `msdap::import_dataset_skyline()`
-
-
-## FragPipe
-If you enable label-free quantification in a FragPipe search, the output is compatible with MS-DAP. Only the psm.tsv file is needed as input for MS-DAP.
-
-MS-DAP import function: `msdap::import_dataset_fragpipe()`
-
-
-## DIA-NN
-No particular settings are needed, MS-DAP can use the output as-is.
-
-MS-DAP import function: `msdap::import_dataset_diann()`
-
-
-## OpenSWATH
-No particular settings are needed, MS-DAP can use the output as-is.
-
-MS-DAP import function: `msdap::import_dataset_openswath()`
-
-
-## Spectronaut
-No particular settings are needed, but do note that a report with peptide abundances should be made that 1) has no filters enables and 2) contains these columns: R.FileName, PG.ProteinGroups, EG.IsDecoy, EG.Library, EG.Qvalue, EG.iRTEmpirical, EG.Cscore, FG.Id, FG.MS2Quantity, FG.MS2RawQuantity
-
-For convenience, you may import our report template (tested with Spectronaut 13): <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/doc/misc/MS-DAP Format.rs">download link</a>
-
-MS-DAP import function: `msdap::import_dataset_spectronaut()`
-
-
-## Peaks
-After performing label-free quantification, make sure to disable **all** filtering and export the features.
-
-Do note that this data table does not contain the confidence scores for each peptide in each sample, thus we cannot discriminate between peptides 'identified and quantified' versus 'only quantified' (match-between-runs) downstream. Consequently, in datasets imported from Peaks all peptides are considered 'identified & quantified'.
-
-![Peaks config](misc/peaks_config.png){width=50%}
-
-MS-DAP import function: `msdap::import_dataset_peaks()`
-
-
-## OpenMS
-_Support is experimental, we are currently extending the OpenMS workflows supported by MS-DAP_.
-
-For now, label-free DDA data processed by OpenMS are only compatible with MS-DAP if a workflow was used analogous to the tutorial by Hannes Rost  @  https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
-
-To make it easier for MS-DAP users to get started with a compatible OpenMS workflow, and construct a standardized script for integrated testing of OpenMS + MS-DAP, we created a .bat script for Windows computers that performs the suggested workflow, available for download here: - [openms_lfq_workflow_v0.2.bat](misc/openms_lfq_workflow_v0.2.bat)
-
-input: mzML and fasta files. output: mzTab file compatible with MS-DAP
-
-_Windows .bat script explained_
-This script applies an OpenMS workflow for label-free data analysis to all mzML files in the same directory using the fasta files on the same location.
-workflow is the same as the iPRG2015 OpenMS tutorial by Hannes Rost
-
-requirements:
-- OpenMS 2 (our test system runs version 2.5)
-- MSGFPlus installed as OpenMS thirdparty plugin
-- Percolator installed as OpenMS thirdparty plugin
-- java runtime is required for MSGFPlus, you probably have this but in case of problems/errors with MSGFPlus grab latest version from www.java.com
-- after installation of the above, you may need to reboot first as we found on some test systems
-
-1) place this .bat file in the directory where your input files are
-2) input: centroided mzML files  +  fasta files WITHOUT decoys (will be generated on-the-fly)
-3) output: mzTab output file compatible with MS-DAP  +  consensusXML for (optional) further processing by OpenMS
-
-MS-DAP import function: `msdap::import_dataset_openms_mztab()`
-
-
-## ProteomeDiscoverer
-_Support is experimental, we are currently extending the PD workflows supported by MS-DAP_.
-
-Input data must contain Percolator PEP scores for each PSM, so after the search engine node (eg; Sequest HT) make sure to connect the Percolator node.
-
-As input for MS-DAP, the PSMs.txt file from a PD label-free quantification workflow is used.
-
-Example PD workflow:
-Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
-Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
-Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
-
-Optionally, tweak label-free data analysis settings to explore effects on MS-DAP assessment of your dataset:
-Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
-Processing Step -->> change precursor quantification from peak (height) to area
-
-MS-DAP was tested with the results of the above workflow applied to the PXD007683 dataset.
-
-MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`
-
 
 
 # Annotated example
@@ -334,3 +219,129 @@ dataset = analysis_quickstart(
 # c) change parameters (eg; filtering rules/normalization/signif or foldchange threshold) -->> run pipeline -->> print summary -->> iterate again
 print_dataset_summary(dataset)
 ```
+
+
+# Preparing input data
+
+Instructions specific to each of the supported input software (eg; MaxQuant, Skyline, etc.) are described in this section.
+
+## MaxQuant
+No particular settings are needed, MS-DAP can use the output as-is (assuming the analyzed dataset was label-free).
+As input for MS-DAP, the 'txt' folder is required (typically nested somewhere in your raw data folder). example; C:/DATA/project_x/sample1/combined/txt
+If you want to save on diskspace, this is the minimum set of input files needed: evidence.txt, peptides.txt, proteinGroups.txt (but make sure to backup the parameters.txt/mqpar.xml and summary.txt files as well, to document your configuration and result summary).
+
+MS-DAP import function: `msdap::import_dataset_maxquant_evidencetxt()`
+
+
+## MetaMorpheus
+If you enable label-free quantification in a MetaMorpheus search, the output is compatible with MS-DAP.
+As input for MS-DAP simply point to the location of the search results output folder. example; C:/DATA/PXD007683/2019-10-14-19-20-46/Task2-SearchTask
+If you want to save on diskspace, this is the minimum set of input files needed: AllProteinGroups.tsv and AllQuantifiedPeaks.tsv (but make sure to backup the allResults.txt file and "Task Settings" folders as well, to document your configuration and result summary).
+
+MS-DAP import function: `msdap::import_dataset_metamorpheus()`
+
+
+## Skyline
+For both DDA and DIA datasets, a report with peptide abundances should be prepared that contains these columns: FileName, ProteinName, ModifiedSequence, PrecursorCharge, BestRetentionTime, TotalArea, annotation_QValue
+
+Preferably make a report with only target peptides, but if there are decoys in the dataset there should also be a column named "IsDecoy" (without quotes) that indicates decoys as 'decoy', 1 or 'true'
+
+Since Skyline supports both DDA and DIA data, you will need to specify of which type your data is when importing a dataset.
+
+MS-DAP import function: `msdap::import_dataset_skyline()`
+
+
+## FragPipe
+If you enable label-free quantification in a FragPipe search, the output is compatible with MS-DAP. Only the psm.tsv file is needed as input for MS-DAP.
+
+MS-DAP import function: `msdap::import_dataset_fragpipe()`
+
+
+## DIA-NN
+No particular settings are needed, MS-DAP can use the output as-is.
+
+MS-DAP import function: `msdap::import_dataset_diann()`
+
+
+## OpenSWATH
+No particular settings are needed, MS-DAP can use the output as-is.
+
+MS-DAP import function: `msdap::import_dataset_openswath()`
+
+
+## EncyclopeDIA
+No particular settings are needed, MS-DAP can use the output as-is. The .elib files generated by EncyclopeDIA for each input sample (mzML file) are the input for MS-DAP.
+
+MS-DAP import function: `msdap::import_dataset_encyclopedia()`
+
+
+## Spectronaut
+No particular settings are needed, but do note that a report with peptide abundance values should be prepared that;
+
+1) has no filters enabled
+2) contains these columns: R.FileName, PG.ProteinGroups, EG.IsDecoy, EG.Library, EG.Qvalue, EG.iRTEmpirical, EG.Cscore, FG.Id, FG.MS2Quantity, FG.MS2RawQuantity
+
+For convenience, you may import our report template (tested with Spectronaut 13): <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/doc/misc/MS-DAP Format.rs">download link</a>
+
+The column names in Spectronaut reports have changed between versions, we implemented and tested backward compatibility up to Spectronaut 6.
+
+MS-DAP import function: `msdap::import_dataset_spectronaut()`
+
+
+## Peaks
+After performing label-free quantification, make sure to disable **all** filtering and export the features.
+
+Do note that this data table does not contain the confidence scores for each peptide in each sample, thus we cannot discriminate between peptides 'identified and quantified' versus 'only quantified' (match-between-runs) downstream. Consequently, in datasets imported from Peaks all peptides are considered 'identified & quantified'.
+
+![Peaks config](misc/peaks_config.png){width=50%}
+
+MS-DAP import function: `msdap::import_dataset_peaks()`
+
+
+## OpenMS
+_Support is experimental, we are currently extending the OpenMS workflows supported by MS-DAP. Additional support and test datasets are most welcome_.
+
+For now, label-free DDA data processed by OpenMS are only compatible with MS-DAP if a workflow was used analogous to the tutorial by Hannes Rost  @  https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
+
+To make it easier for MS-DAP users to get started with a compatible OpenMS workflow, and construct a standardized script for integrated testing of OpenMS + MS-DAP, we created a .bat script for Windows computers that performs the suggested workflow, available for download here: - [openms_lfq_workflow_v0.2.bat](misc/openms_lfq_workflow_v0.2.bat)
+
+input: mzML and fasta files. output: mzTab file compatible with MS-DAP
+
+_Windows .bat script explained_
+This script applies an OpenMS workflow for label-free data analysis to all mzML files in the same directory using the fasta files on the same location.
+workflow is the same as the iPRG2015 OpenMS tutorial by Hannes Rost
+
+requirements:
+- OpenMS 2 (our test system runs version 2.5)
+- MSGFPlus installed as OpenMS thirdparty plugin
+- Percolator installed as OpenMS thirdparty plugin
+- java runtime is required for MSGFPlus, you probably have this but in case of problems/errors with MSGFPlus grab latest version from www.java.com
+- after installation of the above, you may need to reboot first as we found on some test systems
+
+1) place this .bat file in the directory where your input files are
+2) input: centroided mzML files  +  fasta files WITHOUT decoys (will be generated on-the-fly)
+3) output: mzTab output file compatible with MS-DAP  +  consensusXML for (optional) further processing by OpenMS
+
+MS-DAP import function: `msdap::import_dataset_openms_mztab()`
+
+
+## ProteomeDiscoverer
+_Support is experimental, we are currently extending the PD workflows supported by MS-DAP. Additional support and test datasets are most welcome_.
+
+Input data must contain Percolator PEP scores for each PSM, so after the search engine node (eg; Sequest HT) make sure to connect the Percolator node.
+
+As input for MS-DAP, the PSMs.txt file from a PD label-free quantification workflow is used.
+
+Example PD workflow:
+Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
+Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
+Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
+
+Optionally, tweak label-free data analysis settings to explore effects on MS-DAP assessment of your dataset:
+Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
+Processing Step -->> change precursor quantification from peak (height) to area
+
+MS-DAP was tested with the results of the above workflow applied to the PXD007683 dataset.
+
+MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`
+

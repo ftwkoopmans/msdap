@@ -175,8 +175,21 @@ analysis_quickstart = function(dataset,
 
   ### prior to starting computation, check if standard output files are available
   if(output_within_timestamped_subdirectory) {
-    output_dir = paste0(output_dir, "/", format(Sys.time(), "%Y-%m-%d_%H;%M;%S"), "/")
+    # If there is an environment variable that hardcodes the timezone (an integer offset from UTC), use it to adjust the timezone
+    # We use it to control timezone differences between the Docker host and the Docker container
+    # (windows host systems uses different timezone abbreviations than unix. This solution is straight forward to implement and does introduce additional dependencies)
+    # Windows PowerShell: [System.TimeZone]::CurrentTimeZone.GetUtcOffset([datetime]::Now).TotalHours          (yields integer)
+    # Unix: date +%z   =   +hhmm numeric time zone (e.g., -0400)
+    UTC_N_hours_offset = as.integer(substr(Sys.getenv("HOST_TIMEZONE_UTC_OFFSET"), 1, 3))
+
+    if(!is.na(UTC_N_hours_offset)) {
+      timestamp_prettyprint = format(Sys.time() + UTC_N_hours_offset * 3600, format = "%Y-%m-%d_%H;%M;%S", tz = "UTC")
+    } else {
+      timestamp_prettyprint = format(Sys.time(), format = "%Y-%m-%d_%H;%M;%S")
+    }
+    output_dir = paste0(output_dir, "/", timestamp_prettyprint, "/")
   }
+
   if(!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = T)
   }
