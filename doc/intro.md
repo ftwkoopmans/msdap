@@ -143,20 +143,24 @@ further qualitative analysis, be careful of over-interpretation and keep
 differences in sample group size (\#replicates) and the absolute amount
 of peptides identified in a sample in mind \!
 
-Computational procedures for comparing sample groups *A* and *B*; \* to
-account for sample loading etc., first scale the weight of all peptides
-per sample as; 1 / total number of detected peptides in sample *s* \*
-*score\_pA*: the score for protein *p* in sample group *A* is the sum of
-the weighted score of all peptides that belong to protein *p* in all
-samples (within group *A*) \* ratio for protein *p* in *A vs B*:
-log2(*score\_pB* + *minimum non-zero score in group B*) -
-log2(*score\_pA* + *minimum non-zero score in group A*) \* finally, we
-standardize all protein ratios by subtracting the overall mean value,
-then dividing by the standard deviation \* proteins of interest,
-*candidates*, are defined as proteins with an absolute z-score of at
-least 2 AND at least a count difference between groups *A* and *B* of
-*group size* \* 0.75 (the latter guards against proteins with 0 detect
-in one group and 1 peptide in 1 sample in the other)
+Computational procedures for comparing sample groups *A* and *B*;
+
+  - to account for sample loading etc., first scale the weight of all
+    peptides per sample as; 1 / total number of detected peptides in
+    sample *s*
+  - *score\_pA*: the score for protein *p* in sample group *A* is the
+    sum of the weighted score of all peptides that belong to protein *p*
+    in all samples (within group *A*)
+  - ratio for protein *p* in *A vs B*: log2(*score\_pB* + *minimum
+    non-zero score in group B*) - log2(*score\_pA* + *minimum non-zero
+    score in group A*)
+  - finally, we standardize all protein ratios by subtracting the
+    overall mean value, then dividing by the standard deviation
+  - proteins of interest, *candidates*, are defined as proteins with an
+    absolute z-score of at least 2 AND at least a count difference
+    between groups *A* and *B* of *group size* \* 0.75 (the latter
+    guards against proteins with 0 detect in one group and 1 peptide in
+    1 sample in the other)
 
 ### estimating foldchange thresholds
 

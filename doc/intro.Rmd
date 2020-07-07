@@ -85,6 +85,7 @@ To easily prioritize proteins-of-interest, some which may not have sufficient ab
 This is a simplified approach that is intended to rank proteins for further qualitative analysis, be careful of over-interpretation and keep differences in sample group size (#replicates) and the absolute amount of peptides identified in a sample in mind !
 
 Computational procedures for comparing sample groups _A_ and _B_;
+
 * to account for sample loading etc., first scale the weight of all peptides per sample as; 1 / total number of detected peptides in sample _s_
 * *score_pA*: the score for protein _p_ in sample group _A_ is the sum of the weighted score of all peptides that belong to protein _p_ in all samples (within group _A_)
 * ratio for protein _p_ in _A vs B_: log2(*score_pB* + _minimum non-zero score in group B_) - log2(*score_pA* + _minimum non-zero score in group A_)
