@@ -570,6 +570,7 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
   }
   stopifnot(colnames(m) == colnames(DTw)[-1]) # column names must be preserved inside normalization functions
 
+  # !! while efficient, this could lead to bugs IF the normalization yields NAs for indices/values that previously were a finite number
   # back to long-format. because we sorted the long-format data.table and made sure to remove empty rows/columns, the data order is unchanged between long-format DT_subset and wide-format DTw. Thus, casting back from wide-to-long is trivial
   # have to omit the NA's, as those are also absent from DT_subset
   DT_subset$intensity_norm = na.omit(c(m))
@@ -660,8 +661,9 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
 
 # helper function for simple filtering, applies a filter to each group individually
 # eg; within each group, remove peptides that are not detected in at least 2 replicates
+#' @importFrom data.table data.table
 filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard_exclude_samples=F, nquant=2, ndetect=1, norm_algorithm = "vwmb") {
-  # TODO input validation
+  # input validation
   check_dataset_integrity(dataset)
   if(length(colname) != 1 || !grepl("^intensity_", colname)) {
     append_log(paste("the column name that should hold resulting peptide intensities must start with 'intensity_' to ensure compatability with the rest of the codebase. Provided value:", colname), type = "error")

@@ -1,31 +1,33 @@
 
-  - [load dataset](#load-dataset)
-  - [classify yeast and human
-    proteins](#classify-yeast-and-human-proteins)
-  - [differential detection](#differential-detection)
-  - [ROC](#roc)
-  - [print true/false-positives for topN
-    hits](#print-truefalse-positives-for-topn-hits)
+# Differential Detection
 
-Basic example to illustrate differential detection testing in MS-DAP
-using the LFQbench dataset.
+In this vignette we will demonstrate a basic metric for “differential
+detection” that is implemented in MS-DAP. Analogous to the [DEA
+vignette](differential_expression_analysis.md), we will apply MS-DAP to
+the LFQbench dataset but instead of testing the differences in
+peptide/protein abundance values, we here compare the number of detected
+peptides over replicates between sample groups/conditions.
+
+note: in the code blocks shown below (grey areas), the lines that start
+with `#>` are the respective output that would be printed to the console
+if you run these code snippets on your computer
 
 ## load dataset
 
 1.  load the Skyline output of the LFQbench study (this file is bundled
-    with the MS-DAP package as a test dataset).
+    with the MS-DAP package, you don’t have to download anything).
 
 2.  extract the respective group/condition of each sample by matching a
     regular expression against the filenames. This is just to
-    demonstrate a more advanced convenience method that may come in
-    handy for bioinformatic analyses, in typical MS-DAP workflows, the
-    sample metadata is loaded from file (a csv or Excel table), see the
-    ‘getting started’ vignette.
+    demonstrate a more advanced utility function that may come in handy
+    for bioinformatic analyses. In typical MS-DAP workflows, the sample
+    metadata would be loaded from file (a csv or Excel table), as
+    demonstrated in the [user guide](userguide.md).
 
 3.  finally, we define the contrast: group A versus group B.
 
-note; for LFQbench dataset, the sample groups are taken from
-process\_hye\_samples.R @
+note; the sample-to-condition assignments were taken from
+`process_hye_samples.R` @
 <https://www.ebi.ac.uk/pride/archive/projects/PXD002952/files>
 
 ``` r
@@ -40,6 +42,7 @@ dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys =
 dataset = sample_metadata_custom(dataset, group_regex_array = c(A = "007|009|011", B = "008|010|012") )
 
 dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
+#> info: contrast: A vs B
 
 print(dataset$samples %>% select(sample_id, group))
 #> # A tibble: 6 x 2
@@ -55,9 +58,14 @@ print(dataset$samples %>% select(sample_id, group))
 
 ## classify yeast and human proteins
 
-Use MS-DAP utility function to easily recognize the human and yeast
-proteins, while ignoring ecoli proteins or ambiguous proteingroups (that
-match multiple of these classes).
+We here use a MS-DAP utility function to easily recognize the Human and
+Yeast proteins, while ignoring E. Coli proteins and ambiguous
+proteingroups (that match multiple of these classes). The
+`regex_classification()` function applies the provided regular
+expressions to the fasta headers of all proteins in each proteingroup to
+determine classifications. If no fasta files were loaded prior to this,
+as is the case in this example, the regular expressions are applied to
+the protein identifiers instead.
 
 ``` r
 dataset$proteins$classification = regex_classification(dataset$proteins$fasta_headers, regex=c(human="_HUMA", yeast="_YEAS", discard="_ECOL"))
@@ -68,6 +76,12 @@ print(table(dataset$proteins$classification))
 ```
 
 ## differential detection
+
+We here run the differential detection function in MS-DAP that computes
+a z-score for each protein based on the total number of detected
+peptides per sample group. Further details for the computational
+procedures are available at the *differential detection* section of the
+[introduction vignette](intro.md).
 
 ``` r
 # compute MS-DAP differential detect scores for all contrasts
@@ -85,25 +99,11 @@ print( ggplot(tib_plot, aes(x=diff_detect_zscore, fill=classification)) +
 
 ![](images/dd-zscore-hist-1.png)<!-- -->
 
-## ROC
-
-``` r
-roc_obj = pROC::roc(tib_plot$classification, abs(tib_plot$diff_detect_zscore), levels=c("human", "yeast"), direction="<")
-pROC::plot.roc(roc_obj)
-```
-
-![](images/dd-zscore-roc-1.png)<!-- -->
-
 ## print true/false-positives for topN hits
 
-Sort all proteins by absolute differential detection score, take top 50
-hits, count how many are yeast/human.
-
-The high true positive rate indicates this simple metric could be suited
-to complement the differential expression analyses (DEA) which is based
-on peptide abundance values, particularly to rank those proteins that
-lack data points in one experimental condition but not the other (eg;
-proteins on which no DEA is possible).
+To inspect the extreme values from differential detection analysis, we
+here sort all proteins by absolute differential detection score, take
+top 50 hits and count how many are yeast/human.
 
 ``` r
 print( tib_plot %>% 
@@ -116,3 +116,40 @@ print( tib_plot %>%
 #> 1 human              2
 #> 2 yeast             48
 ```
+
+Analogously, we can inspect the classification of *candidate proteins*
+suggested by the differential detection analysis.
+
+``` r
+print( tib_plot %>% 
+         filter(diff_detect_zscore_candidate) %>% 
+         count(classification) )
+#> # A tibble: 2 x 2
+#>   classification     n
+#>   <chr>          <int>
+#> 1 human             22
+#> 2 yeast            157
+```
+
+Taken together, the high true positive rates from this simplified
+approach that is only based on detection counts suggests it could
+complement the differential expression analyses (DEA) which is based on
+peptide abundance values, particularly to rank those proteins that lack
+data points in one experimental condition but not the other (eg;
+proteins on which no DEA is possible). In our hands, this approach has
+proven particularly useful in wildtype *vs* knockout APMS datasets
+measured in Data Dependent Acquisition mode which yields many proteins
+that have observed peptides in one condition but very few in the other
+(thus cannot be used in DEA).
+
+## ROC
+
+Additionally, we can visualize the differential detection z-scores by
+ROC to show these scores are much better than random.
+
+``` r
+roc_obj = pROC::roc(tib_plot$classification, abs(tib_plot$diff_detect_zscore), levels=c("human", "yeast"), direction="<")
+pROC::plot.roc(roc_obj)
+```
+
+![](images/dd-zscore-roc-1.png)<!-- -->

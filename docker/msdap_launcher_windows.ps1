@@ -1,7 +1,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-$VERSION = "0.2.3"
+$VERSION = "0.2.4"
 
 
 Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP launcher script for version: $VERSION"
@@ -105,7 +105,7 @@ try {
 ### open browser after an N second delay
 $url_rstudio = "http://localhost:3839"
 Write-Host ""
-Write-Host "$((Get-Date).ToString("HH:mm:ss")) - RStudio + MS-DAP will be available at: ${url_rstudio}  username:rstudio  password:msdap"
+Write-Host "$((Get-Date).ToString("HH:mm:ss")) - RStudio & MS-DAP will be available at: ${url_rstudio}"
 Write-Host ""
 Write-Host "use control+C (or close this powershell window) to stop the container"
 Write-Host ""
@@ -118,7 +118,8 @@ Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP container ..."
 
 ### docker run (mounting current directory on host as /data within container)
 $timezone_utc_offset = [System.TimeZone]::CurrentTimeZone.GetUtcOffset([datetime]::Now).TotalHours
-docker run -p 3839:8787 -e PASSWORD=msdap -e HOST_TIMEZONE_UTC_OFFSET=$timezone_utc_offset -v ${PWD}:/data -it ftwkoopmans/msdap:$VERSION
+docker run -p 3839:8787 -e DISABLE_AUTH=true -v ${PWD}:/data -it ftwkoopmans/msdap:$VERSION /bin/bash -c "echo HOST_TIMEZONE_UTC_OFFSET=$timezone_utc_offset >> /usr/local/lib/R/etc/Renviron && /init"
+
 
 
 # don't close until user hits enter key (eg; when double-clicking the script in Windows Explorer, we don't want the powershell window to automatically close)

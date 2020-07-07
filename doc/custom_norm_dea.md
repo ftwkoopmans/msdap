@@ -7,6 +7,10 @@
 This vignette demonstrates how you can plug custom functions into the
 MS-DAP pipeline.
 
+note: in the code blocks shown below (grey areas), the lines that start
+with `#>` are the respective output that would be printed to the console
+if you run these code snippets on your computer
+
 ## prepare the dataset of analysis
 
 One could use any dataset to demonstrate the use of custom functions for

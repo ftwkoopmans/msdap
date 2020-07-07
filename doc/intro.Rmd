@@ -61,7 +61,7 @@ Feature selection is an important first step in which one decides on which pepti
 - topN peptides per protein; after above filters, rank peptides by the number of samples where detected and their overall CoV and keep the top N
 - the respective protein has at least N peptides that pass the above filters
 
-'identified' refers to peptide p in sample s was identified through MS/MS for DDA datasets, or identified with a confidence qvalue <= 0.01 for DIA datasets. Quantified refers to datapoints either identified and quantified or not identified but their abundance was inferred through match-between-runs.
+'identified' refers to peptide _p_ in sample _s_ was identified through MS/MS for DDA datasets, or identified with a confidence qvalue <= 0.01 for DIA datasets. Quantified refers to datapoints either identified and quantified or not identified but their abundance was inferred through match-between-runs.
 
 
 ### DEA-workflow: normalization
@@ -76,7 +76,28 @@ A second important step is to choose the normalization procedure. There are diff
 - VWMB, Variation Within Mode Between (novel, manuscript is a work-in-progress)
 - modebetween, application of VWMB to only normalize between groups (replicates within each group are all scaled in the exact same manner)
 
+### differential detection
 
+The differential detection function in MS-DAP computes a z-score for each protein based on the total number of detected peptides per sample group.
+
+To easily prioritize proteins-of-interest, some which may not have sufficient abundance values for differential expression analysis but that do have many more detects in one sample group than the other, we provide a simple score based on identification count data. 
+
+This is a simplified approach that is intended to rank proteins for further qualitative analysis, be careful of over-interpretation and keep differences in sample group size (#replicates) and the absolute amount of peptides identified in a sample in mind !
+
+Computational procedures for comparing sample groups _A_ and _B_;
+* to account for sample loading etc., first scale the weight of all peptides per sample as; 1 / total number of detected peptides in sample _s_
+* *score_pA*: the score for protein _p_ in sample group _A_ is the sum of the weighted score of all peptides that belong to protein _p_ in all samples (within group _A_)
+* ratio for protein _p_ in _A vs B_: log2(*score_pB* + _minimum non-zero score in group B_) - log2(*score_pA* + _minimum non-zero score in group A_)
+* finally, we standardize all protein ratios by subtracting the overall mean value, then dividing by the standard deviation
+* proteins of interest, _candidates_, are defined as proteins with an absolute z-score of at least 2 AND at least a count difference between groups _A_ and _B_ of _group size_ * 0.75 (the latter guards against proteins with 0 detect in one group and 1 peptide in 1 sample in the other)
+
+### estimating foldchange thresholds
+
+In Differential Expression Analysis (DEA), one can optionally provide a log2 foldchange threshold as an additional criterion (besides p-values) for proteins to be considered statistically significant. Instead of choosing an arbitrary threshold value, MS-DAP can estimate an appropriate value from your data by bootstrapping analyses that permute sample-to-condition assignments.
+
+Permutations of sample labels within a sample group are disregarded as these have no effect on the between-group foldchange, only unique combinations of swapping _k_ samples (where _k_ is 50% of replicates within a group) between conditions _A_ and _B_ are considered. From the distribution of foldchanges generated after N iterations, we select the foldchange value at the 95% quantile of all permutations as the threshold (cannot infer a-symmetric foldchange thresholds from the permutation data, so take the largest absolute value at _p = 0.95_; `max(abs(quantile(fc_matrix, probs = c(1-p, p), na.rm = T)))`).
+
+This is somewhat similar to the method described by Hafemeister and Satija at https://doi.org/10.1186/s13059-019-1874-1
 
 
 ## Quality Control

@@ -226,7 +226,7 @@ analysis_quickstart = function(dataset,
                            filter_min_detect = filter_min_detect, filter_fraction_detect = filter_fraction_detect, filter_min_quant = filter_min_quant, filter_fraction_quant = filter_fraction_quant,
                            filter_min_peptide_per_prot = filter_min_peptide_per_prot, filter_topn_peptides = filter_topn_peptides,
                            norm_algorithm = norm_algorithm,
-                           by_group = T, all_group = (!filter_by_contrast || output_abundance_tables), by_contrast = filter_by_contrast)
+                           by_group = T, all_group = (!filter_by_contrast || output_abundance_tables || output_qc_report), by_contrast = filter_by_contrast)
 
 
   ##### DE analysis

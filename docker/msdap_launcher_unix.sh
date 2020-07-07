@@ -3,7 +3,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-VERSION="0.2.3"
+VERSION="0.2.4"
 
 
 ### OS
@@ -59,7 +59,7 @@ fi
 
 ### open browser after an N second delay
 URL_RSTUDIO="http://localhost:3839"
-echo $'\nRStudio + MS-DAP is available at: ${URL_RSTUDIO}  username:rstudio  password:msdap\n'
+echo $'\nRStudio & MS-DAP will be available at: ${URL_RSTUDIO}\n'
 
 if [ ! -z "$ISMACOS" ]; then
   sleep 3 && open "${URL_RSTUDIO}" &
@@ -71,4 +71,5 @@ echo $'use control+C (or close this terminal window) to stop the container\n'
 
 
 ### docker run (mounting current directory on host as /data within container)
-docker run -p 3839:8787 -e PASSWORD=msdap -e HOST_TIMEZONE_UTC_OFFSET=$(date +%z) -v $(pwd):/data -it ftwkoopmans/msdap:"$VERSION"
+TIMEZONE_UTC_OFFSET=$(date +%z)
+docker run -p 3839:8787 -e DISABLE_AUTH=true -v $(pwd):/data -it ftwkoopmans/msdap:"$VERSION" /bin/bash -c "echo HOST_TIMEZONE_UTC_OFFSET=$TIMEZONE_UTC_OFFSET >> /usr/local/lib/R/etc/Renviron && /init"

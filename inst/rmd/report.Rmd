@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: beta 0.2.3  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: beta 0.2.4  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true
@@ -358,7 +358,10 @@ if(length(l_contrast) > 0) {
   
   has_msqrob = "msqrob" %in% dataset$de_proteins$algo_de
   has_msempire = "msempire" %in% dataset$de_proteins$algo_de
-  for(contr in names(l_contrast)) {
+  
+  for(contr_index in seq_along(l_contrast)) {
+    contr = names(l_contrast)[contr_index]
+    
     # cat('\n## ', contr, '\n\n')
     cat('\n## ', unlist(lapply(strsplit(sub("^contrast:\\s*", "", contr), " vs ", fixed = T), function(x) paste(stringr::str_trunc(x, 35, "right"), collapse = " vs "))), '\n\n') # analogous to formatting contrast shortnames for table tib_report_stats_summary @ report main function
     
@@ -378,8 +381,8 @@ if(length(l_contrast) > 0) {
     cat('Bottom figure panels have limited x- and y-axis. For datasets with a small number of strong outliers in p-value or fold-change, which may have a profound effect on the plot scales, this allows inspection of the remainder of the volcano plot without disproportionate influence by \'extreme\' values. \n\n')
   
     i=0
-    for(p in l_contrast[[contr]]$p_volcano_contrast) {
-      subchunkify(print(p), unique_chunk_id = paste0("volcano_", contr, "_", i), fig_height = 8, fig_width = 7)
+    for(p in l_contrast[[contr_index]]$p_volcano_contrast) {
+      subchunkify(print(p), unique_chunk_id = paste0("volcano_", contr_index, "_", i), fig_height = 8, fig_width = 7)
       cat('\n\n') 
       i = i + 1
     }
@@ -392,7 +395,7 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob model tends to assign zero (log)foldchange for proteins with minor difference between conditions where the model is very sure the null hypothesis cannot be rejected (shrinkage by the ridge regression model). As a result, many foldchanges will be zero and the density plot for MSqRob may look like a spike instead of the expected Gaussian shape observed in other models* \n\n") 
     }
 
-    subchunkify(print(l_contrast[[contr]]$p_foldchange_density), unique_chunk_id = paste0("foldchange_density_", contr), fig_height = 7, fig_width = 7)
+    subchunkify(print(l_contrast[[contr_index]]$p_foldchange_density), unique_chunk_id = paste0("foldchange_density_", contr_index), fig_height = 7, fig_width = 7)
 
     cat('\n\\newpage \n')
     cat('\n### p-value distribution \n\n') 
@@ -404,7 +407,7 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob and MS-EmpiRe models often yield p-value distributions that show a large peak at p-value 1, these are typically proteins with estimated log foldchanges at/near zero where these models are very sure the null hypothesis cannot be rejected* \n\n") 
     }
 
-    subchunkify(print(l_contrast[[contr]]$p_pvalue_hist), unique_chunk_id = paste0("pvalue_hist_", contr), fig_height = 7, fig_width = 7)
+    subchunkify(print(l_contrast[[contr_index]]$p_pvalue_hist), unique_chunk_id = paste0("pvalue_hist_", contr_index), fig_height = 7, fig_width = 7)
 
 
     ## differential detect
@@ -414,9 +417,9 @@ if(length(l_contrast) > 0) {
       cat('Some proteins may not have peptides with sufficient abundance values for differential expression analysis, but do show strong differences in the number of detected peptides between sample groups. A simple z-score is computed for each protein based on the number of detected peptides per sample group. DEA is much more powerful for differential testing, but theze z-scores can offer complementary information in some experimental designs (e.g. a wildtype-knockout APMS study). \n\n')
       cat('Below figure shows the distribution of these scores with thresholds at 2 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
       
-      subchunkify(print(dd_plots[[contr]]), unique_chunk_id = paste0("dd_hist_", contr), fig_height = 4, fig_width = 4)
+      subchunkify(print(dd_plots[[contr_index]]), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 4, fig_width = 4)
       # cat('\n\n **top10 candidate genes:** \n\n')
-      # cat(paste(head(dd_plots[[contr]]$genes, 10), collapse = ", "), "\n")
+      # cat(paste(head(dd_plots[[contr_index]]$genes, 10), collapse = ", "), "\n")
     }
 
 
@@ -515,8 +518,9 @@ Do not use RStudio's `source` option to execute our pipeline since it will only 
 ```{r, results = 'asis', echo = F}
 #, you can reset these through the RStudio UI before making your 'final' analysis to generate a clean 'code log' (for advanced users, you can start your script with `rstudioapi::executeCommand("clearHistory")` to clear history)
 
+# update: we now first subset the R command history from the last "import_dataset..." on, then format the R code. So prior R code/commands that are 'unparsable' will not affect the pretty-printing of the subset of code that we want to display here
 # try to format code (throws error if there are lines that yield syntax errors)
-formatted_code = tryCatch(subset_relevant_code_snippet_for_report(format_r_code(history_as_string)), error = function(e) {""})
+formatted_code = tryCatch(format_r_code(subset_relevant_code_snippet_for_report(history_as_string)), error = function(e) {""})
 cat('```r \n')
 # on code format error, just produce the r history as-is
 if(length(formatted_code) == 1 && formatted_code == "") {

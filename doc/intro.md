@@ -6,6 +6,9 @@
       - [DEA-workflow: feature
         selection](#dea-workflow-feature-selection)
       - [DEA-workflow: normalization](#dea-workflow-normalization)
+      - [differential detection](#differential-detection)
+      - [estimating foldchange
+        thresholds](#estimating-foldchange-thresholds)
   - [Quality Control](#quality-control)
       - [sample metadata](#sample-metadata)
       - [detect counts](#detect-counts)
@@ -99,7 +102,7 @@ whether a peptide is ‘valid’ in a sample group:
   - the respective protein has at least N peptides that pass the above
     filters
 
-‘identified’ refers to peptide p in sample s was identified through
+‘identified’ refers to peptide *p* in sample *s* was identified through
 MS/MS for DDA datasets, or identified with a confidence qvalue \<= 0.01
 for DIA datasets. Quantified refers to datapoints either identified and
 quantified or not identified but their abundance was inferred through
@@ -123,6 +126,59 @@ are different normalization algorithms available in MS-DAP:
   - modebetween, application of VWMB to only normalize between groups
     (replicates within each group are all scaled in the exact same
     manner)
+
+### differential detection
+
+The differential detection function in MS-DAP computes a z-score for
+each protein based on the total number of detected peptides per sample
+group.
+
+To easily prioritize proteins-of-interest, some which may not have
+sufficient abundance values for differential expression analysis but
+that do have many more detects in one sample group than the other, we
+provide a simple score based on identification count data.
+
+This is a simplified approach that is intended to rank proteins for
+further qualitative analysis, be careful of over-interpretation and keep
+differences in sample group size (\#replicates) and the absolute amount
+of peptides identified in a sample in mind \!
+
+Computational procedures for comparing sample groups *A* and *B*; \* to
+account for sample loading etc., first scale the weight of all peptides
+per sample as; 1 / total number of detected peptides in sample *s* \*
+*score\_pA*: the score for protein *p* in sample group *A* is the sum of
+the weighted score of all peptides that belong to protein *p* in all
+samples (within group *A*) \* ratio for protein *p* in *A vs B*:
+log2(*score\_pB* + *minimum non-zero score in group B*) -
+log2(*score\_pA* + *minimum non-zero score in group A*) \* finally, we
+standardize all protein ratios by subtracting the overall mean value,
+then dividing by the standard deviation \* proteins of interest,
+*candidates*, are defined as proteins with an absolute z-score of at
+least 2 AND at least a count difference between groups *A* and *B* of
+*group size* \* 0.75 (the latter guards against proteins with 0 detect
+in one group and 1 peptide in 1 sample in the other)
+
+### estimating foldchange thresholds
+
+In Differential Expression Analysis (DEA), one can optionally provide a
+log2 foldchange threshold as an additional criterion (besides p-values)
+for proteins to be considered statistically significant. Instead of
+choosing an arbitrary threshold value, MS-DAP can estimate an
+appropriate value from your data by bootstrapping analyses that permute
+sample-to-condition assignments.
+
+Permutations of sample labels within a sample group are disregarded as
+these have no effect on the between-group foldchange, only unique
+combinations of swapping *k* samples (where *k* is 50% of replicates
+within a group) between conditions *A* and *B* are considered. From the
+distribution of foldchanges generated after N iterations, we select the
+foldchange value at the 95% quantile of all permutations as the
+threshold (cannot infer a-symmetric foldchange thresholds from the
+permutation data, so take the largest absolute value at *p = 0.95*;
+`max(abs(quantile(fc_matrix, probs = c(1-p, p), na.rm = T)))`).
+
+This is somewhat similar to the method described by Hafemeister and
+Satija at <https://doi.org/10.1186/s13059-019-1874-1>
 
 ## Quality Control
 

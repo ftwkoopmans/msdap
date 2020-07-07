@@ -32,19 +32,12 @@ and example dataset for. You can use either of these;
 The main steps in MS-DAP analyses are:
 
 1.  prepare data
-    
-    1.1 import files from MaxQuant/Skyline/Spectronaut/etc.
-    
-    1.2 import fasta files
-    
-    1.3 import sample metadata
-    
-    1.4 define contrasts
-
+      - import files from MaxQuant/Skyline/Spectronaut/etc.
+      - import fasta files
+      - import sample metadata
+      - define contrasts
 2.  run pipeline
-
 3.  inspect QC report
-
 4.  optionally, adjust settings and re-run
 
 ## Import data

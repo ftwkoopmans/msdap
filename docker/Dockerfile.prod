@@ -22,7 +22,7 @@ RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn'), upd
 RUN R -e "install.packages(c('bit64', 'crayon', 'data.table', 'devtools', 'doParallel', 'forcats', 'foreach', 'formatR', 'ggpubr', 'ggrepel', 'patchwork', 'gtools', 'knitr', 'xtable', 'lme4', 'MASS', 'Matrix', 'matrixStats', 'nloptr', 'openxlsx', 'pcaMethods', 'pdftools', 'pROC', 'purrr', 'RColorBrewer', 'readr', 'rmarkdown', 'scales', 'stringr', 'styler', 'tinytex', 'viridis', 'htmltools', 'htmlwidgets', 'shiny', 'shinyFiles', 'shinyjs', 'sortable', 'testthat'))"
 
 # install msdap R package from github
-RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.3', upgrade = 'never')"
+RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.4', upgrade = 'never')"
 
 # make sure the rstudio user can install and upgrade packages
 RUN chown -R rstudio:rstudio /usr/local/lib/R/library

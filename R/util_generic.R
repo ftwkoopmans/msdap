@@ -560,11 +560,11 @@ format_r_code = function(rcode) {
 
 
 #' in case users run the pipeline a few times consecutively (eg; testing various parameters) without resetting R history, we only want to keep the relevant portion of the code.
-#' simple/transparent way is to show everything from latest dataset import function or source() on. works well especially because we stripped comments
+#' simple/transparent way is to show everything from latest dataset import function or source() on
 #'
 #' @param code_lines todo
 subset_relevant_code_snippet_for_report = function(code_lines) {
-  i = grep("\\s*=\\s*import_dataset", code_lines, perl = T)
+  i = grep("^[^#]+=\\s*import_dataset", code_lines)
   # i = grep("^\\s*source\\(|\\s*=\\s*import_dataset", code_lines, perl = T)
   if(length(i) > 0) {
     code_lines = code_lines[tail(i,1):length(code_lines)]
