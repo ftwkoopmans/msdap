@@ -149,7 +149,7 @@ and press `control + C`.
 note: to use a different MS-DAP version, simply change the version
 number in both docker commands. To view all available MS-DAP Docker
 containers, go to:
-<https://hub.docker.com/repository/docker/ftwkoopmans/msdap>
+<https://hub.docker.com/r/ftwkoopmans/msdap/tags>
 
 ## Locating your mounted data within Docker containers
 
