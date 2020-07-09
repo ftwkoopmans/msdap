@@ -38,7 +38,7 @@ de_interface_ebayes = function(peptides=NULL, samples=NULL, eset_peptides=NULL, 
 #' @param mask_sample_groups numeric or string array indicating to which group each column/sample belongs. NO NA VALUES !
 #'
 #' @importFrom stats model.matrix
-#' @importFrom limma eBayes topTable
+#' @importFrom limma eBayes topTable lmFit
 #' @export
 de_ebayes = function(x, mask_sample_groups) {
   if(any(is.na(mask_sample_groups))) {
@@ -53,7 +53,7 @@ de_ebayes = function(x, mask_sample_groups) {
 
   # ref implementation: contr_design = model.matrix(~ rep(0:1, c(length(contr_cols_a), length(contr_cols_b))))
   contr_design = stats::model.matrix(~mask_sample_groups)
-  fit = suppressWarnings(limma::eBayes(lmFit(x, contr_design)))
+  fit = suppressWarnings(limma::eBayes(limma::lmFit(x, contr_design)))
   # !! sort.by="none" keeps the output table aligned with input matrix
   result = suppressMessages(limma::topTable(fit, number = nrow(x), adjust.method = "fdr", sort.by = "none", confint = TRUE))
   ## fit$coefficients and fit$stdev.unscaled contain the intercept, remove from ES and SE computation

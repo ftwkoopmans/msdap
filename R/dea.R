@@ -18,10 +18,9 @@ get_column_intensity = function(peptides, contr_lbl = NA) {
 #' @param qval_signif threshold for significance of adjusted p-values. default: 0.05
 #' @param fc_signif threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
 #' @param algo_de algorithms for differential expression analysis. options: ebayes, msempire, msqrob (to run multiple, provide an array)
-#' @param norm_modebetween_protein_eset normalise protein-level data matrix used for DEA by 'modebetween' to correct for 'imbalance' between conditions introduced in peptide-to-protein rollup. Note that some algo_de, such as msqrob or msempire, directly operate on the peptide-level data thus are unaffected by this setting. Only useful for statistical models that first roll-up to protein-level, such as eBayes. default:FALSE
 #' @param output_dir_for_eset optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that required this data
 #' @export
-dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), norm_modebetween_protein_eset = FALSE, output_dir_for_eset = "") {
+dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), output_dir_for_eset = "") {
   ### input validation
   if (length(qval_signif) != 1 || !is.finite(qval_signif) || qval_signif <= 0) {
     append_log("q-value threshold must be a single numerical value above 0 (parameter qval_signif)", type = "error")
@@ -40,10 +39,6 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
   if (length(algo_de) == 0) {
     append_log("no algorithms have been defined (parameter algo_de), differential expression analysis is cancelled", type = "warning")
     return(dataset)
-  }
-
-  if (length(norm_modebetween_protein_eset) != 1 || is.na(norm_modebetween_protein_eset) || !is.logical(norm_modebetween_protein_eset)) {
-    append_log("parameter norm_modebetween_protein_eset must be a boolean value (TRUE or FALSE)", type = "error")
   }
 
   # valid DEA options are those hardcoded, or pre-existing functions
@@ -99,11 +94,6 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
     eset_proteins = eset_from_peptides_to_proteins(eset_peptides)
 
-    if(norm_modebetween_protein_eset) {
-      append_log("normalizing protein-level data for DEA by 'modebetween' (doesn't affect peptide-level models)", type = "info")
-      Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "modebetween", mask_sample_groups = Biobase::pData(eset_proteins)$condition)
-    }
-
     # if a directory for file storage was provided, store eset in a .RData file
     if(length(output_dir_for_eset) == 1 && !is.na(output_dir_for_eset) && nchar(output_dir_for_eset)>0 && dir.exists(output_dir_for_eset)) {
       save(eset_peptides, file=paste0(output_dir_for_eset, "/ExpressionSet_peptides_", gsub("\\W+", " ", col_contr), ".RData"), compress = T)
@@ -113,7 +103,9 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
     contr_fc_signif = fc_signif
     if(is.na(fc_signif)) {
       contr_fc_signif = dea_protein_background_foldchange_limits(eset_proteins)
-      append_log(sprintf("log2 foldchange threshold estimated by bootstrap analysis: %.3f", contr_fc_signif), type = "info")
+      # round the foldchange cutoff so users can get the the exact same results when they use the reported value
+      contr_fc_signif = round(contr_fc_signif, digits = 3)
+      append_log(sprintf("log2 foldchange threshold estimated by bootstrap analysis: %s", contr_fc_signif), type = "info")
     }
 
     # DE statistics for all requested algorithms

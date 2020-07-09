@@ -60,7 +60,7 @@ A launcher script is provided for user convenience; it executes all commands nee
     - _note; on Linux, you need to make sure the Docker daemon is running prior to starting the script_
 
 
-To use a different MS-DAP version, simply change the version number at the top of the launcher script. To view all available MS-DAP Docker containers versions, go to: https://hub.docker.com/repository/docker/ftwkoopmans/msdap
+To use a different MS-DAP version, simply change the version number at the top of the launcher script. To view all available MS-DAP Docker containers versions, go to: https://hub.docker.com/r/ftwkoopmans/msdap/tags
 
 
 **what does the script do?**
@@ -84,12 +84,12 @@ This section details each step involved in using the MS-DAP Docker container. In
 
 3) Download the MS-DAP Docker container by executing the following command in the terminal (only have to do this 'installation step' once):
 
-```docker pull ftwkoopmans/msdap:0.2.4```
+```docker pull ftwkoopmans/msdap:0.2.5```
 
 4) Run the Docker container and give it access to the directory on your computer (the 'host' system) that contains the proteomics data. 
 **importantly, Docker containers only have access to files on the host system that are explicitly mounted: update the highlighted path in the following command** (see further @ next subsection).
 
-<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.4</code>
+<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.5</code>
 
 5) Open a browser, such as Firefox or Chrome, and access MS-DAP at http://localhost:3839 . You will be presented with a complete RStudio environment that contains MS-DAP! username: `rstudio` password: `msdap` (we suggest you permit your browser to store these credentials for future re-use)
 

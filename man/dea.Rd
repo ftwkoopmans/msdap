@@ -9,7 +9,6 @@ dea(
   qval_signif = 0.05,
   fc_signif = 0,
   algo_de = c("ebayes"),
-  norm_modebetween_protein_eset = FALSE,
   output_dir_for_eset = ""
 )
 }
@@ -21,8 +20,6 @@ dea(
 \item{fc_signif}{threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0}
 
 \item{algo_de}{algorithms for differential expression analysis. options: ebayes, msempire, msqrob (to run multiple, provide an array)}
-
-\item{norm_modebetween_protein_eset}{normalise protein-level data matrix used for DEA by 'modebetween' to correct for 'imbalance' between conditions introduced in peptide-to-protein rollup. Note that some algo_de, such as msqrob or msempire, directly operate on the peptide-level data thus are unaffected by this setting. Only useful for statistical models that first roll-up to protein-level, such as eBayes. default:FALSE}
 
 \item{output_dir_for_eset}{optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that required this data}
 }

@@ -4,7 +4,12 @@
 \alias{normalize_matrix}
 \title{Normalize a numeric matrix}
 \usage{
-normalize_matrix(x_as_log2, algorithm, mask_sample_groups = NA)
+normalize_matrix(
+  x_as_log2,
+  algorithm,
+  mask_sample_groups = NA,
+  rows_group_by = NA
+)
 }
 \arguments{
 \item{x_as_log2}{the numeric matrix, all values must be log2 transformed}

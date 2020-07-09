@@ -2,14 +2,9 @@
 % Please edit documentation in R/report_as_excel.R
 \name{write_peptide_abundance_matrix_to_file}
 \alias{write_peptide_abundance_matrix_to_file}
-\title{Create an Excel document with all peptide abundances}
+\title{Create an Excel document with peptide and protein abundances}
 \usage{
-write_peptide_abundance_matrix_to_file(
-  dataset,
-  filename,
-  norm_algorithm = "",
-  norm_modebetween_protein_eset = F
-)
+write_peptide_abundance_matrix_to_file(dataset, filename, norm_algorithm = "")
 }
 \arguments{
 \item{dataset}{your dataset}
@@ -17,9 +12,17 @@ write_peptide_abundance_matrix_to_file(
 \item{filename}{full file path to output file}
 
 \item{norm_algorithm}{normalization algorithm(s)}
-
-\item{norm_modebetween_protein_eset}{normalise protein-level data matrix used for DEA by 'modebetween' to correct for 'imbalance' between conditions introduced in peptide-to-protein rollup. Note that some algo_de, such as msqrob or msempire, directly operate on the peptide-level data thus are unaffected by this setting. Only useful for statistical models that first roll-up to protein-level, such as eBayes. default:FALSE}
 }
 \description{
-Multiple sheets indicate results from all filters applied. For large datasets this results in huge files, so only recommended for small datasets.
+Conditional formatting is used to highlight match-between-runs peptides (low confidence data points).
+}
+\details{
+Keep in mind that large datasets may result in (too) large Excel files, so in some cases you're better of pre-processing your data in R.
+
+included tables;
+- peptide intensity (-filter +norm. conditional formatting)
+- peptide identification (1/0 flags)
+- peptide intensity_all_group (+filter +norm)
+- protein roll-up from peptide intensity
+- protein roll-up from peptide intensity_all_group
 }

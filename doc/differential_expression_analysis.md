@@ -91,7 +91,7 @@ dataset = filter_dataset(dataset,
                          norm_algorithm = "vwmb",
                          by_group = F, all_group = T, by_contrast = F)
 #> progress: caching filter data took 2 seconds
-#> progress: peptide filtering and normalization took 4 seconds
+#> progress: peptide filtering and normalization took 3 seconds
 
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
 dataset = dea(dataset, algo_de = "ebayes", qval_signif = 0.05, fc_signif = NA)

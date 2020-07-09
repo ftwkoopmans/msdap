@@ -4,13 +4,12 @@
 ### FRANK: removed all documentation/examples/"addition functions we don't need" and kept minimal set of imports
 #' @import dplyr
 #' @import tidyr
-#' @import purrr
-#' @import lme4
-#' @import limma
+#' @importFrom limma squeezeVar
+#' @importFrom lme4 refit getME findbars lmerControl
+#' @importFrom purrr map imap map_lgl map_chr
 ### FRANK: add 2 imports below
 #' @importFrom foreach %dopar%
 #' @importFrom parallel clusterExport
-#
 ### FRANK: below code is adapted only on lines/sections tagged with my name
 msqrobsum <- function(
   data, formulas, group_vars = 'protein', contrasts = NULL
@@ -20,7 +19,7 @@ msqrobsum <- function(
   , p_adjust_method = c("BH",p.adjust.methods)
   , keep_model = FALSE
   , rlm_args = list(maxit = 20L)
-  , lmer_args = list(control = lmerControl(calc.derivs = FALSE))
+  , lmer_args = list(control = lme4::lmerControl(calc.derivs = FALSE)) ### FRANK: add lme4
   , parallel_args = list(strategy = 'multisession')
   ## EXPERIMENTAL OPTIONS
   , type_df = 'traceHat'
@@ -36,15 +35,15 @@ msqrobsum <- function(
   type_df = match.arg(type_df)
   p_adjust_method = match.arg(p_adjust_method)
   if (missing(formulas) & mode == 'sum') formulas = ''
-  if ((mode != 'sum') & length(unlist(map(formulas,findbars))) == 0)
+  if ((mode != 'sum') & length(unlist(purrr::map(formulas,lme4::findbars))) == 0) ### FRANK: add lme4 and purrr
     stop('msqrobsum only works with formulas with at least 1 random effect specified')
   if (is(data,'MSnSet')) data <- MSnSet2df(data)
   if (is(contrasts, 'character')){
-    if (!all(c(formulas) %>% map_lgl(~{contrasts %in% map_chr(findbars(.),all.vars)})))
+    if (!all(c(formulas) %>% purrr::map_lgl(~{contrasts %in% purrr::map_chr(lme4::findbars(.),all.vars)}))) ### FRANK: add lme4 and purrr
       stop('Contrasts can only be constructed from variable name when the variable is specified as random effect')
     contrasts <- make_simple_contrast(data, contrasts)}
-  group_vars <- map_chr(group_vars, ~match.arg(.,names(data)))
-  model_vars <- c(formulas) %>% map(all.vars) %>% unlist %>% unique
+  group_vars <- purrr::map_chr(group_vars, ~match.arg(.,names(data))) ### FRANK: add purrr
+  model_vars <- c(formulas) %>% purrr::map(all.vars) %>% unlist %>% unique ### FRANK: add purrr
 
 
   ### FRANK: begin multiprocessing fix
@@ -90,10 +89,10 @@ msqrobsum <- function(
     ## no shrinkage if df < 1 because greatly influences emp. bay.
     ## TODO check only works when at least 3 protein
     id = df$df >= 1L
-    sq = squeezeVar(df$sigma[id]^2, df$df[id])
+    sq = limma::squeezeVar(df$sigma[id]^2, df$df[id]) ### FRANK: add limma
     ## experimental: use intercept of model as covariate to
     ## squeeze variance to correct for  mean variance
-    if(squeeze_covariate) sq = squeezeVar(df$sigma[id]^2, df$df[id], covariate = df$intercept[id])
+    if(squeeze_covariate) sq = limma::squeezeVar(df$sigma[id]^2, df$df[id], covariate = df$intercept[id]) ### FRANK: add limma
     df[id,] = mutate(df[id,],
                      sigma_prior = sqrt(sq$var.prior), sigma_post = sqrt(sq$var.post), df_prior = sq$df.prior)} ### FRANK
   if(type_df == "conservative"){
@@ -124,7 +123,7 @@ msqrobsum <- function(
   ## give empty tibble instead of NULL when no contrast (nicer to work with posthoc)
   # bind_rows(df,df_failed) %>% ### FRANK
   bind_rows(df, df_failed %>% select(-contrasts)) %>% ### FRANK
-      mutate(contrasts = map(contrasts, ~{if (is(.x,'tbl')) .x else tibble()}))
+      mutate(contrasts = purrr::map(contrasts, ~{if (is(.x,'tbl')) .x else tibble()})) ### FRANK: add purrr
 }
 
 MSnSet2df <- function(msnset){
@@ -149,7 +148,6 @@ MSnSet2df <- function(msnset){
   # as_data_frame(dt) ### FRANK: orig line
 }
 
-#' @import lme4
 #' @import tibble
 do_mm <- function(d, formulas, contrasts, mode ='msqrobsum', robust_lmer_iter = 1L
                   , rlm_args = list(), lmer_args = list(), keep_model = TRUE){
@@ -176,7 +174,6 @@ do_mm <- function(d, formulas, contrasts, mode ='msqrobsum', robust_lmer_iter = 
 }
 
 #' @importFrom MASS psi.huber
-#' @import lme4
 do_lmerfit <- function(df, form, robust_lmer_iter, args_lmer = list()){
   tol <- 1e-6
   fit <- rlang::exec(lmer,form, data = df, !!!args_lmer)
@@ -186,7 +183,7 @@ do_lmerfit <- function(df, form, robust_lmer_iter, args_lmer = list()){
     robust_lmer_iter= robust_lmer_iter-1
     res <- resid(fit)
     fit@frame$`(weights)` <- psi.huber(res/(mad(res,0)))
-    fit <- refit(fit)
+    fit <- lme4::refit(fit) ### FRANK: add lme4
     sse <- fit@devcomp$cmp['pwrss']
     if(abs(sseOld-sse)/sseOld <= tol) break
     sseOld <- sse
@@ -250,19 +247,17 @@ get_contrasts <- function(model, contrasts){
   ),nrow = sum(id))
 }
 
-#' @import purrr
 getBetaB <- function(model) {
-  betaB <- c(as.vector(getME(model,"beta")),as.vector(getME(model,"b")))
-  names(betaB) <- c(colnames(model@pp$X), unlist(imap(model@flist,~{paste0(.y,levels(.x))})))
+  betaB <- c(as.vector(lme4::getME(model,"beta")),as.vector(lme4::getME(model,"b"))) ### FRANK: add lme4
+  names(betaB) <- c(colnames(model@pp$X), unlist(purrr::imap(model@flist,~{paste0(.y,levels(.x))}))) ### FRANK: add purrr
   betaB
 }
 
-#' @import lme4
 getVcovBetaBUnscaled <- function(model){
-  X <- getME(model,"X")
-  Z <- getME(model,"Z")
+  X <- lme4::getME(model,"X") ### FRANK: add lme4
+  Z <- lme4::getME(model,"Z") ### FRANK: add lme4
   vcovInv <- Matrix::crossprod(cbind2(X,Z))
-  Ginv <- Matrix::solve(Matrix::tcrossprod(getME(model,"Lambda")) +
+  Ginv <- Matrix::solve(Matrix::tcrossprod(lme4::getME(model,"Lambda")) + ### FRANK: add lme4
                           Matrix::Diagonal(ncol(Z),1e-18))
   i <- -seq_len(ncol(X))
   vcovInv[i,i] <- vcovInv[i,i]+Ginv
@@ -275,12 +270,12 @@ calculate_df <- function(df, model, vars){
   vars_formula <- all.vars(form)
   vars_drop <- vars_formula[!vars_formula %in% vars]
   ## Sum of number of columns -1 of Zt mtrix of each random effect that does not involve a variable in vars_drop
-  mq <- getME(model,'q_i')
-  id <- !map_lgl(names(mq),~{any(stringr::str_detect(.x,vars_drop))})
+  mq <- lme4::getME(model,'q_i') ### FRANK: add lme4
+  id <- !purrr::map_lgl(names(mq),~{any(stringr::str_detect(.x,vars_drop))}) ### FRANK: add purrr
   p <- sum(mq[id]) - sum(id)
   ## Sum of fixed effect parameters that do not involve a variable in vars_drop
-  mx <- getME(model,'X')
-  id <- !map_lgl(colnames(mx),~{any(stringr::str_detect(.x,vars_drop))})
+  mx <- lme4::getME(model,'X') ### FRANK: add lme4
+  id <- !purrr::map_lgl(colnames(mx),~{any(stringr::str_detect(.x,vars_drop))}) ### FRANK: add purrr
   p <- p + sum(id)
 
   ## n is number of sample because 1 protein defined per sample
@@ -288,7 +283,6 @@ calculate_df <- function(df, model, vars){
   n-p
 }
 
-#' @import lme4
 getDf <- function(object){
   w <- object@frame$"(weights)"
   if (is.null(w)) w <- 1
@@ -299,10 +293,10 @@ getDf <- function(object){
 make_simple_contrast <- function(data, contrast_var){
   c <- pull(data,contrast_var) %>% unique %>% paste0(contrast_var, .) %>% sort %>% as.factor
   comp <- combn(c,2,simplify = FALSE)
-  condIds <- map(comp, ~which(c %in% .x))
+  condIds <- purrr::map(comp, ~which(c %in% .x)) ### FRANK: add purrr
   L <- rep(0,nlevels(c))
   L <- sapply(comp,function(x){L[x]=c(-1,1);L})
   rownames(L) <- levels(c)
-  colnames(L) <- map_chr(comp, ~paste(rev(.x),collapse = '-'))
+  colnames(L) <- purrr::map_chr(comp, ~paste(rev(.x),collapse = '-')) ### FRANK: add purrr
   L
 }

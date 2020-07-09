@@ -383,7 +383,7 @@ filter_dataset = function(dataset,
 
   if(any(norm_algorithm != "")) {
     for(col_intensity in cols_intensity) { #col_intensity=cols_intensity[1]
-      dataset$peptides[ , col_intensity] = normalize_intensities(data.table::setDT(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_sample, key_group, intensity = !!col_intensity)), norm_algorithm = norm_algorithm)
+      dataset$peptides[ , col_intensity] = normalize_intensities(data.table::setDT(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!col_intensity)), norm_algorithm = norm_algorithm)
     }
     # obsolete, v1; dataset$peptides = normalize_peptide_intensities(dataset$peptides, samples = dataset$samples, cols_intensity = cols_intensity, norm_algorithm = norm_algorithm)
   }
@@ -558,7 +558,11 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
   # enforce the order of this long-format table such that mapping long-to-wide and the reverse is trivial downstream
   data.table::setorder(DT_subset, key_sample, key_peptide)
   DTw = data.table::dcast(DT_subset, key_peptide ~ key_sample, value.var = "intensity", fill = NA)
-  m = as.matrix(DTw[,-1]) # just drop column 1, from data.table::dcast() the first column is guaranteed to be the 'id' (key_peptide in this case)
+  # peptide grouping
+  m_protein = DT$key_protein[match(DTw$key_peptide, DT$key_peptide)]
+  # drop ID column from wide format matrix
+  DTw[ , key_peptide := NULL]
+  m = as.matrix(DTw)
 
   # get group names. using match is pretty fast, see benchmark; rbenchmark::benchmark(match={m_groups = paste0("group_key_", DT$key_group[match(as.integer(colnames(m)), DT$key_sample)])}, dt={tmp=DT[unique(key_sample), .(key_sample, key_group)]})
   m_groups = paste0("group_key_", DT$key_group[match(as.integer(colnames(m)), DT$key_sample)])
@@ -566,14 +570,18 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
   # actual normalization
   for(alg in norm_algorithm) {
     if(alg == "") break
-    m = normalize_matrix(x_as_log2 = m, algorithm = alg, mask_sample_groups = m_groups)
+    m = normalize_matrix(x_as_log2 = m, algorithm = alg, mask_sample_groups = m_groups, rows_group_by = m_protein)
   }
-  stopifnot(colnames(m) == colnames(DTw)[-1]) # column names must be preserved inside normalization functions
+  stopifnot(colnames(m) == colnames(DTw)) # column names must be preserved inside normalization functions
 
-  # !! while efficient, this could lead to bugs IF the normalization yields NAs for indices/values that previously were a finite number
   # back to long-format. because we sorted the long-format data.table and made sure to remove empty rows/columns, the data order is unchanged between long-format DT_subset and wide-format DTw. Thus, casting back from wide-to-long is trivial
-  # have to omit the NA's, as those are also absent from DT_subset
-  DT_subset$intensity_norm = na.omit(c(m))
+  # v2: return from m those indices in the 'data cast to wide format' that were not NA to begin with
+  DT_subset$intensity_norm = m[!is.na(DTw)]
+  # v1:
+  # # have to omit the NA's, as those are also absent from DT_subset
+  # # !! while efficient, this could lead to bugs IF the normalization yields NAs for indices/values that previously were a finite number
+  # DT_subset$intensity_norm = na.omit(c(m))
+
   # debug: summary(DT_subset$intensity_norm-DT_subset$intensity)
   # debug: plot(density(DT_subset$intensity_norm - DT_subset$intensity, na.rm=T)); abline(v=0,col=2)
   # debug: boxplot(m[,order(m_groups),drop=F], outline=F, main="normalized") # make sure we order samples by group when showing abundance distributions
@@ -685,6 +693,6 @@ filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard
   }
 
   # normalize
-  dataset$peptides[ , colname] = normalize_intensities(data.table::data.table(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_sample, key_group, intensity = !!colname)), norm_algorithm = norm_algorithm)
+  dataset$peptides[ , colname] = normalize_intensities(data.table::data.table(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!colname)), norm_algorithm = norm_algorithm)
   return(dataset)
 }

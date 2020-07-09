@@ -100,11 +100,10 @@ NULL
 #' @param filter_min_peptide_per_prot in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters?
 #' @param filter_topn_peptides maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates). 1 is default, 2 can be a good choice situationally. If set to 1, make sure to inspect individual peptide data/plots for proteins with 1 peptide.
 #' @param filter_by_contrast should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately.
-#' @param norm_algorithm normalization algorithms. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
+#' @param norm_algorithm normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero
 #' @param dea_algorithm algorithms for differential expression analysis. options: ebayes, msempire, msqrob (to run multiple, provide an array)
 #' @param dea_qvalue_threshold threshold for significance of adjusted p-values in figures and output tables
 #' @param dea_log2foldchange_threshold threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
-#' @param dea_norm_modebetween_protein_eset normalise protein-level data matrix used for DEA by 'modebetween' to correct for 'imbalance' between conditions introduced in peptide-to-protein rollup. Note that some algo_de, such as msqrob or msempire, directly operate on the peptide-level data thus are unaffected by this setting. Only useful for statistical models that first roll-up to protein-level, such as eBayes. default:FALSE
 #' @param plot_pca_label_by_shortname whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)
 #' @param output_dir output directory where all output files are stored, must be an existing directory
 #' @param output_within_timestamped_subdirectory optionally, automatically create a subdirectory (without output_dir) that has the current date&time as name and store results there
@@ -129,8 +128,6 @@ analysis_quickstart = function(dataset,
                                # significance cutoff
                                dea_qvalue_threshold = 0.01,
                                dea_log2foldchange_threshold = 0,
-                               #
-                               dea_norm_modebetween_protein_eset = FALSE,
                                # plot options
                                plot_pca_label_by_shortname = NA, # if NA, auto estimate
                                #
@@ -231,7 +228,7 @@ analysis_quickstart = function(dataset,
 
   ##### DE analysis
   # quantitative analysis; eBayes/MSqRob/MS-EmpiRe/MSqRobSum
-  dataset = dea(dataset, qval_signif = dea_qvalue_threshold, fc_signif = dea_log2foldchange_threshold, algo_de = dea_algorithm, norm_modebetween_protein_eset = dea_norm_modebetween_protein_eset, output_dir_for_eset = ifelse(dump_all_data, output_dir, ""))
+  dataset = dea(dataset, qval_signif = dea_qvalue_threshold, fc_signif = dea_log2foldchange_threshold, algo_de = dea_algorithm, output_dir_for_eset = ifelse(dump_all_data, output_dir, ""))
   # debug; print(dataset$de_proteins %>% filter(signif) %>% left_join(dataset$proteins))
 
   # qualitative analysis
@@ -242,7 +239,7 @@ analysis_quickstart = function(dataset,
   write_statistical_results_to_file(dataset, output_dir)
   if(output_abundance_tables) {
     # only do mode normalization, no normalizations that 'transform' (eg; vsn), users should do do downstream if they want to filter etc first
-    write_peptide_abundance_matrix_to_file(dataset, filename = fname_abundances, norm_algorithm = norm_algorithm, norm_modebetween_protein_eset = dea_norm_modebetween_protein_eset)
+    write_peptide_abundance_matrix_to_file(dataset, filename = fname_abundances, norm_algorithm = norm_algorithm)
   }
 
   # write all data tables to compressed .tsv files

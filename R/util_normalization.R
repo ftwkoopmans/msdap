@@ -2,7 +2,7 @@
 #' the set of available normalization algorithms
 #' @export
 normalization_algorithms = function() {
-  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "modebetween")
+  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein")
 }
 
 
@@ -16,7 +16,7 @@ normalization_algorithms = function() {
 #' @importFrom limma normalizeCyclicLoess
 #' @importFrom vsn justvsn
 #' @export
-normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA) {
+normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_group_by = NA) {
   #input validation; not a valid input object, silently return
   if (!is.matrix(x_as_log2) || nrow(x_as_log2) == 0 || ncol(x_as_log2) < 2 || length(algorithm) != 1 || is.na(algorithm) || algorithm == "") {
     return(x_as_log2)
@@ -28,6 +28,7 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA) {
 
   x_as_log2[!is.finite(x_as_log2)] = NA
   valid_mask = length(mask_sample_groups) == ncol(x_as_log2) && all(!is.na(mask_sample_groups) & mask_sample_groups != "")
+  valid_rows_group_by = length(rows_group_by) == nrow(x_as_log2) && all(!is.na(rows_group_by) & rows_group_by != "")
 
   if (algorithm == "median") {
     return(normalize_median(x_as_log2))
@@ -62,6 +63,27 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA) {
     return(normalize_vwmb(x_as_log2, groups=mask_sample_groups, metric_within = "")) # disable within-group normalization
   }
 
+  if (algorithm == "modebetween_protein") {
+    if (!valid_mask) {
+      append_log("'modebetween_protein' normalization requires a definition of sample groups for between-group normalization", type = "error")
+    }
+    if (!valid_rows_group_by) {
+      append_log("'modebetween_protein' normalization requires an array of protein identifiers (not NA or empty string), equal to the number of rows of the peptide matrix, that will be used for peptide-to-protein rollup", type = "error")
+    }
+
+    # rollup
+    x_as_log2__rollup = suppressMessages(as_tibble(2^x_as_log2, .name_repair = "universal") %>% replace(is.na(.), 0) %>% add_column(protein_id=rows_group_by) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA) %>% select(-protein_id) %>% log2 %>% as.matrix)
+    # vwmb + param to return scaling factors
+    x_as_log2__rollup = normalize_vwmb(x_as_log2__rollup, groups=mask_sample_groups, metric_within = "", include_attributes = TRUE) # disable within-group normalization
+    scale_per_sample = attr(x_as_log2__rollup, "scaling")
+    # apply scaling factors, determined through normalization on protein-level, to peptide-level (simple loop is more efficient than transpose+scale+transpose)
+    for(j in seq_along(scale_per_sample)) {
+      x_as_log2[,j] = x_as_log2[,j] - scale_per_sample[j]
+    }
+    return(x_as_log2)
+    # debug; x_as_log2 = cbind(rnorm(100,2), rnorm(100,2.5), rnorm(100,4.5), rnorm(100,5)); mask_sample_groups = c("a","a","b","b"); rows_group_by = rep(1:(nrow(x_as_log2)/2), times=2); boxplot(x_as_log2)
+  }
+
   if (algorithm == "msempire") {
     if (!valid_mask) {
       append_log("MS-EmpiRe normalization requires a definition of sample groups for within-group normalization", type = "error")
@@ -76,7 +98,7 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA) {
   # guess if the user provided some custom function for normalization
   if (algorithm %in% ls(envir=.GlobalEnv)) {
     f = match.fun(algorithm)
-    result = f(x_as_log2 = x_as_log2, mask_sample_groups = mask_sample_groups)
+    result = f(x_as_log2 = x_as_log2, mask_sample_groups = mask_sample_groups, rows_group_by = rows_group_by)
     # validation checks on expected output, to facilitate debugging/feedback for custom implementations
     if(!is.matrix(result) || nrow(result) != nrow(x_as_log2) || ncol(result) != ncol(x_as_log2) || colnames(result) != colnames(x_as_log2) || mode(result) != "numeric" || any(!is.na(result) & is.infinite(result))) {
       append_log(sprintf("provided custom function for normalization '%s' must return a numeric matrix (either NA or numeric values, no infinites) with the same dimensions and column names as the input matrix", algorithm), type = "error")

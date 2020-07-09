@@ -17,7 +17,6 @@ analysis_quickstart(
   dea_algorithm = c("ebayes"),
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
-  dea_norm_modebetween_protein_eset = FALSE,
   plot_pca_label_by_shortname = NA,
   output_abundance_tables = FALSE,
   output_qc_report = TRUE,
@@ -44,15 +43,13 @@ analysis_quickstart(
 
 \item{filter_by_contrast}{should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately.}
 
-\item{norm_algorithm}{normalization algorithms. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively}
+\item{norm_algorithm}{normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero}
 
 \item{dea_algorithm}{algorithms for differential expression analysis. options: ebayes, msempire, msqrob (to run multiple, provide an array)}
 
 \item{dea_qvalue_threshold}{threshold for significance of adjusted p-values in figures and output tables}
 
 \item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0}
-
-\item{dea_norm_modebetween_protein_eset}{normalise protein-level data matrix used for DEA by 'modebetween' to correct for 'imbalance' between conditions introduced in peptide-to-protein rollup. Note that some algo_de, such as msqrob or msempire, directly operate on the peptide-level data thus are unaffected by this setting. Only useful for statistical models that first roll-up to protein-level, such as eBayes. default:FALSE}
 
 \item{plot_pca_label_by_shortname}{whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)}
 

@@ -84,7 +84,7 @@ instead, consult the next section for a step-by-step guide.
 To use a different MS-DAP version, simply change the version number at
 the top of the launcher script. To view all available MS-DAP Docker
 containers versions, go to:
-<https://hub.docker.com/repository/docker/ftwkoopmans/msdap>
+<https://hub.docker.com/r/ftwkoopmans/msdap/tags>
 
 **what does the script do?**
 
@@ -126,7 +126,7 @@ with the launcher script).
     command in the terminal (only have to do this ‘installation step’
     once):
 
-`docker pull ftwkoopmans/msdap:0.2.4`
+`docker pull ftwkoopmans/msdap:0.2.5`
 
 4)  Run the Docker container and give it access to the directory on your
     computer (the ‘host’ system) that contains the proteomics data.
@@ -135,7 +135,7 @@ with the launcher script).
     in the following command** (see further @ next subsection).
 
 <code>docker run -p 3839:8787 -e PASSWORD=msdap -v
-**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.4</code>
+**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.5</code>
 
 5)  Open a browser, such as Firefox or Chrome, and access MS-DAP at
     <http://localhost:3839> . You will be presented with a complete
@@ -149,7 +149,7 @@ and press `control + C`.
 note: to use a different MS-DAP version, simply change the version
 number in both docker commands. To view all available MS-DAP Docker
 containers, go to:
-<https://hub.docker.com/r/ftwkoopmans/msdap/tags>
+<https://hub.docker.com/repository/docker/ftwkoopmans/msdap>
 
 ## Locating your mounted data within Docker containers
 

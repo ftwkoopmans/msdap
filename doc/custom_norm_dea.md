@@ -77,7 +77,7 @@ The hard requirements to make this work are:
 <!-- end list -->
 
 ``` r
-my_norm = function(x_as_log2, mask_sample_groups = NA) {
+my_norm = function(x_as_log2, mask_sample_groups = NA, ...) {
   cat("Example custom normalization implementation, my_norm(), scaling all samples by some quantile\n")
   quantile_for_normalization = 0.95
   # value at quantile x for each column/sample
@@ -198,15 +198,11 @@ output plots and tables. We remember the LFQbench dataset is a
 comparison of 2 conditions with 3 replicated measurements each, and
 apply feature selection rules accordingly.
 
-note that ‘dea\_norm\_modebetween\_protein\_eset’ is a crucial parameter
-in this case, while testing our custom normalization function.
-
 ``` r
 dataset = analysis_quickstart(dataset,
                               filter_min_detect = 2,
                               filter_min_quant = 3,
                               norm_algorithm = "my_norm", # custom norm !
-                              dea_norm_modebetween_protein_eset = FALSE, # do not apply additional normalization on protein-level after roll-up from "my_norm" normalized peptides to protein-level
                               dea_algorithm = c("ebayes", "my_dea_stats"), # we use good ol' eBayes for reference, and our custom dea !
                               dea_qvalue_threshold = 0.05,
                               dea_log2foldchange_threshold = NA, # estimate a fold-change threshold for proteins to be significant
