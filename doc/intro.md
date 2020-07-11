@@ -23,6 +23,10 @@
       - [protein foldchanges estimated by statistical
         models](#protein-foldchanges-estimated-by-statistical-models)
   - [Example of a full report](#example-of-a-full-report)
+      - [Klaassen et al. APMS wildtype vs
+        knockout](#klaassen-et-al.-apms-wildtype-vs-knockout)
+      - [O’Connel et al. DDA benchmark
+        dataset](#oconnel-et-al.-dda-benchmark-dataset)
 
 This document provides an introduction to MS-DAP; what is it and how
 does it work, together with highlights from the MS-DAP quality control
@@ -541,15 +545,25 @@ peptide-level model MS-EmpiRe and the protein-level eBayes model.
 
 ## Example of a full report
 
+### Klaassen et al. APMS wildtype vs knockout
+
+A DDA dataset that compares wildtype and knockout conditions by
+immunoprecipitation (Klaassen et al. 2018, PMID: 26931375). The raw data
+was processed with MetaMorpheus and analyzed in MS-DAP, [click here to
+download the PDF
+report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf)
+
+### O’Connel et al. DDA benchmark dataset
+
 The MS-DAP report of the O’Connel 2018 dataset (PRIDE ID: PXD007683)
 shows application to a MaxQuant dataset: [O’Connel 2018
 dataset](misc/PXD007683_msdap_2020-06-01_19;06;59__report.pdf)
 
-The RT plots reveal an unexpected peak in peptide identifications at the
-end of the chromatogram. To rule out technical issues in data analysis,
-plotting MaxQuant output as-is corroborates the MS-DAP figures (we
-repeated the same procedure on a MetaMorpheus search of the same data to
-double-check).
+Note: the RT plots reveal an unexpected peak in peptide identifications
+at the end of the chromatogram. To rule out technical issues in data
+analysis, plotting MaxQuant output as-is corroborates the MS-DAP figures
+(we repeated the same procedure on a MetaMorpheus search of the same
+data to double-check).
 
 ``` r
 x = data.table::fread("C:/DATA/PXD007683/txt_mbr/evidence.txt")
