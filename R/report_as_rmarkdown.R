@@ -150,7 +150,37 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
   if(!file.exists(f)) {
     append_log(paste("cannot find report template file:", f), type = "error")
   }
+
   append_log("report: rendering report (this may take a while depending on dataset size)", type = "progress")
-  rmarkdown::render(f, output_dir = output_dir, output_file = "report.pdf", quiet = T, intermediates_dir = output_dir, knit_root_dir = output_dir)
+
+  # rmarkdown known bugs: do not use output_dir  @  https://github.com/rstudio/rmarkdown/issues/861
+  # a recommended work-around is to set the base/root directories inside the rmarkdown report using knitr::opts_chunk$set(...)
+  # ref; https://github.com/yihui/knitr/issues/277#issuecomment-6528846
+  # our robust work-around: since the render function uses the report document and it's dir as a base, we simply copy the Rmarkdown file to output dir and run render() with all default settings
+  output_dir__temp = paste0(output_dir, "/temp", floor(as.numeric(Sys.time())) ) # to ensure unique dirname, simply add unix timestamp with seconds as precision
+  dir.create(output_dir__temp, showWarnings = F) # don't care if directory already exists
+  f_newlocation = paste0(output_dir__temp, "/", basename(f))
+  fpdf_newlocation = paste0(output_dir__temp, "/report.pdf")
+  # copy .Rmd file into temp directory, nested in chosen output dir
+  if(!file.copy(from = f, to = f_newlocation)) {
+    append_log(paste("failed to move report into to the output directory:", fpdf_newlocation), type = "error")
+  }
+
+  # create the actual report
+  rmarkdown::render(input = f_newlocation, output_file = "report.pdf", quiet = T, clean = TRUE) # , output_file = paste0(output_dir, "/report.pdf") , intermediates_dir = output_dir, knit_root_dir = output_dir
+
+  # move report to output dir and remove temp dir
+  if(!file.exists(fpdf_newlocation)) {
+    append_log(paste("there is no report at:", fpdf_newlocation), type = "error")
+  }
+
+  file.rename(fpdf_newlocation, paste0(output_dir, "/report.pdf"))
+  # try to remove our temp files
+  file.remove(f_newlocation)
+  file.remove(paste0(output_dir__temp, "/report.tex"))
+  # try to remove entire temp dir; may fail if user opened one of the files or is inside the dir in windows explorer
+  # should be safe because we use a unique name in a dir we created previously AND we checked that this is an existing path where we have write access (otherwise above code would have failed)
+  unlink(output_dir__temp, recursive = T, force = T) # use recursive=T, because unlink() documentation states: "If recursive = FALSE directories are not deleted, not even empty ones"
+
   append_log_timestamp("report:", start_time)
 }

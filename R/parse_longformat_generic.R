@@ -393,9 +393,24 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
 
   if (is_file) {
+    ## try to detect data tables with a comma as decimal separation character (seems common on windows for some software * system language combinations)
+    # TODO: perhaps we should just parse data.table as is with downstream code and fix commas post-hoc. Probably more efficient
+    dec_char = "."
+    # select only the intensity column from the data table, read the first 100 lines
+    DT_numeric = as.data.frame(data.table::fread(filename, select = as.numeric(map_required[c("rt", "intensity")]), check.names = T, stringsAsFactors = F, nrows = 100, dec = dec_char))
+    # flatten into an array
+    x = unlist(DT_numeric, recursive = T, use.names = F)
+    # if there are any character strings with a comma, parsing the input file with a dot as decimal separation character failed to yield numerics -->> try to parse with alternative separation character downstream
+    if(any(!is.na(x) & is.character(x) & grepl(",", x, fixed = T))) {
+      append_log("The input data table seems to use a comma as decimal separation characters. Trying to fix this this now...", type="warning")
+      dec_char = ","
+    }
+    rm(DT_numeric, x)
+
+
     # only read columns of interest to speed up file parsing
     col_indices = c(map_required, map_optional)
-    DT = data.table::fread(filename, select = unique(col_indices), check.names = T, stringsAsFactors = F)
+    DT = data.table::fread(filename, select = unique(col_indices), check.names = T, stringsAsFactors = F, dec = dec_char)
     colnames(DT) = names(col_indices)[!duplicated(col_indices)]
     # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
     # j = index in 'col_indices' where we should borrow content from other column
@@ -476,6 +491,9 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
+  if(any(!is.na(DT$intensity) & !is.numeric(DT$intensity))) {
+    append_log("error: intensity values must be either numerical or NA values (empty string is accepted as NA as well)", type = "error")
+  }
   DT$intensity = log2(DT$intensity)
   DT$intensity[!is.finite(DT$intensity)] = NA
   if("intensity_norm" %in% colnames(DT)) {

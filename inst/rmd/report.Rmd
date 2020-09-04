@@ -1,21 +1,22 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: beta 0.2.5  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: beta 0.2.5.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true
     toc_depth: 2
     number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
 fontsize: 11pt
 geometry: margin=0.5in
 ---
 
 
 ```{r setup, include=FALSE}
-# setting crop=NULL prevents PDF cropping, while it desirable in many cases it produces problems we cannot currently resolve on unix systems
-knitr::opts_chunk$set(echo = FALSE, dpi=300, fig.width=7, fig.height=3.5, fig.align="center", tidy.opts=list(width.cutoff=80), tidy=TRUE, crop = NULL)
+# setting crop=NULL prevents PDF cropping, while it is desirable in many cases it produces problems we cannot currently resolve on unix systems
+knitr::opts_chunk$set(echo = FALSE, dpi=300, fig.width=7, fig.height=3.5, fig.align="center", tidy.opts=list(width.cutoff=80), tidy=TRUE, crop = NULL) # , base.dir = output_dir, root.dir = output_dir
 ```
-
 
 
 \newpage
@@ -30,6 +31,7 @@ The quality control figures in this section enable you to investigate reproducib
 * PCA of all samples to visualize clustering
 
 The first set of quality control figures describes individual samples, thereafter group-level quality metrics are described and finally sample clustering is used to highlight structure in the entire dataset.
+
 
 
 
@@ -214,7 +216,7 @@ if("intensity_qc_basic" %in% colnames(dataset$peptides) && any(!is.na(dataset$pe
   p_cov_loo = suppressWarnings(ggplot_coefficient_of_variation__leave_one_out(dataset$peptides, dataset$samples, samples_colors))
   if(length(p_cov_loo) > 0 && "loo_bygroup" %in% names(p_cov_loo)) {
     # print documentation
-    cat("The figures below describe the effect of removing a particular sample prior to within−group Coefficient of Variation (CoV) computation. The lower the CoV distribution is for a sample, the better reproducibility we get by excluding it. Only sample groups with at least 4 replicates can be used for this analysis, so 3 samples remain after leaving one out. Samples marked as 'exclude' in the provided sample metadata are included in these analyses (shown as dashed lines), and only peptides with at least 3 data points across replicates samples (after leave-one-out) are used for each CoV computation. \n\n")
+    cat("The figures below describe the effect of removing a particular sample prior to within-group Coefficient of Variation (CoV) computation. The lower the CoV distribution is for a sample, the better reproducibility we get by excluding it. Only sample groups with at least 4 replicates can be used for this analysis, so 3 samples remain after leaving one out. Samples marked as 'exclude' in the provided sample metadata are included in these analyses (shown as dashed lines), and only peptides with at least 3 data points across replicates samples (after leave-one-out) are used for each CoV computation. \n\n")
 
     # plot
     for(p in p_cov_loo$loo_bygroup) {
@@ -369,9 +371,11 @@ if(length(l_contrast) > 0) {
     col_contr_intensity = get_column_intensity(dataset$peptides, contr)
     cat("*", sprintf("**user setting:** using '%s' peptide filtering approach", names(col_contr_intensity)), " \n\n")
   
-    tib_log = dataset$peptides %>% filter(!is.na(!!col_contr_intensity)) %>% summarise(n_precursor=n_distinct(peptide_id), n_prot=n_distinct(protein_id))
+    tib_log = dataset$peptides %>% 
+      select(peptide_id, protein_id, intensity = !!as.character(col_contr_intensity)) %>%
+      filter(!is.na(intensity)) %>% summarise(n_precursor=n_distinct(peptide_id), n_prot=n_distinct(protein_id))
     cat("*", sprintf("%d peptides in %d proteins remain in the current contrast after peptide filters and are used for the statistical analysis in this section", tib_log$n_precursor[1], tib_log$n_prot[1]), " \n\n")
-  
+
     contr_line1 = dataset$de_proteins %>% filter(contrast == contr) %>% head(n=1)
     cat("* qvalue threshold:", contr_line1 %>% pull(signif_threshold_qvalue), " \n\n")
     cat("* log2 foldchange threshold:", contr_line1 %>% pull(signif_threshold_log2fc), " \n\n")

@@ -88,7 +88,7 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
 
     ## convert our long-format peptide table to a peptide- and protein-level ExpressionSet
     peptides_for_contrast = dataset$peptides %>%
-      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, intensity=!!as.character(col_contr_intensity)) %>%
+      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity)) %>%
       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
 
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
