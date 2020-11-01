@@ -35,6 +35,10 @@ ggplot_peptide_detect_frequency = function(peptides, samples) {
     labs(title = "Number of samples in which a peptide is identified vs presence in individual sample", y = "identified peptides", x = "", fill = "#samples") +
     ggpubr::theme_pubr() +
     theme(plot.title = element_text(size=10), legend.position = "right")
+
+  if(nrow(tib_plot) > 50)
+    p = p + theme(axis.text.y.left = element_text(size=6))
+
   return(p)
 }
 

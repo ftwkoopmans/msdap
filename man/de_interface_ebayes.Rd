@@ -9,7 +9,8 @@ de_interface_ebayes(
   samples = NULL,
   eset_peptides = NULL,
   eset_proteins = NULL,
-  input_intensities_are_log2 = T
+  input_intensities_are_log2 = T,
+  random_variables = NULL
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ de_interface_ebayes(
 \item{eset_proteins}{todo}
 
 \item{input_intensities_are_log2}{todo}
+
+\item{random_variables}{todo}
 }
 \description{
 placeholder title

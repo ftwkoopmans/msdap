@@ -4,12 +4,14 @@
 \alias{setup_contrasts}
 \title{Setup contrasts for downstream Differential Expression Analysis}
 \usage{
-setup_contrasts(dataset, contrast_list)
+setup_contrasts(dataset, contrast_list, random_variables = NULL)
 }
 \arguments{
 \item{dataset}{your dataset, make sure you've already imported sample metadata (so each sample is assigned to a sample group)}
 
 \item{contrast_list}{a list that captures all contrasts that you want to compare. Check the examples for details.}
+
+\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info.}
 }
 \description{
 Setup contrasts for downstream Differential Expression Analysis

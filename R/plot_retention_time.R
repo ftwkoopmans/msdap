@@ -102,7 +102,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
 
   # reference value for bin sizes
-  DT_binned[ , size_overall_median := median(size), by=rt_bin]
+  DT_binned[ , size_overall_median := median(size, na.rm=T), by=rt_bin]
 
   # smoothed data
   DT_binned[ ,`:=`(rt_quantup_smooth = smooth_loess_custom(rt_bin, rt_quantup, span=.1),
@@ -121,7 +121,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
                    size_overall_median_smooth = smooth_loess_custom(rt_bin, size_overall_median, span=.1)
                    ),
              by = key_sample]
-  # catch smoothing problems for bin size
+  # catch smoothing problems for bin size (eg; empty bins)
   DT_binned$size_smooth[!is.finite(DT_binned$size) | DT_binned$size <= 0] = 0
 
   # sort
@@ -148,13 +148,64 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   start_time <- Sys.time()
 
   ## all samples in a single plot
-  p_all_rt_distributions = ggplot(peptides %>% left_join(samples %>% select(key_sample, exclude), by="key_sample"), aes(x=temp_rt_nodetect, colour=sample_id, linetype = exclude)) +
-    geom_line(stat="density", na.rm=T) +
+  # note; using match for speed
+  i = match(peptides$key_sample, samples$key_sample)
+  peptides$exclude = samples$exclude[i]
+  peptides$group = samples$group[i]
+  ngroup = dplyr::n_distinct(samples$group)
+
+  p_all_rt_distributions = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, linetype = exclude)) +
+    geom_line(stat="density", na.rm=T, alpha=0.3) +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
     facet_grid(~"all samples") +
     theme_bw() +
     theme(legend.position = "none", legend.title = element_blank())
+
+  p_all_rt_distributions_colour_groups = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, colour=group, linetype = exclude)) +
+    geom_line(stat="density", na.rm=T) +
+    guides(linetype = FALSE) +
+    xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
+    labs(x="Retention time (min)", y="(detected) peptide density") +
+    facet_grid(~"all samples") +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.text = element_text(size = ifelse(ngroup < 4, 10, ifelse(ngroup < 6, 8, 6)) ),
+          legend.title = element_text(size=10) )
+
+  p_all_rt_distributions_collapse_groups = ggplot(peptides, aes(x=temp_rt_nodetect, colour=group)) +
+    geom_line(stat="density", na.rm=T) +
+    xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
+    labs(x="Retention time (min)", y="(detected) peptide density") +
+    facet_grid(~"overall density by sample group") +
+    theme_bw() +
+    theme(legend.position = "bottom",
+          legend.text = element_text(size = ifelse(ngroup < 4, 10, ifelse(ngroup < 6, 8, 6)) ),
+          legend.title = element_text(size=10) )
+
+
+  ## color-code by group, each line/sample in different shades of the same color
+  # clr_sample_by_group = samples %>% select(sample_id, group) %>% add_column(clr = NA)
+  # grps = table(clr_sample_by_group$group)
+  # basecolors = colorRampPalette(RColorBrewer::brewer.pal(min(9, length(ugrp)), "Set1"), space = "Lab")(length(ugrp))
+  # # clr_ref = samples_colors_long %>% filter(prop=="group") %>% distinct(val, .keep_all = T)
+  # # basecolors = clr_ref$clr[match(names(grps), clr_ref$val)]
+  # for(i in seq_along(grps)) {
+  #   g = names(grps[i])
+  #   n = as.numeric(grps[i])
+  #   clr = basecolors[i]
+  #   if(n > 1) {
+  #     clr = colorspace::darken(basecolors[i], amount = seq(from=-0.3, to=.3, length.out=n))
+  #   }
+  #   clr_sample_by_group$clr[clr_sample_by_group$group==g] = clr
+  # }
+  # m = nrow(clr_sample_by_group)
+  # clr_alpha = ifelse(m<10, "DD", ifelse(m<25, "AA", "99"))
+  # clr_sample_by_group$clr = paste0(clr_sample_by_group$clr, clr_alpha)
+  #
+  # p_all_rt_distributions_colour_groups = p_all_rt_distributions +
+  #   scale_colour_manual(values=array(clr_sample_by_group$clr, dimnames = list(clr_sample_by_group$sample_id)))
+  # p_all_rt_distributions_colour_groups
 
   # consistent plot limits
   plotlim_rt_diff = c(-1,1) * (min(5, max(abs(c(quantile(DT_binned$rt_quantlow_smooth, probs = .005, na.rm = T), quantile(DT_binned$rt_quantup_smooth, probs = .995, na.rm = T))))))
@@ -257,7 +308,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   }
 
   append_log_timestamp("RT plots: creating plots", start_time)
-  return(list(key_samples_not_plotted = key_samples_not_plotted, rt_distributions_all = p_all_rt_distributions, rt_by_sample = plotlist))
+  return(list(key_samples_not_plotted = key_samples_not_plotted, rt_distributions_all = p_all_rt_distributions, rt_distributions_colour_groups = p_all_rt_distributions_colour_groups, rt_distributions_collapse_groups = p_all_rt_distributions_collapse_groups, rt_by_sample = plotlist))
   # for(p in plotlist) suppressWarnings(print(p))
 }
 

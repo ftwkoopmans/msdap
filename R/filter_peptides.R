@@ -51,7 +51,10 @@ cache_filtering_data = function(dataset) {
   kpg[p$key_sample %in% (dataset$samples %>% filter(exclude==T) %>% pull(key_sample))] = NA
   p[, key_peptide_group_noexclude := kpg]
   # detect not as a boolean, but scaled by number of detect per sample
-  p[, detect_scaled_noexclude := (detect/sum(detect)) * !is.na(key_peptide_group_noexclude), by = key_sample]
+  # ` * !is.na(key_peptide_group_noexclude)` is simply to remove all data points for samples that are excluded, which allows us to downstream group by key_group and not worry about excluded samples
+  p[, `:=` (detect_scaled_noexclude = (detect/sum(detect)) * !is.na(key_peptide_group_noexclude),
+            quant_scaled_noexclude = 1/.N * !is.na(key_peptide_group_noexclude)),
+    by = key_sample]
 
 
   ## efficiently collapse filtering data for each peptide * 'sample group'
@@ -60,7 +63,8 @@ cache_filtering_data = function(dataset) {
                         ndetect = sum(detect),
                         nquant_noexclude = sum(!is.na(key_peptide_group_noexclude)),
                         ndetect_noexclude = sum(!is.na(key_peptide_group_noexclude) & detect),
-                        ndetect_scaled_noexclude = sum(detect_scaled_noexclude)),
+                        ndetect_scaled_noexclude = sum(detect_scaled_noexclude),
+                        nquant_scaled_noexclude = sum(quant_scaled_noexclude)),
                     by=key_peptide_group]
   rm(p)
 
@@ -301,7 +305,7 @@ filter_dataset = function(dataset,
 
   #### filter and normalize by contrast
   # get all contrasts from sample table
-  column_contrasts = grep("^contrast:", colnames(dataset$samples), ignore.case = T, value = T)
+  column_contrasts = dataset_contrasts(dataset)
   # if there are no contrasts setup, disable 'by_contrast'
   by_contrast = by_contrast && length(column_contrasts) > 0
 

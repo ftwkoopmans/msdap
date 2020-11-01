@@ -8,7 +8,7 @@ generate_pdf_report(
   dataset,
   output_dir,
   norm_algorithm = "vwmb",
-  pca_label_samples_by_shortname = TRUE
+  pca_label_samples_by_shortname = NA
 )
 }
 \arguments{

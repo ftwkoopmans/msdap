@@ -4,10 +4,12 @@
 \alias{differential_detect}
 \title{Compare the number of peptide detection counts between groups}
 \usage{
-differential_detect(dataset)
+differential_detect(dataset, min_samples_observed = 3)
 }
 \arguments{
 \item{dataset}{a valid dataset}
+
+\item{min_samples_observed}{minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
 }
 \description{
 Compute a z-score for each protein based on the total number of detected peptides per sample group.

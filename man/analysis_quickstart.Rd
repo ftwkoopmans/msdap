@@ -17,10 +17,10 @@ analysis_quickstart(
   dea_algorithm = c("ebayes"),
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
+  diffdetect_min_samples_observed = 3,
   plot_pca_label_by_shortname = NA,
   output_abundance_tables = FALSE,
   output_qc_report = TRUE,
-  output_peptide_plots = "none",
   output_dir,
   output_within_timestamped_subdirectory = TRUE,
   dump_all_data = FALSE
@@ -51,13 +51,13 @@ analysis_quickstart(
 
 \item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0}
 
+\item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
+
 \item{plot_pca_label_by_shortname}{whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)}
 
 \item{output_abundance_tables}{whether to create an Excel document with all peptide abundances, with multiple sheets indicating results from all filters applied. For large datasets this results in huge files, so only recommended for small datasets. options: FALSE, TRUE}
 
 \item{output_qc_report}{whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE. Set to FALSE to skip the report PDF (eg; to just do statistics and skip the time-consuming report creation)}
-
-\item{output_peptide_plots}{whether to create a plot for each protein detailing all of it's peptide abundances. options: "" or "none" to disable, "signif"=significant proteins only, "all"=all proteins, "complete"=all proteins and split by DE algorithm}
 
 \item{output_dir}{output directory where all output files are stored, must be an existing directory}
 

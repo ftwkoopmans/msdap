@@ -1,98 +1,584 @@
 
-#' iterate all contrasts: gather peptide data used in upstream stats, create individual protein plots, finally merge plots into end result PDFs
-#' temp filenames not random, so only run a single session of this tool at the same time on a given system
+#' plot peptide-level data
 #'
-#' @param peptides todo
-#' @param proteins proteins tibble needs columns: (protein_id, fasta_headers)
-#' @param samples todo
-#' @param de_proteins todo
+#' @param dataset todo
+#' @param filter_protein_id todo
 #' @param output_dir todo
-#' @param plot_each_statistical_approach todo
-#' @param plot_all_proteins todo
-#' @param plot_comparison_msqrob_msempire todo
-plot_peptide_data = function(peptides, proteins, samples, de_proteins, output_dir, plot_each_statistical_approach = TRUE, plot_all_proteins = FALSE, plot_comparison_msqrob_msempire = FALSE) {
+#' @param show_unused_datapoints todo
+#' @param norm_algorithm todo
+#' @export
+plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, filter_protein_ids = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm=NA) {
+  pid = NULL
 
-  # peptides; sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!col_contr_intensity
-  # proteins; protein_id, fasta_headers
-  # samples; sample_id, shortname, group, condition = !!col_contr
-  # de_proteins; "pvalue" "qvalue" "signif" "foldchange.log2" "protein_id" "algo_de" "contrast"
+  ## if requested to plot all proteins, just take the unique set from peptide tibble and don't bother with other selection parameters
+  if(select_all_proteins) {
+    pid = dataset$peptides %>% distinct(protein_id) %>% pull()
+  } else {
+    ## gather protein identifiers from user params
+    # custom list of protein_id's
+    pid = na.omit(filter_protein_ids)
 
-  if(!is_tibble(de_proteins) || nrow(de_proteins) == 0) {
-    append_log("no differential expression analysis results, not plotting peptide-level data", type = "warning")
-    return()
+    if(select_dea_signif) {
+      if(!"de_proteins" %in% names(dataset)) {
+        append_log("you requested to plot significant proteins found in DEA, but no DEA has been applied to this dataset; either disable this setting (change parameter to: select_dea_signif=FALSE) or run the analysis_quickstart() function", type = "error")
+      }
+      pid = c(pid, dataset$de_proteins %>% filter(signif) %>% distinct(protein_id) %>% pull())
+    }
+
+    if(select_diffdetect_candidates) {
+      if(!"dd_proteins" %in% names(dataset)) {
+        append_log("you requested to plot proteins tested by differential detection counting, but no this function has not been applied to this dataset yet (did you run the analysis_quickstart() function yet?  Alternatively you can simply run differential_detect() and review its outcome with print_dataset_summary() to quickly prepare this selection)", type = "error")
+      }
+      pid = c(pid, dataset$dd_proteins %>% filter(is.finite(zscore_count_detect) & abs(zscore_count_detect) >= 2) %>% distinct(protein_id) %>% pull())
+    }
   }
 
-  column_contrasts = grep("^contrast:", colnames(samples), ignore.case = T, value = T)
-  append_log("plot peptide data for each protein...", type = "info")
-  for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-    start_time <- Sys.time()
-    lbl = sub("^contrast: *", "", col_contr)
-
-    samples_for_contrast = samples
-    ## enable this filter step to plot only samples that match current contrast
-    # samples_for_contrast = samples %>%
-    #   select(sample_id, shortname, group, condition = !!col_contr) %>%
-    #   filter(condition != 0) %>%
-    #   arrange(condition)
-
-    col_contr_intensity = get_column_intensity(peptides, col_contr)
-    append_log(paste("using data from peptide filter:", names(col_contr_intensity)), type = "info")
-    tib_contrast_peptides = peptides %>%
-      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity)) %>%
-      filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
-
-    tib_contrast_stats = de_proteins %>% filter(contrast == col_contr) %>% arrange(pvalue)
-
-    # select proteins to visualize; if user wants all proteins, select everything, otherwise only significant
-    protein_id_plot = tib_contrast_stats %>% filter(plot_all_proteins | signif) %>% distinct(protein_id) %>% pull()
-
-    if(length(protein_id_plot) == 0)
-      next
-
-    # plot each protein, immediately storing each ggplot in a pdf file (RAM efficient + enables recycling of plots by simply merging individual PDFs downstream)
-    # result tibble contains the protein_id's and their respective pdf filenames
-    tib_protein_pdf_files = plot_peptide_data_per_protein(peptides = tib_contrast_peptides, proteins = proteins, stats_de = tib_contrast_stats,
-                                                          samples = samples, protein_ids = protein_id_plot)
-
-    ## assemble various PDFs with specific plots-of-interest. eg; all proteins significant by any method, detected by method X  or  by method X and not method Y
-    if(plot_all_proteins) {
-      pdf_combine_chunks(input = tib_protein_pdf_files$pdf_filename, output = sprintf("%s/all_proteins - %s.pdf", output_dir, lbl))
-    }
-    pdf_combine_chunks(input = tib_protein_pdf_files %>% filter(protein_id %in% (tib_contrast_stats %>% filter(signif) %>% pull(protein_id)) ) %>% pull(pdf_filename),
-                output = sprintf("%s/all_significant_proteins - %s.pdf", output_dir, lbl))
-
-    # list of significant proteins per DE algorithm (already sorted by pvalue)
-    ualg = unique(tib_contrast_stats$algo_de)
-    if(plot_each_statistical_approach && length(ualg) > 1) {
-      for(alg in ualg) {
-        alg_protein_id = tib_contrast_stats %>% filter(algo_de == alg & signif) %>% pull(protein_id)
-        if(length(alg_protein_id) > 0) {
-          pdf_combine_chunks(input = tib_protein_pdf_files %>% filter(protein_id %in% alg_protein_id) %>% pull(pdf_filename),
-                             output = sprintf("%s/%s_significant - %s.pdf", output_dir, alg, lbl))
-        }
-      }
-    }
-
-    # unique hits in msempire vs msqrob, and vice versa
-    if(plot_comparison_msqrob_msempire && all(c("msempire", "msqrob") %in% ualg)) {
-      msempire_protein_id = tib_contrast_stats %>% filter(algo_de == "msempire" & signif) %>% pull(protein_id)
-      msqrob_protein_id = tib_contrast_stats %>% filter(algo_de == "msqrob" & signif) %>% pull(protein_id)
-      msempire_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msempire_protein_id, msqrob_protein_id)) %>% pull(pdf_filename)
-      msqrob_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msqrob_protein_id, msempire_protein_id)) %>% pull(pdf_filename)
-      if(length(msempire_pdf) > 0) {
-        pdf_combine_chunks(input = msempire_pdf, output = sprintf("%s/msempire_significant_not_msqrob - %s.pdf", output_dir, lbl))
-      }
-      if(length(msqrob_pdf) > 0) {
-        pdf_combine_chunks(input = msqrob_pdf, output = sprintf("%s/msqrob_significant_not_msempire - %s.pdf", output_dir, lbl))
-      }
-    }
-
-    append_log_timestamp(paste(col_contr, ", plot peptide data per protein"), start_time)
+  if(length(pid) == 0) {
+    print_dataset_summary(dataset)
+    append_log("there are no proteins in the dataset that match your criteria for plotting", type = "error")
   }
+
+  # note; no need to reduce `pid` to its unique entries at this stage, will be done downstream anyway
+  plot_peptide_data_by_contrast_to_pdf(dataset, filter_protein_id = pid, output_dir = output_dir, show_unused_datapoints = show_unused_datapoints, norm_algorithm = norm_algorithm)
 }
 
 
-# TODO
+
+#' plot peptide-level data
+#'
+#' @param dataset todo
+#' @param filter_protein_id todo
+#' @param output_dir todo
+#' @param show_unused_datapoints todo
+#' @param norm_algorithm todo
+#' @importFrom tidyr everything
+#' @importFrom stringr str_trunc
+#' @importFrom foreach foreach
+#' @importFrom parallel stopCluster clusterExport
+plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, output_dir, show_unused_datapoints = FALSE, norm_algorithm=NA) {
+  filter_protein_id = unique(na.omit(filter_protein_id))
+  if(length(filter_protein_id) == 0) {
+    append_log("no valid protein identifiers were provided", type = "error")
+  }
+
+  if("fraction" %in% colnames(dataset$samples)) {
+    append_log("you have to merge fractionated samples first. Typically, you want to simply use the analysis_quickstart() to process the dataset first. Advanced users may call merge_fractionated_samples(dataset) manually.", type = "error")
+  }
+
+  ## input validation
+  if(show_unused_datapoints && any(is.na(norm_algorithm))) {
+    append_log("if 'show_unused_datapoints' parameter is set, you must provide the normalization algorithms that should be applied; we recommend to use the exact setting as previously used in the quickstart function", type = "error")
+  }
+
+  if(!dir.exists(output_dir)) {
+    append_log(paste("provided output directory does not exist;", output_dir), type = "error")
+  }
+
+  output_dir__temp = paste0(output_dir, "/temp", floor(as.numeric(Sys.time())) ) # to ensure unique dirname, simply add unix timestamp with seconds as precision
+  dir.create(output_dir__temp, showWarnings = F) # don't care if directory already exists
+  if(!dir.exists(output_dir__temp)) {
+    append_log(paste("failed to create temp directory at;", output_dir__temp), type = "error")
+  }
+
+  ucontr = dataset_contrasts(dataset)
+
+  # error if there are no contrasts
+  if(length(ucontr) == 0) {
+    append_log("no contrasts in this dataset", type = "error")
+  }
+
+  output_pdf_filenames = sprintf("%s/MS-DAP_peptide-data_contrast-%s.pdf", output_dir, seq_along(ucontr))
+  for(f in output_pdf_filenames) {
+    remove_file_if_exists(f)
+  }
+
+
+  if(!check_dataset_hascache(dataset)) {
+    dataset = cache_filtering_data(dataset)
+  }
+
+  # figure out where the filtered&norm peptide intensity data is at for each contrast
+  # = named array with 'intensity post-processing type' and column names, per contrast
+  ucontr_col_intensity = ucontr_col_intensity__reintroduced = sapply(ucontr, function(x) get_column_intensity(dataset$peptides, x))
+
+  ## borrow data for peptides removed during filtering, but skip data directly from the raw input data column ("intensity")
+  peptides = dataset$peptides
+  if(show_unused_datapoints) {
+    append_log(paste("while visualizing peptide-level data per protein, 'reintroduced' datapoints lost during filtering were normalized by;", paste(norm_algorithm, collapse = "&")), type = "info")
+
+    # column names that will hold 'all' intensity values
+    ucontr_col_intensity__reintroduced = paste0("combined_", ucontr_col_intensity)
+    ucontr_col_intensity__reintroduced[ucontr_col_intensity == "intensity"] = "intensity"
+
+    # call utility function to do the heavy lifting, for all unique columns required downstream that are not "intensity"
+    ucol = setdiff(unique(ucontr_col_intensity), "intensity")
+    if(length(ucol) > 0) {
+      peptides = reintroduce_filtered_intensities(dataset$peptides, norm_algorithm=norm_algorithm, columns_intensity=ucol)
+    }
+  }
+
+
+  # speed up your analysis by using multiple processor cores (default; all cores but one)
+  if(!exists("cl") || !"cluster" %in% class(cl)) {
+    cl = initialize_multiprocessing()
+    # finally, shut down multithreading clusters -->> only do this if we create a cluster locally
+    on.exit({ suppressWarnings(parallel::stopCluster(cl)) })
+  }
+
+
+  for(index in seq_along(ucontr)) {
+    contr = ucontr[index]
+
+    # prepare a minimal peptide-level tibble that holds all required data for downstream plots
+    contr_col_int = as.character(ucontr_col_intensity[index]) # don't forget to dump the 'name' from this variable, or dplyr::select() will trip out while using !! downstream
+    contr_col_int_reintroduced = as.character(ucontr_col_intensity__reintroduced[index]) # idem as previous line
+
+    ## samples to plot; not only those used in statistical contrast but also 'exclude' samples that match the current contrast
+    # for datasets where 'all groups' filtering was used, show all samples. If by-contrast filtering, show only samples in contrast's sample groups
+    samples_contr = dataset$samples
+    if(grepl("contrast:", contr_col_int, ignore.case = T)) {
+      contr_sample_groups = unlist(decompose_contrast_name(contr))
+      samples_contr = dataset$samples %>% filter(group %in% contr_sample_groups)
+      rm(contr_sample_groups)
+    }
+
+    peptides_contr = peptides %>%
+      select(peptide_id, protein_id, sample_id, detect, intensity_filtered = !!contr_col_int, intensity_reintroduced = !!contr_col_int_reintroduced, peptide_id_group = key_peptide_group) %>%
+      filter(!is.na(intensity_reintroduced) & sample_id %in% samples_contr$sample_id & protein_id %in% filter_protein_id) %>%
+      # format for downstream plots. add sample metadata & mutate/format
+      left_join(samples_contr %>% select(sample_id, group, shortname, exclude), by="sample_id") %>%
+      # add a flag indicating whether a peptide*sample datapoint passed the user-defined filtering criteria (so we can highlight these downstream)
+      mutate(passfilter = !is.na(intensity_filtered),
+             # define peptide intensities that should be visualized  +  transform peptide intensities from log2 to log10
+             # intensity = intensity_reintroduced, # optional conversion from log2 to log10;  / log2(10)
+             # shorter peptide IDs; strip library, strip lengty modification names
+             # note; this is relatively slow and if this proves problem after code profiling, we could speed up by using data.table and applying the regex only on unique peptide_id's
+             # syntax example from data import code; DT[ , sequence_modified := gsub("^_|_[^A-Z]*$", "", sequence_modified), by=sequence_modified]
+             peptide_id = gsub("(^_)|(_$)|(#.*)|( on [^]]+)", "", gsub("\\[[^:]+:", "[", peptide_id)),
+             shortname = factor(shortname, levels = as.character(samples_contr$shortname))) %>%
+      select(tidyr::everything(), -intensity_filtered, intensity = intensity_reintroduced)
+
+
+
+    # protein metadata for whatever the user requested AND remains after filters in this contrast
+    proteins_contr = dataset$proteins %>% filter(protein_id %in% peptides_contr$protein_id)
+
+    # protein plot order; best p-value, then best z-score, finally 'untested' proteins
+    contr_protein_id__ordered = NULL
+
+    # gather differential testing results, if any
+    de_proteins_contr = tibble()
+    if("de_proteins" %in% names(dataset)) {
+      de_proteins_contr = dataset$de_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr)
+
+      # infer order in which to plot proteins
+      contr_protein_id__ordered = de_proteins_contr %>% arrange(pvalue) %>% distinct(protein_id) %>% pull()
+
+      # pretty-print
+      de_proteins_contr = de_proteins_contr %>%
+        arrange(algo_de) %>%
+        # pretty-print format for downstream visualization
+        select(protein_id, algorithm = algo_de, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
+        mutate(foldchange = sprintf("%.2f", foldchange),
+               pvalue = sprintf("%.2g", pvalue),
+               qvalue = sprintf("%.2g", qvalue),
+               signif = as.character(signif) )
+    }
+
+    if("dd_proteins" %in% names(dataset)) {
+      tib_dd = dataset$dd_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr)
+
+      # infer order in which to plot proteins
+      contr_protein_id__ordered = c(contr_protein_id__ordered, tib_dd %>% arrange(desc(abs(zscore_count_detect))) %>% pull(protein_id))
+
+      # gather differential detect scores in expected format
+      tib_dd_long = tib_dd %>% select(protein_id=protein_id, foldchange = zscore_count_detect) %>% mutate(algorithm="zscore detect counts")
+      if("zscore_count_quant" %in% colnames(tib_dd)) {
+        tib_dd_long = bind_rows(tib_dd_long, tib_dd %>% select(protein_id=protein_id, foldchange = zscore_count_quant) %>% mutate(algorithm="zscore quant counts") )
+      }
+
+      # pretty-print format for downstream visualization
+      tib_dd_long = tib_dd_long %>%
+        mutate(foldchange = sprintf("%.2f", foldchange),
+               pvalue="",
+               qvalue="",
+               signif="") %>%
+        select(protein_id, algorithm, foldchange, pvalue, qvalue, signif)
+
+      de_proteins_contr = bind_rows(de_proteins_contr, tib_dd_long)
+    }
+
+
+    # infer order in which to plot proteins
+    contr_protein_id__ordered = unique(c(contr_protein_id__ordered, proteins_contr$protein_id))
+
+    ##################
+
+    # update column headers for pretty-printing
+    de_proteins_contr = de_proteins_contr %>%
+      dplyr::rename(`log2 FC or zscore` = foldchange) %>%
+      mutate(protein_id_prettyprint = stringr::str_trunc(protein_id, width = 20)) %>%
+      # fix column order
+      select(protein_id, protein_id_prettyprint, tidyr::everything())
+
+
+    tib_as_list = function(x) {
+      l = x %>% group_split(.keep = TRUE)
+      names(l) = as.character(dplyr::group_keys(x) %>% pull())
+      return(l)
+    }
+
+    i = match(contr_protein_id__ordered, proteins_contr$protein_id)
+    stopifnot(!is.na(i))
+    contr_protein_id__ordered__title = paste(stringr::str_trunc(proteins_contr$gene_symbols_or_id[i], 30), stringr::str_trunc(proteins_contr$fasta_headers[i], 150))
+
+    ## convert to a list of tibbles per protein_id, faster than running dplyr::filter() many times
+    # convert protein_id to a factor to enforce sorting
+    # all proteins-of-interest must have an entry in both the peptide and protein tibble (because the proteins tibble is supposed to be a superset of proteins in the peptides tibble)
+    l_peptides = tib_as_list(peptides_contr %>% mutate(protein_id = factor(protein_id, levels=contr_protein_id__ordered)) %>% group_by(protein_id))
+    stopifnot(names(l_peptides) == names(contr_protein_id__ordered))
+    stopifnot(contr_protein_id__ordered == as.character(unlist(lapply(l_peptides, function(x) x$protein_id[1]))) )
+    # beware of list/array alignment issues, not all proteins may have an entry in the stats tibble
+    l_stats = tib_as_list(de_proteins_contr %>% mutate(protein_id = factor(protein_id, levels=contr_protein_id__ordered)) %>% droplevels() %>% group_by(protein_id)) # note the droplevels()
+
+
+    parallel::clusterExport(cl, varlist = c("ggplot_peptide_abundances", "ggplot_split_legend"), envir = parent.env(environment()))
+    plot_fnames = foreach::foreach(prot_index = seq_along(contr_protein_id__ordered), .combine = 'c', .packages = c("dplyr", "ggplot2", "ggpubr")) %dopar% {
+      pid = contr_protein_id__ordered[prot_index]
+      pid_stats = tibble()
+      i = match(pid, names(l_stats))
+      if(!is.na(i)) {
+        pid_stats = l_stats[[i]] %>% select(-protein_id) %>% dplyr::rename(protein_id = protein_id_prettyprint)
+      }
+
+      pid_plots = ggplot_peptide_abundances(
+        tib_peptides = l_peptides[[prot_index]],
+        tib_samples = samples_contr,
+        tib_stats = pid_stats,
+        plot_title = contr_protein_id__ordered__title[prot_index]
+      )
+
+      i_fname = sprintf("%s/peptideplot_%s_%s.pdf", output_dir__temp, index, prot_index)
+      pdf(i_fname, width=7, height=9)
+      for(p in pid_plots) {
+        suppressWarnings(print(p))
+      }
+      dev.off()
+
+      return(i_fname)
+    }
+
+
+    # QC: report the first protein_id that we caught failing
+    for(prot_index in seq_along(contr_protein_id__ordered)) {
+      f = plot_fnames[prot_index]
+      if(is.na(f) || !file.exists(f)) {
+        append_log(paste("failed to create peptide-level data plot for protein_id:", contr_protein_id__ordered[prot_index]), type = "error")
+      }
+    }
+
+    # create a PDF that holds a single page with some documentation / figure explanation  -->>  add it to the list of PDF files that need be be combined into the results
+    fname_documentation_page = sprintf("%s/peptideplot_%s_%s.pdf", output_dir__temp, index, "docs")
+    pdf(fname_documentation_page, width=7, height=9)
+    plot.new()
+    # mtext(paste0(contr, "\n\nhorizontal line = peptide average intensity within 'sample group'\n\nconfidently identified peptides: solid/filled symbols\nquantified but not identified (match-between-runs): open symbols\n\npeptides that _fail_ the filter criteria for this contrast:\nsmall symbols & dashed line for average\n(note; these were not used for statistics)\n\nfor proteins with many peptides, legends are shown on a separate page for legibility"), padj = 1, cex = .75)
+    mtext(paste0(contr, "
+
+Peptides can be quantified AND detected (eg; by MS/MS or DIA confidence score) in a sample,
+or only quantified (eg; match-between-runs or poor DIA confidence score).
+The former are visualized as solid/filled symbols, the latter as open symbols.
+
+A horizontal line shows the average abundance of each peptide per 'sample group'.
+
+
+In each statistical contrast, feature selection criteria have been applied according to
+user settings (eg; at least detected in N+ samples). Peptides that passed these filters
+were submitted to normalization and then used as input for Differential Expression Analysis.
+
+For peptides that fail these criteria, we 'reintroduce' these data points to paint a
+more complete picture of all available data per protein and visually distinguish these
+data points by decreased size and a dashed line for their mean abundances.
+
+note; this data is only shown if the parameter 'show_unused_datapoints' was set to TRUE
+
+
+for proteins with many peptides, legends are shown on a separate page for legibility"), padj = 1, cex = .75)
+    dev.off()
+    plot_fnames = c(fname_documentation_page, plot_fnames)
+
+    Sys.sleep(0.5) # for safety, wait a sec so we are sure the PDF files / graphics devices have been closed. Counters a bug on some systems we tested
+    pdf_combine_chunks(input = plot_fnames, output = output_pdf_filenames[index])
+
+    # cleanup temp files
+    suppressWarnings(file.remove(plot_fnames))
+
+    ### plain serial code
+    # plotlist = list()
+    # for(pid in contr_protein_id__ordered) { # pid=contr_protein_id__ordered[1]
+    #   pid_proteins = proteins_contr %>% filter(protein_id == pid)
+    #
+    #   pid_plots = ggplot_peptide_abundances(
+    #     tib_peptides = peptides_contr %>% filter(protein_id == pid),
+    #     tib_samples = samples_contr,
+    #     tib_stats = de_proteins_contr %>% filter(protein_id == pid),
+    #     plot_title = paste(pid_proteins$gene_symbols_or_id, pid_proteins$fasta_headers)
+    #   )
+    #
+    #   plotlist[[pid]] = pid_plots$plot
+    #   if(length(pid_plots$legend) > 0) {
+    #     plotlist[[paste0(pid, "_legend")]] = pid_plots$legend
+    #   }
+    # }
+    #
+    # pdf(sprintf("%s/MS-DAP_peptide-data_contrast-%s.pdf", output_dir, index), width=7, height=9)
+    # plot.new()
+    # mtext(paste0(contr, "\n\nhorizontal line = peptide average intensity within 'sample group'\n\nconfidently identified peptides: solid/filled symbols\nquantified but not identified (match-between-runs): open symbols\n\npeptides that _fail_ the filter criteria for this contrast:\nsmall symbols & dashed line for average\n(note; these were not used for statistics)\n\nfor proteins with many peptides, legends are shown on a separate page for legibility"), padj = 1, cex = .75)
+    # for(p in plotlist) {
+    #   suppressWarnings(print(p))
+    # }
+    # dev.off()
+    ### plain serial code
+  }
+
+  # try to remove entire temp dir; may fail if user opened one of the files or is inside the dir in windows explorer
+  # should be safe because we use a unique name in a dir we created previously AND we checked that this is an existing path where we have write access (otherwise above code would have failed)
+  unlink(output_dir__temp, recursive = T, force = T) # use recursive=T, because unlink() documentation states: "If recursive = FALSE directories are not deleted, not even empty ones"
+}
+
+
+
+# reintroduce peptide abundance values that were removed during filtering
+#
+# For each column with filtered & normalized peptide intensities in the long-format peptides tibble,
+# reintroduce the intensity values for those peptides that were removed while filtering.
+# These intensity values are taken from the complete unfiltered dataset with normalization applied.
+reintroduce_filtered_intensities = function(peptides, norm_algorithm, columns_intensity) {
+  stopifnot(columns_intensity %in% colnames(peptides))
+
+  # apply normalization algorithm to complete data matrix
+  x_complete = peptides$intensity
+  if(any(norm_algorithm != "")) {
+    x_complete = normalize_intensities(data.table::setDT(peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity)), norm_algorithm = norm_algorithm)
+  }
+
+  for(col in columns_intensity) {
+    x = x_complete
+
+    # reference data; some filtering+normalized on a subset of the dataset
+    x_ref = peptides %>% pull(!!col)
+
+    # for each sample, scale the normalized complete data matrix such that the mode is similar to the reference filtered+normalized intensities
+    for(sid in unique(peptides$sample_id)) {
+      # array indices that reflect sample s AND are not NA in the filtered data
+      rows_sid = peptides$sample_id == sid & !is.na(x_ref)
+
+      if(any(rows_sid)) {
+        # x_ref[rows_sid] = intensity values in sample s for only the subset of peptides that pass user's filtering criteria, that were subsequently normalized
+        # if we want to reintroduce intensity values from the unfiltered dataset, where normalization was applied to the total set of peptides, there has to be some variation between the filtered and unfiltered data !
+        # so we here scale the abundances of the 'unfiltered data' to the 'filtered data'
+        x[rows_sid] = x[rows_sid] + get_mode(x[rows_sid] - x_ref[rows_sid])
+      }
+    }
+
+    # use reference values where available
+    rows_ref = !is.na(x_ref)
+    x[rows_ref] = x_ref[rows_ref]
+
+    peptides[,paste0("combined_",col)] = x
+  }
+
+  return(peptides)
+}
+
+
+
+#' plot peptide-level data for a single protein
+#'
+#' @param tib_peptides specifically crafted peptides tibble, see calling functions for specs
+#' @param tib_samples table with all samples for current plot
+#' @param tib_stats table with statistics shown below plot
+#' @param plot_title optionally a plot title
+#' @importFrom stringr str_trunc
+#' @importFrom ggpubr ggtexttable ttheme ggarrange
+ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_title = "") {
+
+  ## a table of mean abundance per peptide*group
+  tib_summ_int = tib_samples %>%
+    left_join(tib_peptides %>%
+                group_by(peptide_id_group) %>%
+                summarise(int_avg = mean(intensity, na.rm = T),
+                          group = group[1],
+                          passfilter = passfilter[1],
+                          peptide_id = peptide_id[1]),
+              by = "group") %>%
+    # here we sort the unique peptides such that those that pass filters in current contrast come first and secondary sorting by their heighest group average
+    arrange(desc(passfilter), desc(int_avg))
+  # convert to factor, simply taking unique entries in the above tibble as levels so we can enforce that sorting downstream
+  tib_summ_int$peptide_id = factor(as.character(tib_summ_int$peptide_id), levels = unique(tib_summ_int$peptide_id))
+
+
+  upepid = levels(tib_summ_int$peptide_id)
+  tib_upep = tibble(peptide_id = upepid, label = upepid) # optionally, label = further gsub on peptide ids (eg; strip charge)
+  clr_palette = c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#FF7F00","#C4C404","#A65628","#F781BF","#999999") # adapted from @ brewer.pal(9, "Set1")
+  if(length(upepid) > length(clr_palette)) {
+    tib_upep$color = colorRampPalette(clr_palette, space = "Lab", bias = 0.8)(length(upepid)) # colorspace::rainbow_hcl(length(upepid))
+  } else {
+    tib_upep$color = clr_palette[seq_along(upepid)]
+  }
+
+  ## enforce factor on peptide_id & sync levels with color-coding table
+  # we must convert to factor to guarantee the plot and legend color-coding are aligned throughout the ggplot manual color scaling (or we have to resort to manually enforce ordering throughout, but this is much easier)
+  # tech note; the inner as.character() is just a double-check to enforce compatability with whatever users provide (character array, numeric IDs, factors, whatever)
+  tib_peptides$peptide_id = factor(as.character(tib_peptides$peptide_id), levels=upepid)
+
+  sample_color_code = tib_samples$exclude[match(levels(tib_peptides$shortname), tib_samples$shortname)]
+  sample_color_code[!sample_color_code %in% TRUE] = FALSE # ensures any unexpected NA value is set to FALSE as well
+
+  p = ggplot(tib_peptides, aes(x = shortname, y = intensity, group = peptide_id_group, shape = peptide_id, colour = peptide_id)) +
+    geom_point(aes(size = I(1.5 + 1.5*passfilter)), show.legend = F) +
+    geom_point(aes(size = I(1.5 + 1.5*passfilter), alpha = I(0.8 * detect), fill = peptide_id)) + # note that we hardcode the levels @ detect, so we know in which order the elements are @ guide_legend()
+    geom_line(data = tib_summ_int, aes(x = shortname, y = int_avg, group = peptide_id_group, colour = peptide_id, linetype=I(c("dashed","solid")[1+passfilter])), show.legend = F) + # we need to set `group` in ggplot to connect the line within peptide * sample group
+    scale_x_discrete(drop = FALSE) +
+    scale_fill_manual(values = array(tib_upep$color, dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, name="peptide", aesthetics = c("colour", "fill")) +
+    scale_shape_manual(values = array(rep(c(21, 22, 24, 25), length.out = nrow(tib_upep)), dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, drop = FALSE, name="peptide") +
+    guides(alpha = F, fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
+    labs(x = "", y = "log2 intensity", fill = "", colour = "", shape = "", title = plot_title) + # set same label/name for all properties of 'sequence_id' to rename the respective legend title
+    theme_bw() +
+    theme(
+      ## color-coding exclude samples is tricky, syntax may change in future ggplot versions
+      # color-code the sample names by 'exclude status' -->> this array of colors is correctly aligned with the plot because
+      # A) color coding vector follows the factor levels of 'shortname' in tib_peptide
+      # B) we do not drop 'unused' factor levels on the x-axis  @  scale_x_discrete(drop = FALSE)
+      axis.text.x = element_text(angle = 45, hjust = 1, colour = c("#000000","#FF7F00")[1+sample_color_code]),
+      # axis.text.x = element_text(angle = 45, hjust = 1),
+      plot.title = element_text(hjust = 0, size = 7),
+      legend.position = "bottom", # legend.position = ifelse(length(upepid) <= 14, "bottom", "none"),
+      legend.title = element_blank(),
+      legend.text = element_text(size = ifelse(length(upepid) <= 12, 7, 5))
+    )
+
+
+  # split legend to separate ggplot if there are many peptides
+  p_legend = NULL
+  if(length(upepid) > 14) {
+    pl = ggplot_split_legend(p)
+    p = pl$plot # legend is hidden by above function
+    p_legend = pl$legend # the legend as a new ggplot
+  }
+
+  # ggplot table with stats
+  if(nrow(tib_stats) > 0) {
+    p_texttable = ggpubr::ggtexttable(as.data.frame(tib_stats), rows = NULL, theme = ggpubr::ttheme("classic", base_size = 9, padding = unit(c(2, 2), "mm")))
+    p_out = ggpubr::ggarrange(p, p_texttable, ncol = 1, nrow = 2, heights = c(.85, .15))
+  } else {
+    p_out = p
+  }
+
+  return(list(plot=p_out, legend=p_legend))
+}
+
+
+
+
+
+
+
+####################################
+
+
+# iterate all contrasts: gather peptide data used in upstream stats, create individual protein plots, finally merge plots into end result PDFs
+# temp filenames not random, so only run a single session of this tool at the same time on a given system
+#
+# @param peptides todo
+# @param proteins proteins tibble needs columns: (protein_id, fasta_headers)
+# @param samples todo
+# @param de_proteins todo
+# @param output_dir todo
+# @param plot_each_statistical_approach todo
+# @param plot_all_proteins todo
+# @param plot_comparison_msqrob_msempire todo
+# plot_peptide_data = function(peptides, proteins, samples, de_proteins, output_dir, plot_each_statistical_approach = TRUE, plot_all_proteins = FALSE, plot_comparison_msqrob_msempire = FALSE) {
+#
+#   # peptides; sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!col_contr_intensity
+#   # proteins; protein_id, fasta_headers
+#   # samples; sample_id, shortname, group, condition = !!col_contr
+#   # de_proteins; "pvalue" "qvalue" "signif" "foldchange.log2" "protein_id" "algo_de" "contrast"
+#
+#   if(!is_tibble(de_proteins) || nrow(de_proteins) == 0) {
+#     append_log("no differential expression analysis results, not plotting peptide-level data", type = "warning")
+#     return()
+#   }
+#
+#   column_contrasts = grep("^contrast:", colnames(samples), ignore.case = T, value = T)
+#   append_log("plot peptide data for each protein...", type = "info")
+#   for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
+#     start_time <- Sys.time()
+#     lbl = sub("^contrast: *", "", col_contr)
+#
+#     samples_for_contrast = samples
+#     ## enable this filter step to plot only samples that match current contrast
+#     # samples_for_contrast = samples %>%
+#     #   select(sample_id, shortname, group, condition = !!col_contr) %>%
+#     #   filter(condition != 0) %>%
+#     #   arrange(condition)
+#
+#     col_contr_intensity = get_column_intensity(peptides, col_contr)
+#     append_log(paste("using data from peptide filter:", names(col_contr_intensity)), type = "info")
+#     tib_contrast_peptides = peptides %>%
+#       select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity)) %>%
+#       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
+#
+#     tib_contrast_stats = de_proteins %>% filter(contrast == col_contr) %>% arrange(pvalue)
+#
+#     # select proteins to visualize; if user wants all proteins, select everything, otherwise only significant
+#     protein_id_plot = tib_contrast_stats %>% filter(plot_all_proteins | signif) %>% distinct(protein_id) %>% pull()
+#
+#     if(length(protein_id_plot) == 0)
+#       next
+#
+#     # plot each protein, immediately storing each ggplot in a pdf file (RAM efficient + enables recycling of plots by simply merging individual PDFs downstream)
+#     # result tibble contains the protein_id's and their respective pdf filenames
+#     tib_protein_pdf_files = plot_peptide_data_per_protein(peptides = tib_contrast_peptides, proteins = proteins, stats_de = tib_contrast_stats,
+#                                                           samples = samples, protein_ids = protein_id_plot)
+#
+#     ## assemble various PDFs with specific plots-of-interest. eg; all proteins significant by any method, detected by method X  or  by method X and not method Y
+#     if(plot_all_proteins) {
+#       pdf_combine_chunks(input = tib_protein_pdf_files$pdf_filename, output = sprintf("%s/all_proteins - %s.pdf", output_dir, lbl))
+#     }
+#     pdf_combine_chunks(input = tib_protein_pdf_files %>% filter(protein_id %in% (tib_contrast_stats %>% filter(signif) %>% pull(protein_id)) ) %>% pull(pdf_filename),
+#                 output = sprintf("%s/all_significant_proteins - %s.pdf", output_dir, lbl))
+#
+#     # list of significant proteins per DE algorithm (already sorted by pvalue)
+#     ualg = unique(tib_contrast_stats$algo_de)
+#     if(plot_each_statistical_approach && length(ualg) > 1) {
+#       for(alg in ualg) {
+#         alg_protein_id = tib_contrast_stats %>% filter(algo_de == alg & signif) %>% pull(protein_id)
+#         if(length(alg_protein_id) > 0) {
+#           pdf_combine_chunks(input = tib_protein_pdf_files %>% filter(protein_id %in% alg_protein_id) %>% pull(pdf_filename),
+#                              output = sprintf("%s/%s_significant - %s.pdf", output_dir, alg, lbl))
+#         }
+#       }
+#     }
+#
+#     # unique hits in msempire vs msqrob, and vice versa
+#     if(plot_comparison_msqrob_msempire && all(c("msempire", "msqrob") %in% ualg)) {
+#       msempire_protein_id = tib_contrast_stats %>% filter(algo_de == "msempire" & signif) %>% pull(protein_id)
+#       msqrob_protein_id = tib_contrast_stats %>% filter(algo_de == "msqrob" & signif) %>% pull(protein_id)
+#       msempire_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msempire_protein_id, msqrob_protein_id)) %>% pull(pdf_filename)
+#       msqrob_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msqrob_protein_id, msempire_protein_id)) %>% pull(pdf_filename)
+#       if(length(msempire_pdf) > 0) {
+#         pdf_combine_chunks(input = msempire_pdf, output = sprintf("%s/msempire_significant_not_msqrob - %s.pdf", output_dir, lbl))
+#       }
+#       if(length(msqrob_pdf) > 0) {
+#         pdf_combine_chunks(input = msqrob_pdf, output = sprintf("%s/msqrob_significant_not_msempire - %s.pdf", output_dir, lbl))
+#       }
+#     }
+#
+#     append_log_timestamp(paste(col_contr, ", plot peptide data per protein"), start_time)
+#   }
+# }
+
+
 # # implementation analogous to plot_proteins_significant()
 # plot_proteins_of_interest = function(stats, samples, proteins, output_file, protein_ids) {
 #   column_contrasts = grep("^contrast:", colnames(samples), ignore.case = T, value = T)
@@ -112,167 +598,144 @@ plot_peptide_data = function(peptides, proteins, samples, de_proteins, output_di
 
 
 
-#' placeholder title
-#' proteins tibble needs columns: (protein_id, fasta_headers)
-#' @param peptides todo
-#' @param proteins todo
-#' @param stats_de todo
-#' @param samples todo
-#' @param protein_ids todo
-#'
-#' @importFrom foreach foreach %dopar%
-plot_peptide_data_per_protein = function(peptides, proteins, stats_de, samples, protein_ids) {
-  # append_log("plotting peptide data and stats per protein...", type = "info")
-
-  ### prep input data
-
-  # subset user-requested proteins to those present in data
-  protein_ids = intersect(protein_ids, peptides$protein_id)
-  tib_proteins = proteins %>%
-    select(protein_id, fasta_headers) %>%
-    filter(protein_id %in% protein_ids) %>%
-    mutate(pid=protein_id) %>%
-    arrange(match(protein_id, protein_ids)) %>%
-    # add_column(filename = tempfile(paste0("ppipeline_prot_", seq_along(protein_ids))))
-    add_column(filename = sprintf("%s/ppipeline_prot_%s.pdf", tempdir(), seq_along(protein_ids))) # non-unique, but we don't care as we encourage over-writing by the same tool to reduce disk space. TODO: should we include some unique session-id or cleanup files downstream
-
-  if(!all(tib_proteins$protein_id == protein_ids)) {
-    append_log("all protein ids have to be present in protein metadata table", type = "error")
-  }
-
-  tib_sample_groups = samples %>% select(sample_id, shortname, group) %>% filter(sample_id %in% peptides$sample_id)
-  # print(tib_sample_groups)
-
-  # use select() to minimize data columns added to tib_input, which (slightly) reduces the RAM footprint
-  tib_input = left_join(peptides %>% select(peptide_id, protein_id, sample_id, detect, intensity) %>% filter(protein_id %in% protein_ids),
-                        tib_sample_groups, by = "sample_id")
-  # tib_input = left_join(tib_input, proteins %>% select(protein_id, fasta_headers), by = "protein_id")
-  tib_input$shortname = factor(tib_input$shortname, levels = tib_sample_groups$shortname)
-  tib_input$detect = factor(as.character(tib_input$detect), levels = c("TRUE", "FALSE"))
-  # transform peptide intensities from log2 to log10
-  tib_input$intensity = tib_input$intensity / log2(10)
-
-  # add a grouping var for each peptide per group
-  tib_input = tib_input %>% unite(peptide_id_group, peptide_id, group, remove = FALSE)
-
-  # stats in pretty-print format
-  stats_de_prettyprint = stats_de %>%
-    filter(protein_id %in% protein_ids) %>%
-    select(protein_id, algorithm = algo_de, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
-    mutate(foldchange = sprintf("%.2f", 2^foldchange),
-           pvalue = sprintf("%.2g", pvalue),
-           qvalue = sprintf("%.2g", qvalue) )
-
-
-  ### list object with all data required for a plot, per protein
-  tib_input = tib_proteins %>% group_by(protein_id) %>%
-    inner_join(tib_input %>% group_by(protein_id) %>% nest() %>% rename(peptide_data=data), by = "protein_id") %>%
-    left_join(stats_de_prettyprint %>% group_by(protein_id) %>% nest() %>% rename(stat_data=data), by="protein_id") %>%
-    nest()
-  # tib_input = tib_input %>% group_by(protein_id) %>% nest() %>% rename(peptide_data=data) %>%
-  #   left_join(stats_de_prettyprint %>% group_by(protein_id) %>% nest() %>% rename(stat_data=data), by="protein_id") %>%
-  #   left_join(tib_proteins, by = "protein_id") %>%
-  #   nest()
-
-  ### multiprocessing the actual peptide plots
-  tib_input$pdf_filename = foreach::foreach(d = tib_input$data, .combine = 'c', .export = "ggplot_peptide", .packages = c("dplyr", "ggplot2")) %dopar% {
-    ggplot_peptide(protein_id=d$pid, filename=d$filename, plot_title = d$fasta_headers, tib_peptides = d$peptide_data[[1]], tib_stats = d$stat_data[[1]], tib_sample_groups=tib_sample_groups)
-  }
-
-  tib_input %>% select(protein_id, pdf_filename)
-}
-
-
-
-#' placeholder title
-#' @param protein_id todo
-#' @param filename todo
-#' @param plot_title todo
-#' @param tib_peptides todo
-#' @param tib_stats todo
-#' @param tib_sample_groups todo
-#'
-#' @importFrom ggpubr ggtexttable ggarrange
-ggplot_peptide = function(protein_id, filename, plot_title, tib_peptides, tib_stats, tib_sample_groups) {
-  clr_palette = c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#FF7F00","#FFFF33","#A65628","#F781BF","#999999") # hardcoded @ brewer.pal(9, "Set1")
-
-  # ! drop factor levels that are not in the data
-  tib_peptides$detect = droplevels(tib_peptides$detect)
-
-  ## data for factor-to-geom_point() decoration, for plot legend
-  # # named array maps from `detect` to a shape number (1=circle no fill, 16=circle with fill). use only elements that are actually in the data
-  # detect_shape = c("TRUE" = 16, "FALSE" = 1)[levels(tib_peptides$detect)]
-
-  upepid = unique(tib_peptides$peptide_id)
-  tib_upep = tibble(peptide_id = upepid, label = gsub("(^_)|(#.*)|(\\.)", "", upepid))
-  if(length(upepid) > 9) {
-    tib_upep$color = colorRampPalette(clr_palette)(length(upepid))
-  } else {
-    tib_upep$color = clr_palette[seq_along(upepid)]
-  }
-
-  ## add mean abundance. left-join ensures we have an entry for each sample per group
-  tib_summ_int = tib_peptides %>%
-    group_by(group, peptide_id, peptide_id_group) %>%
-    summarise(int_avg = mean(intensity, na.rm = T)) %>%
-    left_join(tib_sample_groups, by = "group")
-
-
-  p = ggplot(tib_peptides, aes(x = shortname, y = intensity, group = peptide_id_group, shape = peptide_id, colour = peptide_id)) +
-    geom_point(size = 3, show.legend = F) +
-    geom_point(size = 3, aes(alpha = detect, fill = peptide_id)) + # note that we hardcode the levels @ detect, so we know in which order the elements are @ guide_legend()
-    scale_x_discrete(drop = FALSE) +
-    scale_fill_manual(values = array(tib_upep$color, dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, name="peptide", aesthetics = c("colour", "fill")) +
-    scale_shape_manual(values = array(rep(c(22:25), length.out = length(upepid)), dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, drop = FALSE, name="peptide") +
-    scale_alpha_manual(values = c("TRUE" = .8, "FALSE" = 0), name = "detected?", drop = FALSE) +
-    # alpha=F  disables alpha legend to save space
-    guides(alpha = F, fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
-    labs(x = "", y = "log10 intensity", fill = "", colour = "", shape = "", title = plot_title) + # set same label/name for all properties of 'sequence_id' to rename the respective legend title
-    theme_bw() +
-    theme(
-      axis.text.x = element_text(angle = 90, hjust = 1),
-      plot.title = element_text(hjust = 0, size = 7),
-      legend.position = "bottom",
-      legend.title = element_blank(),
-      legend.text = element_text(size = ifelse(length(upepid) < 10, 7, 5))
-    )
-
-  p = p + geom_line(data = tib_summ_int, aes(x = shortname, y = int_avg, group = peptide_id_group, colour = peptide_id), show.legend = F) # we need to set `group` in ggplot to connect the line within peptide * sample group
-
-  # if more than 15 peptides, don't show peptide sequences in legend (gonna be a mess)
-  if(length(upepid) > 15) {
-    p = p + theme(legend.position = "none")
-  }
-
-  # add stats
-  p_texttable = ggpubr::ggtexttable(as.data.frame(tib_stats), rows = NULL, theme = ggpubr::ttheme("classic"))
-
-  p_out = ggpubr::ggarrange(p, p_texttable, ncol = 1, nrow = 2, heights = c(.75, .25))
-  ggplot2::ggsave(file=filename, plot=p_out, width=7, height=9)
-
-  return(filename)
-}
+# placeholder title
+# proteins tibble needs columns: (protein_id, fasta_headers)
+# @param peptides todo
+# @param proteins todo
+# @param stats_de todo
+# @param samples todo
+# @param protein_ids todo
+#
+# @importFrom foreach foreach %dopar%
+# plot_peptide_data_per_protein = function(peptides, proteins, stats_de, samples, protein_ids) {
+#   # append_log("plotting peptide data and stats per protein...", type = "info")
+#
+#   ### prep input data
+#
+#   # subset user-requested proteins to those present in data
+#   protein_ids = intersect(protein_ids, peptides$protein_id)
+#   tib_proteins = proteins %>%
+#     select(protein_id, fasta_headers) %>%
+#     filter(protein_id %in% protein_ids) %>%
+#     mutate(pid=protein_id) %>%
+#     arrange(match(protein_id, protein_ids)) %>%
+#     # add_column(filename = tempfile(paste0("ppipeline_prot_", seq_along(protein_ids))))
+#     add_column(filename = sprintf("%s/ppipeline_prot_%s.pdf", tempdir(), seq_along(protein_ids))) # non-unique, but we don't care as we encourage over-writing by the same tool to reduce disk space. TODO: should we include some unique session-id or cleanup files downstream
+#
+#   if(!all(tib_proteins$protein_id == protein_ids)) {
+#     append_log("all protein ids have to be present in protein metadata table", type = "error")
+#   }
+#
+#   tib_sample_groups = samples %>% select(sample_id, shortname, group) %>% filter(sample_id %in% peptides$sample_id)
+#   # print(tib_sample_groups)
+#
+#   # use select() to minimize data columns added to tib_input, which (slightly) reduces the RAM footprint
+#   tib_input = left_join(peptides %>% select(peptide_id, protein_id, sample_id, detect, intensity) %>% filter(protein_id %in% protein_ids),
+#                         tib_sample_groups, by = "sample_id")
+#   # tib_input = left_join(tib_input, proteins %>% select(protein_id, fasta_headers), by = "protein_id")
+#   tib_input$shortname = factor(tib_input$shortname, levels = tib_sample_groups$shortname)
+#   tib_input$detect = factor(as.character(tib_input$detect), levels = c("TRUE", "FALSE"))
+#   # transform peptide intensities from log2 to log10
+#   tib_input$intensity = tib_input$intensity / log2(10)
+#
+#   # add a grouping var for each peptide per group
+#   tib_input = tib_input %>% unite(peptide_id_group, peptide_id, group, remove = FALSE)
+#
+#   # stats in pretty-print format
+#   stats_de_prettyprint = stats_de %>%
+#     filter(protein_id %in% protein_ids) %>%
+#     select(protein_id, algorithm = algo_de, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
+#     mutate(foldchange = sprintf("%.2f", 2^foldchange),
+#            pvalue = sprintf("%.2g", pvalue),
+#            qvalue = sprintf("%.2g", qvalue) )
+#
+#
+#   ### list object with all data required for a plot, per protein
+#   tib_input = tib_proteins %>% group_by(protein_id) %>%
+#     inner_join(tib_input %>% group_by(protein_id) %>% nest() %>% rename(peptide_data=data), by = "protein_id") %>%
+#     left_join(stats_de_prettyprint %>% group_by(protein_id) %>% nest() %>% rename(stat_data=data), by="protein_id") %>%
+#     nest()
+#   # tib_input = tib_input %>% group_by(protein_id) %>% nest() %>% rename(peptide_data=data) %>%
+#   #   left_join(stats_de_prettyprint %>% group_by(protein_id) %>% nest() %>% rename(stat_data=data), by="protein_id") %>%
+#   #   left_join(tib_proteins, by = "protein_id") %>%
+#   #   nest()
+#
+#   ### multiprocessing the actual peptide plots
+#   tib_input$pdf_filename = foreach::foreach(d = tib_input$data, .combine = 'c', .export = "ggplot_peptide", .packages = c("dplyr", "ggplot2")) %dopar% {
+#     ggplot_peptide(protein_id=d$pid, filename=d$filename, plot_title = d$fasta_headers, tib_peptides = d$peptide_data[[1]], tib_stats = d$stat_data[[1]], tib_sample_groups=tib_sample_groups)
+#   }
+#
+#   tib_input %>% select(protein_id, pdf_filename)
+# }
 
 
 
-#' placeholder title
-#' the function pdf_combine() from pdftools/qpdf package has issues (on windows) when combining hundreds of plots. error: "Too many open files"
-#' so we here create a wrapper where we combine source files in batches
-#' some references; https://stackoverflow.com/questions/40810704/error-with-r-function-download-file-too-many-open-files
-#' @param input todo
-#' @param output todo
-#'
-#' @importFrom pdftools pdf_combine
-pdf_combine_chunks = function(input, output) {
-  # chunks of at most 200 files  &  respective temporary filenames (re-using first input file to get unique file / for unique purpose)
-  input_chunks = split(input, ceiling(seq_along(input) / 200))
-  output_temp = paste0(input[1], ".chunk", seq_along(input_chunks))
-  # combine files within each chunk
-  for(i in seq_along(input_chunks)) {
-    pdftools::pdf_combine(input_chunks[[i]], output_temp[i])
-  }
-  # finally, combine chunks and remove temp files
-  pdftools::pdf_combine(output_temp, output)
-  res = file.remove(output_temp)
-}
+# placeholder title
+# @param protein_id todo
+# @param filename todo
+# @param plot_title todo
+# @param tib_peptides todo
+# @param tib_stats todo
+# @param tib_sample_groups todo
+#
+# @importFrom ggpubr ggtexttable ggarrange
+# ggplot_peptide = function(protein_id, filename, plot_title, tib_peptides, tib_stats, tib_sample_groups) {
+#   clr_palette = c("#E41A1C","#377EB8","#4DAF4A","#984EA3","#FF7F00","#FFFF33","#A65628","#F781BF","#999999") # hardcoded @ brewer.pal(9, "Set1")
+#
+#   # ! drop factor levels that are not in the data
+#   tib_peptides$detect = droplevels(tib_peptides$detect)
+#
+#   ## data for factor-to-geom_point() decoration, for plot legend
+#   # # named array maps from `detect` to a shape number (1=circle no fill, 16=circle with fill). use only elements that are actually in the data
+#   # detect_shape = c("TRUE" = 16, "FALSE" = 1)[levels(tib_peptides$detect)]
+#
+#   upepid = unique(tib_peptides$peptide_id)
+#   tib_upep = tibble(peptide_id = upepid, label = gsub("(^_)|(#.*)|(\\.)", "", upepid))
+#   if(length(upepid) > 9) {
+#     tib_upep$color = colorRampPalette(clr_palette, space = "Lab", bias = 0.8)(length(upepid)) # colorspace::rainbow_hcl(length(upepid))
+#   } else {
+#     tib_upep$color = clr_palette[seq_along(upepid)]
+#   }
+#
+#   ## add mean abundance. left-join ensures we have an entry for each sample per group
+#   tib_summ_int = tib_peptides %>%
+#     group_by(group, peptide_id, peptide_id_group) %>%
+#     summarise(int_avg = mean(intensity, na.rm = T)) %>%
+#     left_join(tib_sample_groups, by = "group")
+#
+#
+#   p = ggplot(tib_peptides, aes(x = shortname, y = intensity, group = peptide_id_group, shape = peptide_id, colour = peptide_id)) +
+#     geom_point(size = 3, show.legend = F) +
+#     geom_point(size = 3, aes(alpha = detect, fill = peptide_id)) + # note that we hardcode the levels @ detect, so we know in which order the elements are @ guide_legend()
+#     scale_x_discrete(drop = FALSE) +
+#     scale_fill_manual(values = array(tib_upep$color, dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, name="peptide", aesthetics = c("colour", "fill")) +
+#     scale_shape_manual(values = array(rep(c(22:25), length.out = length(upepid)), dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, drop = FALSE, name="peptide") +
+#     scale_alpha_manual(values = c("TRUE" = .8, "FALSE" = 0), name = "detected?", drop = FALSE) +
+#     # alpha=F  disables alpha legend to save space
+#     guides(alpha = F, fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
+#     labs(x = "", y = "log10 intensity", fill = "", colour = "", shape = "", title = plot_title) + # set same label/name for all properties of 'sequence_id' to rename the respective legend title
+#     theme_bw() +
+#     theme(
+#       axis.text.x = element_text(angle = 90, hjust = 1),
+#       plot.title = element_text(hjust = 0, size = 7),
+#       legend.position = "bottom",
+#       legend.title = element_blank(),
+#       legend.text = element_text(size = ifelse(length(upepid) < 10, 7, 5))
+#     )
+#
+#   p = p + geom_line(data = tib_summ_int, aes(x = shortname, y = int_avg, group = peptide_id_group, colour = peptide_id), show.legend = F) # we need to set `group` in ggplot to connect the line within peptide * sample group
+#
+#   # if more than 15 peptides, don't show peptide sequences in legend (gonna be a mess)
+#   if(length(upepid) > 15) {
+#     p = p + theme(legend.position = "none")
+#   }
+#
+#   # add stats
+#   p_texttable = ggpubr::ggtexttable(as.data.frame(tib_stats), rows = NULL, theme = ggpubr::ttheme("classic"))
+#
+#   p_out = ggpubr::ggarrange(p, p_texttable, ncol = 1, nrow = 2, heights = c(.75, .25))
+#   ggplot2::ggsave(file=filename, plot=p_out, width=7, height=9)
+#
+#   return(filename)
+# }
 

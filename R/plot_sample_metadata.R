@@ -1,9 +1,9 @@
 
 #' generate color-coding for all sample metadata
 #' @param samples todo
-#' @importFrom RColorBrewer brewer.pal.info brewer.pal
 #' @importFrom gtools mixedsort
 #' @importFrom ggplot2 cut_interval
+#' @importFrom colorspace sequential_hcl
 sample_color_coding = function(samples) {
   color_categorical = list(
     # https://observablehq.com/@d3/color-schemes?collection=@d3/d3-scale-chromatic
@@ -25,6 +25,8 @@ sample_color_coding = function(samples) {
   #   plot(runif(length(color_categorical[[i]])*3), runif(length(color_categorical[[i]])*3), col=rep(color_categorical[[i]], 3), pch=16, xaxt="n", yaxt="n", xlab="", ylab="", main=names(color_categorical)[i])
   # }
 
+  # @importFrom RColorBrewer brewer.pal.info brewer.pal
+
   # d3_set2 = c("#66c2a5","#fc8d62","#8da0cb","#e78ac3","#a6d854", "#e5c494","#b3b3b3"), # minus yellow -->> too flat
   #"Set1" = c("#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#A65628", "#F781BF", "#999999"), # RColorBrewer::brewer.pal(9, "Set1")   minus yellow
   #"Set2" = c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3"), # RColorBrewer::brewer.pal(8, "Set2")   as-is
@@ -32,9 +34,10 @@ sample_color_coding = function(samples) {
   #"Accent" = c("#666666", "#BF5B17", "#F0027F", "#386CB0", "#FFFF99", "#FDC086", "#BEAED4", "#7FC97F"), # rev(RColorBrewer::brewer.pal(8, "Accent"))
 
 
-  #
+
   # color_pals = tibble(name = c("Set1", "Set2", "Dark2", "Accent"), reverse = c(F, F, F, T))
-  color_pals_continuous = tibble(name = c("GnBu", "YlOrRd", "YlGn")) # c("BuPu", "OrRd", "YlGn")
+  # color_pals_continuous = tibble(name = c("RdPu", "YlOrRd", "YlGn")) # c("BuPu", "OrRd", "YlGn")
+  color_pals_continuous = tibble(name = c("Viridis", "SunsetDark", "Inferno", "Plasma", "Red-Blue")) # Red-Blue BluGrn YlGnBu  Heat c("BuPu", "OrRd", "YlGn")
 
   # color_pals$maxcolors = RColorBrewer::brewer.pal.info$maxcolors[match(color_pals$name, rownames(RColorBrewer::brewer.pal.info))]
   # if(any(is.na(color_pals$maxcolors))) {
@@ -42,92 +45,117 @@ sample_color_coding = function(samples) {
   # }
 
   ### color palette per property
-  sample_colors = samples %>% select(sample_id, shortname)
-  sample_properties = grep("^(sample_id$|sample_index$|shortname$|condition$|(all_){0,1}_proteins$|^key_|contrast:)", colnames(samples), value = T, ignore.case = T, invert = T)
+  # sample_colors = samples %>% select(sample_id, shortname)
+  sample_properties = grep("^(sample_id$|sample_index$|shortname$|condition$|^key_|contrast:)", colnames(samples), value = T, ignore.case = T, invert = T)
 
+  result = tibble()
   count = 0
   count_continuous = 0
   for (i in seq_along(sample_properties)) {
     prop = sample_properties[i]
     # values to color-code
-    val = samples %>% select(!!prop) %>% pull()
+    val = val_orig = samples %>% select(!!prop) %>% pull()
     uval = unique(val)
+    sample_id = samples$sample_id
 
     # if not color-coding group/exclude, we skip if there is nothing to color-code
     if(length(uval) == 1 && !prop %in% c("group", "exclude")) {
+      # note; if we want these datapoints in the result table, add an entry here with some default color so downstream code that cycles the palettes is not triggered
       next
     }
 
     prop_is_numeric = !prop %in% c("group", "exclude") && suppressWarnings(all(is.finite(as.numeric(uval))))
-    if(prop_is_numeric) {
+    prop_is_boolean = all(!is.na(uval) & toupper(uval) %in% c("0","1","TRUE", "FALSE"))
+    if(prop_is_numeric && !prop_is_boolean) {
       val = as.numeric(val)
       ## create continuous color gradient between lowest and highest value
-      # cycle through color palettes
-      palette_index = 1 + (count_continuous %% nrow(color_pals_continuous))
-      count_continuous = count_continuous + 1
-      # standard color scale, but take out 2 colors closest to white
-      palette_colors = RColorBrewer::brewer.pal(9, color_pals_continuous$name[palette_index])[-1:-2]
+      # cycle through color palettes; special rule for peptide/protein counts -->> hardcoded palette name
+      if(grepl("(detected|all)_(peptides|proteins)", prop)) {
+        palette_index = c(which(color_pals_continuous$name=="Plasma"), 1)[1]
+      } else {
+        palette_index = 1 + (count_continuous %% nrow(color_pals_continuous))
+        count_continuous = count_continuous + 1
+      }
+
+      # palette_colors = RColorBrewer::brewer.pal(9, color_pals_continuous$name[palette_index])[-1:-2] # standard color scale, but take out 2 colors closest to white
+
+      # customize the HCL range a bit to prevent very bright colors (which don't work well on a white background)
+      # alternatively, use each palette as-is and remove the 1~2 brightest colors
+      palette_colors = colorspace::sequential_hcl(10, palette = color_pals_continuous$name[palette_index], rev = FALSE, l = c(20, 80))
 
       if(length(uval) == 1) {
         # if there is just one unique value, use the last (darkest) value in this palette
         sample_colors[,prop] = tail(palette_colors, 1)
       } else {
-        # interpolate to more refined
-        clr = colorRampPalette(palette_colors)(25)
+        # interpolate colors to a widel palette
+        # clr = colorRampPalette(palette_colors, space = "Lab")(25)
+        clr = palette_colors
         # optionally, limit outliers/extremes
-        q = quantile(val, probs = c(.01, .99))
-        val[val < q[1]] = q[1]
-        val[val > q[2]] = q[2]
+        val_transformed = val
+        val_transformed[!is.finite(val_transformed) | val_transformed == 0] = NA
+        q = quantile(val_transformed, probs = c(.01, .99), na.rm = T)
+        val_transformed[is.finite(val_transformed) & val_transformed < q[1]] = q[1]
+        val_transformed[is.finite(val_transformed) & val_transformed > q[2]] = q[2]
         # map values to colors
-        val_cut = as.numeric(ggplot2::cut_interval(val, length(clr)))
-        sample_colors[,prop] = clr[val_cut]
+        val_cut = as.numeric(ggplot2::cut_interval(val_transformed, length(clr)))
+        val_clr = clr[val_cut]
+        val_clr[!is.finite(val_cut)] = "#BBBBBB" # in continuous palette, we color-code NA values (and zeros) in grey
+        # sample_colors[,prop] = clr[val_cut]
+        result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=FALSE) %>% mutate(val=as.character(val)))
       }
     } else {
       if(prop != "group") {
         uval = gtools::mixedsort(uval)
       }
-      # cycle through color palettes
-      palette_index = 1 + (count %% length(color_categorical)) #(count %% nrow(color_pals))
-      count = count + 1
-      # create a color palette, optionally interpolating if there are more unique values than palette size
-      uval_clr = color_categorical[[palette_index]]
-      if(length(uval) > length(uval_clr)) {
-        uval_clr = colorRampPalette(uval_clr)(length(uval))
+      # cycle through color palettes; special rule for booleans -->> hardcoded palette name
+      if(prop_is_boolean) {
+        val2col = c("FALSE"="#00BFC4", "TRUE"="#F8766D")[(toupper(val) %in% c("1", "TRUE")) + 1]
+      } else {
+        palette_index = 1 + (count %% length(color_categorical)) #(count %% nrow(color_pals))
+        count = count + 1
+
+        # create a color palette, optionally interpolating if there are more unique values than palette size
+        uval_clr = color_categorical[[palette_index]]
+        if(length(uval) > length(uval_clr)) {
+          uval_clr = colorRampPalette(uval_clr, space = "Lab", bias = 0.8)(length(uval))
+        }
+        val2col = uval_clr[match(val, uval)]
       }
 
       # store respective colors
-      sample_colors[,prop] = uval_clr[match(val, uval)]
+      result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val2col, is_categorical=TRUE) %>% mutate(val=as.character(val)))
     }
 
   }
-  return(sample_colors)
+
+  return(result)
 }
 
 
 
-#' convert color matrix to long format
-#' @param samples todo
-#' @param samples_colors todo
-sample_color_coding_as_long_tibble = function(samples, samples_colors) {
-  # iterate each property used for color coding, then combine the property, value and respective color in long-format tibble
-  tib_color_coding = NULL
-  for (prop in setdiff(colnames(samples_colors), c("sample_id", "sample_index", "shortname"))) { #prop="group"
-    tib_color_coding = bind_rows(tib_color_coding, samples %>%
-                                   select(shortname, val=!!prop) %>%
-                                   mutate_all(as.character) %>%
-                                   add_column(clr = samples_colors %>% pull(!!prop)) %>%
-                                   add_column(prop = prop, .after = "shortname"))
-  }
-
-  # exclude color codings that have just 1 unique value
-  tib_counts = tib_color_coding %>% group_by(prop) %>% summarise(n=n_distinct(clr))
-  tib_color_coding = tib_color_coding %>% filter(prop %in% (tib_counts %>% filter(n>1) %>% pull(prop)))
-
-  # convert the properties to a factor, ordered exactly as in the input sample metadata table (eg; respective column names)
-  tib_color_coding$prop = factor(tib_color_coding$prop, levels = intersect(colnames(samples), tib_color_coding$prop))
-
-  return(tib_color_coding)
-}
+# #' convert color matrix to long format
+# #' @param samples todo
+# #' @param samples_colors todo
+# sample_color_coding_as_long_tibble = function(samples, samples_colors) {
+#   # iterate each property used for color coding, then combine the property, value and respective color in long-format tibble
+#   tib_color_coding = NULL
+#   for (prop in setdiff(colnames(samples_colors), c("sample_id", "sample_index", "shortname"))) { #prop="group"
+#     tib_color_coding = bind_rows(tib_color_coding, samples %>%
+#                                    select(shortname, val=!!prop) %>%
+#                                    mutate_all(as.character) %>%
+#                                    add_column(clr = samples_colors %>% pull(!!prop)) %>%
+#                                    add_column(prop = prop, .after = "shortname"))
+#   }
+#
+#   # exclude color codings that have just 1 unique value
+#   tib_counts = tib_color_coding %>% group_by(prop) %>% summarise(n=n_distinct(clr))
+#   tib_color_coding = tib_color_coding %>% filter(prop %in% (tib_counts %>% filter(n>1) %>% pull(prop)))
+#
+#   # convert the properties to a factor, ordered exactly as in the input sample metadata table (eg; respective column names)
+#   tib_color_coding$prop = factor(tib_color_coding$prop, levels = intersect(colnames(samples), tib_color_coding$prop))
+#
+#   return(tib_color_coding)
+# }
 
 
 
@@ -183,6 +211,7 @@ ggplot_sample_detect_counts_barplots = function(samples, samples_colors_long) {
 
 
   # plot code is somewhat convoluted by careful alignment of text labels. simplest QC plot of data as-is: ggplot(tib_dual, aes(x = shortname, y = count_scaled, fill = type)) + geom_bar(stat = "identity", position = position_stack(reverse = T)) + coord_flip()
+  text_size = ifelse(nrow(tib) > 50, 2, 3.5)
   p = ggplot(tib_dual, aes(x = shortname, y = count_scaled, fill = type)) +
     geom_bar(stat = "identity", position = position_stack(reverse = T)) +
     geom_text(aes(label = count,
@@ -190,7 +219,7 @@ ggplot_sample_detect_counts_barplots = function(samples, samples_colors_long) {
                   hjust = ifelse((type %in% c("peptides: identified & quantified", "proteins: only quantified") & !c(type=="proteins: only quantified" & outlier_lowside)) |
                                    (type %in% c("peptides: only quantified") & outlier_lowside), -0.1, 1.1)),
               colour = ifelse(tib_dual$outlier_lowside & tib_dual$detect_or_quant=="quant", "darkgrey", "white"),
-              size = 3.5, # 4 is default
+              size = text_size, # 4 is default
               check_overlap = F) +
     scale_y_continuous(breaks=ticks_coord, labels=ticks_label, ) +
     scale_fill_manual(values = clr, guide = guide_legend(nrow = 2)) +
@@ -200,6 +229,9 @@ ggplot_sample_detect_counts_barplots = function(samples, samples_colors_long) {
     theme(legend.position = "bottom", legend.title = element_blank(), legend.key.size = unit(0.75,"line"), legend.text = element_text(size=9),
           panel.grid = element_blank(), axis.line.y.right = element_blank(),
           axis.text.x.bottom = element_text(angle = 45, hjust = 1, vjust = 1))
+
+  if(nrow(tib) > 50)
+    p = p + theme(axis.text.y.left = element_text(size=6))
 
   return(p)
   ###### some reference code for separate plots
@@ -272,36 +304,94 @@ ggplot_sample_detect_vs_metadata_scatterplot = function(tib_plot) {
 ggplot_sample_detect_vs_metadata_scatterplot_by_prop = function(tib_plot) {
   result = list()
 
+  # re-arrange sample metadata levels such that categorical data comes first
+  tib_plot$prop = factor(tib_plot$prop, levels = tib_plot %>% arrange(desc(is_categorical)) %>% distinct(prop) %>% pull(prop) %>% as.vector)
+
   for(prp in levels(tib_plot$prop)) { # prp="group"
     # subset plot data for current metadata property
     tib = tib_plot %>% filter(prop == prp)
-    # median detect count by unique value
-    tib_stat = tib %>%
-      group_by(val) %>%
-      summarise(median_detect_count=median(detected_peptides)) %>%
-      arrange(desc(median_detect_count))
-    tib_stat$index = 1:nrow(tib_stat)
 
-    # merge counts with plot tibble and convert 'val' to factor to enforce sorting
-    tib = left_join(tib, tib_stat, by="val")
-    tib$val = factor(tib$val, levels = tib_stat$val)
-    # unique set of colors used in this plot
-    tib_col = tib %>% distinct(val, clr)
+    if(tib$is_categorical[1]) {
+      # median detect count by unique value
+      tib_stat = tib %>%
+        group_by(val) %>%
+        summarise(median_detect_count = median(detected_peptides),
+                  median_detect_count_noexclude = median(detected_peptides[exclude == FALSE]) ) %>%
+        arrange(desc(median_detect_count))
+      tib_stat$index = 1:nrow(tib_stat)
 
-    # see ggplot_sample_detect_vs_metadata_scatterplot()
-    tib$prop_y = as.numeric(tib$val) + tib$sample_jitter
+      # merge counts with plot tibble
+      tib = left_join(tib, tib_stat, by="val")
+      # unique set of colors used in this plot
+      tib_col = tib %>% distinct(val, clr)
+      # convert 'val' to factor to enforce sorting (tib_stat is ordered by median values)
+      tib$val = factor(tib$val, levels = tib_stat$val)
 
-    result[[prp]] = list(n = nrow(tib_stat), # n = number of rows/elements. useful for deciding on plot size downstream
-                         plot = ggplot(tib, aes(x=detected_peptides, y=val, colour = val, fill = val)) +
-                           geom_point(alpha = 0) + # first plot invisible points to fix y axis
-                           geom_point(aes(y=prop_y), shape = 21) + # then plot with custom y location for our fixed jitter
-                           geom_segment(data=tib_stat, aes(x=median_detect_count, xend=median_detect_count, y=index+0.3, yend=index-0.3, colour=val)) + # x = 2, y = 15, xend = 3, yend = 15
-                           scale_colour_manual(values = array(paste0(tib_col$clr, "BB"), dimnames = list(tib_col$val)), aesthetics = c("colour")) +
-                           scale_colour_manual(values = array(paste0(tib_col$clr, "66"), dimnames = list(tib_col$val)), aesthetics = c("fill")) +
-                           # scale_colour_manual(values = array(tib_col$clr, dimnames = list(tib_col$val)), aesthetics = c("colour", "fill")) +
-                           theme_bw() +
-                           labs(x="number of detected peptides per sample", y="", title=paste("sample metadata used for color-coding:", prp)) +
-                           theme(legend.position = "none", plot.title = element_text(size = 10), axis.title.x.bottom = element_text(size = 9)) )
+      # see ggplot_sample_detect_vs_metadata_scatterplot()
+      tib$prop_y = as.numeric(tib$val) + tib$sample_jitter
+
+      result[[prp]] = list(n = nrow(tib_stat), # n = number of rows/elements. useful for deciding on plot size downstream
+                           plot = ggplot(tib, aes(x=detected_peptides, y=val, colour = val, fill = val)) +
+                             geom_point(alpha = 0) + # first plot invisible points to fix y axis
+                             geom_point(aes(y=prop_y, shape = I(ifelse(exclude, 0, 21)))) + # then plot with custom y location for our fixed jitter
+                             geom_segment(data=tib_stat, aes(x=median_detect_count_noexclude, xend=median_detect_count_noexclude, y=index+0.3, yend=index-0.3, colour=val), size=1.5) +
+                             geom_segment(data=tib_stat, aes(x=median_detect_count, xend=median_detect_count, y=index+0.3, yend=index-0.3, colour=val)) + # , linetype="dashed"
+                             scale_colour_manual(values = array(paste0(tib_col$clr, "BB"), dimnames = list(tib_col$val)), aesthetics = c("colour")) +
+                             scale_colour_manual(values = array(paste0(tib_col$clr, "66"), dimnames = list(tib_col$val)), aesthetics = c("fill")) +
+                             facet_grid( ~ prop) +
+                             theme_bw() +
+                             labs(x="number of detected peptides per sample", y="") + #, title=paste("sample metadata used for color-coding:", prp)) +
+                             theme(legend.position = "none", plot.title = element_text(size = 10), axis.title.x.bottom = element_text(size = 9)) )
+    } else {
+      tib = tib %>% mutate(val = as.numeric(val))
+
+      tib = bind_rows(tib %>% add_column(plottype="asis"),
+                      tib %>% add_column(plottype="loess"))
+
+      p = ggplot(tib, aes(x=detected_peptides, y=val)) +
+        geom_point(aes(shape = I(ifelse(exclude, 0, 21))), alpha=0.5, na.rm = T) +
+        facet_grid( ~ plottype, labeller = labeller(plottype = array(c(prp, prp), dimnames = list(c("asis", "loess"))) ) ) +
+        labs(x="number of detected peptides per sample", y=prp) +
+        theme_bw() +
+        theme(legend.position = "none", plot.title = element_text(size = 10), plot.subtitle = element_text(size = 8), axis.title.x.bottom = element_text(size = 9))
+
+      ## add a loess fit
+      if(any(tib$val!=0 & tib$exclude==FALSE)) {
+        p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0 & exclude==FALSE))
+      }
+
+      ## if there are excluded samples, add another regression line that includes these samples with distinct visualization
+      # if(any(tib$val!=0 & tib$exclude==TRUE)) {
+      #   p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0), se = FALSE, colour = "black", linetype="dotted")
+      # }
+
+      result[[prp]] = list(n = 10, # some default height
+                           plot = p)
+    }
+
+    #### test code / plots
+    ## plain scatterplot
+    # tib = tib_plot %>% filter(prop == prp)
+    # ggplot(tib, aes(x=detected_peptides, y=as.numeric(val)) ) +
+    #   geom_point(alpha=0.3) +
+    #   theme_bw() +
+    #   labs(x="number of detected peptides per sample", y=prp, title=paste("sample metadata used for color-coding:", prp)) +
+    #   theme(legend.position = "none", plot.title = element_text(size = 10), axis.title.x.bottom = element_text(size = 9))
+    #
+    ## color-code by group
+    # tib_grp = tib_plot %>% filter(prop == "group")
+    # tib = tib_plot %>% filter(prop == prp) %>% select(shortname, x=detected_peptides, y=val) %>% mutate(y=as.numeric(y)) %>%
+    #   left_join(tib_grp %>% select(shortname, clr_lbl=val, clr), by="shortname")
+    # # unique set of colors used in this plot
+    # tib_col = tib %>% distinct(clr_lbl, clr)
+    #
+    # ggplot(tib, aes(x, y, colour=clr_lbl)) +
+    #   geom_point() + #alpha=0.3
+    #   scale_colour_manual(values = array(paste0(tib_col$clr, "BB"), dimnames = list(tib_col$clr_lbl)), aesthetics = c("colour")) +
+    #   scale_colour_manual(values = array(paste0(tib_col$clr, "66"), dimnames = list(tib_col$clr_lbl)), aesthetics = c("fill")) +
+    #   theme_bw() +
+    #   labs(x="number of detected peptides per sample", y=prp, title=paste("sample metadata used for color-coding:", prp)) +
+    #   theme(legend.position = "bottom", plot.title = element_text(size = 10), axis.title.x.bottom = element_text(size = 9))
   }
 
   return(result)

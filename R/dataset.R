@@ -2,7 +2,6 @@
 #' Test if the dataset contains DIA data, simply testing if the acquisition_mode equals "dia" (case insensitive)
 #'
 #' @param dataset dataset to test
-#'
 #' @export
 is_dia_dataset = function(dataset) {
   if(length(dataset$acquisition_mode) != 1) {
@@ -11,6 +10,17 @@ is_dia_dataset = function(dataset) {
   tolower(dataset$acquisition_mode) == "dia"
 }
 
+
+#' List the name of all contrasts in the samples table
+#'
+#' @param dataset a valid dataset
+#' @export
+dataset_contrasts = function(dataset) {
+  if(!"samples" %in% names(dataset)) {
+    append_log("invalid dataset, it lacks a samples table", type = "error")
+  }
+  grep("^contrast:", colnames(dataset$samples), ignore.case = T, value = T)
+}
 
 
 #' Print a short summary of a dataset to console
@@ -30,6 +40,7 @@ print_dataset_summary = function(dataset) {
                 n_distinct(dataset$peptides$peptide_id), n_distinct(dataset$peptides$protein_id) ))
   }
 
+  column_contrasts = dataset_contrasts(dataset)
 
   ### present DEA results as a table
   if("de_proteins" %in% names(dataset) && is_tibble(dataset$de_proteins) && nrow(dataset$de_proteins) > 0 && length(dataset$proteins) > 0) {
@@ -38,13 +49,14 @@ print_dataset_summary = function(dataset) {
       filter(!is.na(qvalue)) %>%
       arrange(qvalue) %>%
       group_by(contrast, dea_algorithm=algo_de) %>%
-      summarise("#proteins" = n(),
+      summarise("#proteins tested" = n(),
                 "signif @ user settings" = sum(signif),
                 "qvalue <= 0.01" = sum(qvalue <= 0.01),
                 "qvalue <= 0.05" = sum(qvalue <= 0.05),
                 "top10 proteins at qvalue <= 0.05" = paste(head(gene_symbols_or_id[qvalue <= 0.05], 10), collapse=", ")
       ) %>%
       ungroup() %>%
+      arrange(match(contrast, column_contrasts)) %>%
       mutate(contrast = sub("^contrast: *", "", contrast))
     cat("\ndifferential expression analysis, result summary:\n")
     print(remove_rownames(tib_dea), width=Inf, n=25) # print(as.data.frame(tib_dea), row.names=F, max = 25)
@@ -52,19 +64,42 @@ print_dataset_summary = function(dataset) {
 
   ### present DT results as a table
   if("dd_proteins" %in% names(dataset) && is_tibble(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0 && length(dataset$proteins) > 0) {
-    tib_dt = dataset$dd_proteins %>%
-      left_join(dataset$proteins, by="protein_id") %>%
-      filter(!is.na(diff_detect_zscore_candidate)) %>%
-      arrange(desc(abs(diff_detect_zscore))) %>%
+    tib_report_diffdetects_summary = dataset$dd_proteins %>%
+      filter(!is.na(zscore_count_detect)) %>%
+      left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by="protein_id") %>%
+      # sort such that top hits come first
+      arrange(desc(abs(zscore_count_detect))) %>%
+      # summary stats per contrast
       group_by(contrast) %>%
-      summarise("#proteins" = n(),
-                "#candidates" = sum(diff_detect_zscore_candidate==TRUE),
-                "top10 candidates" = paste(head(gene_symbols_or_id[diff_detect_zscore_candidate==TRUE], 10), collapse=", ")
-      ) %>%
+      summarise(`#proteins tested` = n(),
+                `#abs(zscore) >= 3` = sum(abs(zscore_count_detect) >= 3),
+                `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id, 10), width = 10, side = "right"), collapse=", ") )) %>%
       ungroup() %>%
-      mutate(contrast = sub("^contrast: *", "", contrast))
+      arrange(match(contrast, column_contrasts)) %>%
+      mutate(contrast = sub("^contrast: ", "", contrast))
+
     cat("\ndifferential detection analysis, result summary:\n")
-    print(as.data.frame(tib_dt), row.names=F, max = 25)
+    print(as.data.frame(tib_report_diffdetects_summary), row.names=F, max = 25)
+
+    if(!is_dia_dataset(dataset)) {
+      tib_report_diffdetects_summary = dataset$dd_proteins %>%
+        filter(!is.na(zscore_count_quant)) %>%
+        left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by="protein_id") %>%
+        # sort such that top hits come first
+        arrange(desc(abs(zscore_count_quant))) %>%
+        # summary stats per contrast
+        group_by(contrast) %>%
+        summarise(`#proteins tested` = n(),
+                  `#abs(zscore) >= 3` = sum(abs(zscore_count_quant) >= 3),
+                  `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id, 10), width = 10, side = "right"), collapse=", ") )) %>%
+        ungroup() %>%
+        arrange(match(contrast, column_contrasts)) %>%
+        mutate(contrast = sub("^contrast: ", "", contrast))
+
+      cat("\ndifferential detection analysis, counting 'quantified peptides' (includes MBR), result summary:\n")
+      print(as.data.frame(tib_report_diffdetects_summary), row.names=F, max = 25)
+
+    }
   }
 
 }

@@ -161,7 +161,7 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
 
   # read from disk
   if(is_type_xlsx) {
-    df = openxlsx::read.xlsx(filename, sheet=1)
+    df = openxlsx::read.xlsx(filename, sheet=1, sep.names="_")
   } else {
     df = as.data.frame(data.table::fread(filename))
   }
@@ -213,6 +213,9 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     append_log("duplicated column names are not allowed", type = "error")
   }
 
+  # replace whitespace in column names with underscores
+  colnames(df) = gsub("\\s+", "_", colnames(df))
+
   # input validation on column names: valid characters
   cols_invalid = grepl("[^0-Z_ -.]", colnames(df), ignore.case = T)
   if (any(cols_invalid)) {
@@ -262,7 +265,7 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
   # no empty strings, anywhere
   col_has_empty = colSums(df == "") > 0
   if (any(col_has_empty)) {
-    append_log(sprintf("empty values are not allowed in sample metadata table. Columns with empty values;", paste(colnames(df)[col_has_empty], collapse=", ")), type = "error")
+    append_log(paste("empty values are not allowed in sample metadata table. Columns with empty values;", paste(colnames(df)[col_has_empty], collapse=", ")), type = "error")
   }
 
   # dupes in sample_id
@@ -352,11 +355,20 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
 }
 
 
+compose_contrast_name = function(a, b) {
+  paste("contrast:", paste(unique(a), collapse = ","), "vs", paste(unique(b), collapse = ","))
+}
+
+decompose_contrast_name = function(x) {
+  x = sub("^contrast: *", "", x)
+  lapply(strsplit(x, split = " *vs *"), strsplit, split = " *, *")
+}
 
 #' Setup contrasts for downstream Differential Expression Analysis
 #'
 #' @param dataset your dataset, make sure you've already imported sample metadata (so each sample is assigned to a sample group)
 #' @param contrast_list a list that captures all contrasts that you want to compare. Check the examples for details.
+#' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info.
 #'
 #' @examples
 #' # a simple wild-type knockout study with only 2 groups, WT and KO
@@ -371,7 +383,7 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
 #' }
 #'
 #' @export
-setup_contrasts = function(dataset, contrast_list) {
+setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
   if(!"samples" %in% names(dataset) || !is.data.frame(dataset$samples) || length(dataset$samples) == 0) {
     append_log("sample metadata table ('samples') is missing from the dataset. Run import_sample_metadata() prior to this function.", type="error")
   }
@@ -380,13 +392,47 @@ setup_contrasts = function(dataset, contrast_list) {
     append_log("sample metadata table ('samples') must contain the column 'group'. Run import_sample_metadata() prior to this function.", type="error")
   }
 
+  ## random variables
+  random_variables = unique(random_variables)
+
+  if(length(random_variables) > 0 && !all(random_variables %in% colnames(dataset$samples))) {
+    append_log(paste("random_variables are case-sensitive and may only contain sample metadata (each value must match a column name in dataset$samples). Provided random_variables that are _not_ found in sample metadata table:", paste(setdiff(random_variables, colnames(dataset$samples)), collapse=", ")), type="error")
+  }
+  # not strictly needed, but help out the user by catching common mistakes; random effects as used in this pipeline must be 'additional metadata' besides the predefined contrasts
+  ranvar_blacklist = c("sample_id", "group", "condition")
+  if(any(ranvar_blacklist %in% random_variables)) {
+    append_log(paste("random_variables should only contain 'additional metadata' that can be used to control for batch effects etc _besides_ the predefined contrasts in contrast_list, and _not_ contain these terms;", paste(intersect(random_variables, ranvar_blacklist), collapse=", ")), type="error")
+  }
+
+  # there can be no NA values or empty strings for sample metadata to be used as random variables in any downstream regression ('exclude' samples disregarded, these are never used in downstream DEA)
+  if(length(random_variables) > 0) {
+    ranvar_missing_values = NULL
+    # iterate respective columns of sample metadata
+    s = dataset$samples %>% filter(exclude == FALSE) %>% select(!!random_variables)
+    for(v in colnames(s)) {
+      x = s %>% pull(v)
+      if(any(is.na(x) | x == "")) {
+        # collect columns that contain missing values
+        ranvar_missing_values = c(ranvar_missing_values, v)
+      }
+    }
+    # report errors
+    if(length(ranvar_missing_values) > 0) {
+      append_log(paste("sample metadata table must not contain any missing values for columns that match the random_variables provided to this function. Sample metadata columns with missing values:", paste(ranvar_missing_values, collapse=", ")), type="error")
+    }
+  }
+
+  # simply store list as dataset attribute
+  # removes this variable (assign NULL) if no random_variables are supplied, as it should
+  dataset$dea_random_variables = random_variables
+
+
   # reset cache
   dataset = invalidate_cache(dataset)
 
-  tib = dataset$samples
+  column_contrasts = dataset_contrasts(dataset)
   # drop previous contrasts, if any
-  column_contrasts = grep("^contrast:", colnames(tib), ignore.case = T, value = T)
-  tib = tib %>% select(-matches(column_contrasts))
+  tib = dataset$samples %>% select(-matches(column_contrasts))
 
   for (index in seq_along(contrast_list)) {
     contr = contrast_list[[index]]
@@ -397,7 +443,7 @@ setup_contrasts = function(dataset, contrast_list) {
     # pretty-print labels
     groups_a = contr[[1]]
     groups_b = contr[[2]]
-    lbl = paste("contrast:", paste(groups_a, collapse = ","), "vs", paste(groups_b, collapse = ","))
+    lbl = compose_contrast_name(groups_a, groups_b)
 
     # input validation (is this a valid contrast list?)
     if (all(groups_a %in% groups_b) && all(groups_b %in% groups_a)) {

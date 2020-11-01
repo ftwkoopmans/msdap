@@ -48,7 +48,7 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
     append_log(paste("invalid options for algo_de:", paste(algo_de_invalid, collapse=", ")), type = "error")
   }
 
-  column_contrasts = grep("^contrast:", colnames(dataset$samples), ignore.case = T, value = T)
+  column_contrasts = dataset_contrasts(dataset)
   if (length(column_contrasts) == 0) {
     append_log("no contrasts have been defined, differential expression analysis is cancelled", type = "warning")
     return(dataset)
@@ -78,13 +78,34 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
     # select the current contrast as column 'condition' and remove irrelevant samples (when defining our contrasts in upstream code, irrelevant samples were designated a 0)
     # ! sorting by 'condition' here is important, as it aligns the samples by the groups specified by the user. if we don't enforce this, an intended WT-vs-KO might actually be analyzed as KO-vs-WT depending on the input data's sample ordering
     samples_for_contrast = dataset$samples %>%
-      select(sample_id, shortname, group, condition = !!col_contr) %>%
+      select(sample_id, shortname, group, condition = !!col_contr, everything()) %>%
       filter(condition != 0) %>%
       arrange(condition)
 
     if(!all(samples_for_contrast$sample_id %in% dataset$peptides$sample_id)) {
-      append_log("all samples from this contrast to be in the peptides tibble", type = "error")
+      append_log("all samples from this contrast must be in the peptides tibble", type = "error")
     }
+
+    ## determine which random variables can be added to this contrast
+    ranvars = NULL
+    for(v in dataset$dea_random_variables) {
+      # v is a column name in dataset$samples (here we use the subset thereof for this contrast), x are the metadata values for respective column
+      x = samples_for_contrast %>% pull(!!v)
+      xu = unique(x)
+      # is the 'random variable' not the same as the condition/contrast here? double-check here, criterium is very mild; at least 2 samples must have different categorical variable / annotation compared to condition
+      # May occur if user is testing many contrasts, one of which is a minor subset of the data (for which there are no differences in for instance the sample batch)
+      v_values_comparable_to_contrast = match(x, xu) + 1 # v is sorted by condition and its values are 1's and 2's, so easy to make comparable integer array for v
+      if(length(xu) > 1 && sum(samples_for_contrast$condition != v_values_comparable_to_contrast) > 1) {
+        ranvars = c(ranvars, v)
+      }
+    }
+    if(length(dataset$dea_random_variables) > 0 && length(ranvars) != length(dataset$dea_random_variables)) {
+      append_log(paste("random variables that are _not_ applicable for current contrast due to lack of unique values (compared to sample groups/condition): ", paste(setdiff(dataset$dea_random_variables, ranvars), collapse=", ")), type = "info")
+    }
+    if(length(ranvars) > 0) {
+      append_log(paste("random variables used in current contrast: ", paste(ranvars, collapse=", ")), type = "info")
+    }
+
 
     ## convert our long-format peptide table to a peptide- and protein-level ExpressionSet
     peptides_for_contrast = dataset$peptides %>%
@@ -102,6 +123,7 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
 
     contr_fc_signif = fc_signif
     if(is.na(fc_signif)) {
+      # eset <<- eset_proteins
       contr_fc_signif = dea_protein_background_foldchange_limits(eset_proteins)
       # round the foldchange cutoff so users can get the the exact same results when they use the reported value
       contr_fc_signif = round(contr_fc_signif, digits = 3)
@@ -114,7 +136,7 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
       alg_matched = F
       if (alg == "ebayes") {
         # DEBUG <<- eset_proteins
-        tib = bind_rows(tib, de_interface_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T))
+        tib = bind_rows(tib, de_interface_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars))
         alg_matched = T
       }
       if (alg == "msempire") {
@@ -122,17 +144,17 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
         alg_matched = T
       }
       if (alg == "msqrob") {
-        tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = T, input_intensities_are_log2 = T) %>% add_column(algo_de = "msqrob"))
+        tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars) %>% add_column(algo_de = "msqrob"))
         alg_matched = T
       }
       if (alg == "msqrobsum") {
-        tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = F, input_intensities_are_log2 = T) %>% add_column(algo_de = "msqrobsum"))
+        tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars) %>% add_column(algo_de = "msqrobsum"))
         alg_matched = T
       }
       # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
       if(!alg_matched) {
         alg_fun = match.fun(alg)
-        alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T)
+        alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
         # validation checks on expected output, to facilitate debugging/feedback for custom implementations
         if(!is_tibble(alg_result) || nrow(alg_result) == 0 || !all(c("protein_id", "pvalue", "qvalue", "foldchange.log2", "algo_de") %in% colnames(alg_result))) {
           append_log(sprintf("provided custom function for differential abundance analysis '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|algo_de", alg), type = "error")
@@ -162,7 +184,10 @@ dea = function(dataset, qval_signif = 0.05, fc_signif=0, algo_de = c("ebayes"), 
       if(is.finite(contr_fc_signif) & contr_fc_signif > 0) {
         s = s & is.finite(tib$foldchange.log2) & abs(tib$foldchange.log2) >= contr_fc_signif
       }
-      result_stats = bind_rows(result_stats, tib %>% left_join(prot_pep_count, by="protein_id") %>% add_column(signif = s, signif_threshold_qvalue = qval_signif, signif_threshold_log2fc = contr_fc_signif, contrast = col_contr, .after = "qvalue"))
+
+      result_stats = bind_rows(result_stats,
+                               tib %>% left_join(prot_pep_count, by="protein_id") %>%
+                                 add_column(signif = s, signif_threshold_qvalue = qval_signif, signif_threshold_log2fc = contr_fc_signif, contrast = col_contr, .after = "qvalue"))
     }
   }
 
@@ -210,10 +235,24 @@ dea_protein_background_foldchange_limits = function(eset, probs = 0.95, max_perm
   ## use the arrangements package for efficiently calculating a *random subset* of all permutations
   # rationale: generating all combinations is not feasible for some datasets (eg; group of 50+ samples)
   # rationale: taking first N combinations would bias the subset of selected samples towards the first few (as the output of combination is in lexicographical order)
-  ncomb_1 = choose(length(samples_cond1), n_swap)
-  ncomb_2 = choose(length(samples_cond2), n_swap)
-  samples_swap_cond1 = arrangements::combinations(x = seq_along(samples_cond1), k = n_swap, index = sample(1:ncomb_1, min(max_permutations, ncomb_1)), layout = "list")
-  samples_swap_cond2 = arrangements::combinations(x = seq_along(samples_cond2), k = n_swap, index = sample(1:ncomb_2, min(max_permutations, ncomb_2)), layout = "list")
+  ncomb_1 = arrangements::ncombinations(x = length(samples_cond1), k = n_swap, bigz = T)
+  ncomb_2 = arrangements::ncombinations(x = length(samples_cond2), k = n_swap, bigz = T)
+
+  # if 'raw' type, there were so many combinations that the number returned by ncombinations is a big-int
+  if(typeof(ncomb_1) == "raw") {
+    ncomb_1 = max_permutations
+  } else {
+    ncomb_1 = min(max_permutations, ncomb_1)
+  }
+  if(typeof(ncomb_2) == "raw") {
+    ncomb_2 = max_permutations
+  } else {
+    ncomb_2 = min(max_permutations, ncomb_2)
+  }
+
+  # select a random number of k-sample subsets
+  samples_swap_cond1 = arrangements::combinations(x = seq_along(samples_cond1), k = n_swap, nsample = ncomb_1, layout = "list")
+  samples_swap_cond2 = arrangements::combinations(x = seq_along(samples_cond2), k = n_swap, nsample = ncomb_2, layout = "list")
 
 
   ## comb = combination of indices in samples_swap_cond*
@@ -272,11 +311,11 @@ dea_results_to_wide = function(dataset) {
                     replace(is.na(.), 0),
                   #
                   dataset$de_proteins %>%
-                    select(protein_id, algo_de, contrast, foldchange.log2, pvalue, qvalue, signif) %>%
+                    select(protein_id, algo_de, contrast, any_of(c("contrast_ranvars")), foldchange.log2, pvalue, qvalue, signif) %>%
                     pivot_wider(names_from = c(algo_de, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif)),
                   by="protein_id")
 
-  # if there are 3 or more different DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
+  # if there are multiple DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
   n_algo_de = n_distinct(dataset$de_proteins$algo_de)
   if(n_algo_de > 1) {
     # from the set of significant hits, find in each contrast those protein_id that occur at least twice

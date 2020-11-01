@@ -1,4 +1,39 @@
 
+#' split a ggplot object into 2 ggplots; original plot minus legend and only the legend
+#'
+#' @param p ggplot object
+#' @importFrom ggpubr get_legend as_ggplot
+ggplot_split_legend <- function(p) {
+  return(list(plot=p + theme(legend.position = "none"),
+              legend=ggpubr::as_ggplot(ggpubr::get_legend(p))))
+}
+
+# #' if there are more than N legend entries, ggplot objects will be split
+# #'
+# #' @param plotlist list of ggplot objects
+# #' @param max_items if there are more than N legend entries, the plot and legend will be split
+# #' @importFrom ggpubr get_legend as_ggplot
+# ggplot_list_split_legend <- function(plotlist, n = 10) {
+#   result = list()
+#   for(p in plotlist) {
+#     leg = ggpubr::get_legend(p)
+#     n_legend =  0  # TODO: how can we extract the number of legend items from a ggplot object?
+#     if(n_legend > n) {
+#       # disable legend + store plot
+#       p = p + theme(legend.position = "none")
+#       result[[length(result) + 1]] = p
+#       # store legend as a new plot
+#       result[[length(result) + 1]] = ggpubr::as_ggplot(leg) # TODO: guide label size
+#     } else {
+#       # don't split, store plot as-is
+#       result[[length(result) + 1]] = p
+#     }
+#   }
+#
+#   return(result)
+# }
+
+
 #' placeholder title
 #' https://github.com/yihui/knitr/issues/1494
 #' http://michaeljw.com/blog/post/subchunkify/

@@ -8,7 +8,8 @@ de_msqrobsum_msqrob(
   eset,
   use_peptide_model = T,
   input_intensities_are_log2 = T,
-  protein_rollup_robust = T
+  protein_rollup_robust = T,
+  random_variables = NULL
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ de_msqrobsum_msqrob(
 \item{input_intensities_are_log2}{whether the provided intensities are already log2 transformed}
 
 \item{protein_rollup_robust}{for msqrobsum analyses, whether to use 'robust' protein rollup (TRUE) or traditional peptide intensity summation (FALSE)}
+
+\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms}
 }
 \description{
 Wrapper function for msqrob, using the implementation from the msqrobsum package

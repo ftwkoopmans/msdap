@@ -5,10 +5,10 @@
 \title{in case users run the pipeline a few times consecutively (eg; testing various parameters) without resetting R history, we only want to keep the relevant portion of the code.
 simple/transparent way is to show everything from latest dataset import function or source() on}
 \usage{
-subset_relevant_code_snippet_for_report(code_lines)
+subset_relevant_code_snippet_for_report(rcode_lines)
 }
 \arguments{
-\item{code_lines}{todo}
+\item{rcode_lines}{R code as an array of characters (strings)}
 }
 \description{
 in case users run the pipeline a few times consecutively (eg; testing various parameters) without resetting R history, we only want to keep the relevant portion of the code.

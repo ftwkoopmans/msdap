@@ -123,12 +123,16 @@ import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use
                                       return_decoys = FALSE, remove_shared_spectronaut_proteingroups = FALSE, do_plot = TRUE) {
   append_log("reading Spectronaut report...", type = "info")
 
+
+  rt_col = "EG.iRTEmpirical"
+  if(!use_irt) rt_col = c("EG.RTEmpirical", "EG.MeanApexRT")
+
   ds = import_dataset_in_long_format(filename,
                                        attributes_required = list(sample_id = "R.FileName",
                                                                   protein_id = c("PG.ProteinAccessions", "PG.ProteinId", "EG.ProteinId", "FG.ProteinId", "PG.ProteinGroups"),
                                                                   sequence_modified = c("EG.ModifiedSequence", "FG.Id"),
                                                                   charge = c("FG.Charge", "FG.Id"),
-                                                                  rt = ifelse(use_irt, "EG.iRTEmpirical", "EG.RTEmpirical"),
+                                                                  rt = rt_col,
                                                                   isdecoy = "EG.IsDecoy",
                                                                   intensity = c("FG.MS2PeakArea", "FG.TotalPeakArea", "FG.MS2RawQuantity", "FG.Quantity"),
                                                                   cscore = "EG.Cscore",

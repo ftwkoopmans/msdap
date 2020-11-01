@@ -4,12 +4,12 @@
 \alias{de_ebayes}
 \title{Wrapper function for limma::ebayes()}
 \usage{
-de_ebayes(x, mask_sample_groups)
+de_ebayes(x, random_variables)
 }
 \arguments{
 \item{x}{log2 transformed protein intensity matrix}
 
-\item{mask_sample_groups}{numeric or string array indicating to which group each column/sample belongs. NO NA VALUES !}
+\item{random_variables}{data.frame where each column describes a random variable (and each row matches a column in x) or a vector assumed to describe 1 random variable, sample group/condition for each column in x. Importantly, statistical results are returned only for the first random variable (so in most use-cases the sample group/condition should be described in the first column)}
 }
 \description{
 rownames of the data matrix (log2 intensities) must be the protein_id for downstream compatibility

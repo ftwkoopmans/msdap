@@ -57,3 +57,26 @@ map_headers = function(headers, l, error_on_missing = FALSE, allow_multiple = FA
   # l_match_as_array = unlist(lapply(l_match, function(x) ifelse(length(x)==0, NA, x[1])))
   # return(list(indices = l_match_as_array, flag_missing = lengths(l_match) == 0, flag_multiple = lengths(l_match) > 1))
 }
+
+
+#' combine PDF files
+#'
+#' the function pdf_combine() from pdftools/qpdf package has issues (on windows) when combining hundreds of plots. error: "Too many open files"
+#' so we here create a wrapper where we combine source files in batches
+#' some references; https://stackoverflow.com/questions/40810704/error-with-r-function-download-file-too-many-open-files
+#' @param input todo
+#' @param output todo
+#'
+#' @importFrom pdftools pdf_combine
+pdf_combine_chunks = function(input, output) {
+  # chunks of at most 200 files  &  respective temporary filenames (re-using first input file to get unique file / for unique purpose)
+  input_chunks = split(input, ceiling(seq_along(input) / 200))
+  output_temp = paste0(input[1], ".chunk", seq_along(input_chunks))
+  # combine files within each chunk
+  for(i in seq_along(input_chunks)) {
+    pdftools::pdf_combine(input_chunks[[i]], output_temp[i])
+  }
+  # finally, combine chunks and remove temp files
+  pdftools::pdf_combine(output_temp, output)
+  res = file.remove(output_temp)
+}

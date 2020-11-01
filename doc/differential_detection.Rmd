@@ -55,7 +55,7 @@ print(dataset$samples %>% select(sample_id, group))
 We here use a MS-DAP utility function to easily recognize the Human and Yeast proteins, while ignoring E. Coli proteins and ambiguous proteingroups (that match multiple of these classes). The `regex_classification()` function applies the provided regular expressions to the fasta headers of all proteins in each proteingroup to determine classifications. If no fasta files were loaded prior to this, as is the case in this example, the regular expressions are applied to the protein identifiers instead.
 
 ```{r}
-dataset$proteins$classification = regex_classification(dataset$proteins$fasta_headers, regex=c(human="_HUMA", yeast="_YEAS", discard="_ECOL"))
+dataset$proteins$classification = regex_classification(dataset$proteins$fasta_headers, regex=c(human="_HUMA", yeast="_YEAS", ecoli="_ECOL"))
 print(table(dataset$proteins$classification))
 ```
 
@@ -66,15 +66,15 @@ We here run the differential detection function in MS-DAP that computes a z-scor
 
 
 ```{r zscore-hist}
-# compute MS-DAP differential detect scores for all contrasts
-dataset = differential_detect(dataset)
+# compute MS-DAP differential detect scores for all contrasts, only for proteins that were observed in at least 3 samples in either sample group/condition
+dataset = differential_detect(dataset, min_samples_observed = 3)
 
 # add the yeast/human protein classifications to differential detect score tibble and filter to only keep human and yeast proteins
 tib_plot = left_join(dataset$dd_proteins, dataset$proteins, by="protein_id") %>%
   filter(classification %in% c("human", "yeast"))
 
 # histogram the scores, color-coded by classification
-print( ggplot(tib_plot, aes(x=diff_detect_zscore, fill=classification)) + 
+print( ggplot(tib_plot, aes(x=zscore_count_detect, fill=classification)) + 
          geom_histogram(bins=25) )
 ```
 
@@ -85,26 +85,20 @@ To inspect the extreme values from differential detection analysis, we here sort
 
 ```{r}
 print( tib_plot %>% 
-         arrange(desc(abs(diff_detect_zscore))) %>% 
+         arrange(desc(abs(zscore_count_detect))) %>% 
          head(50) %>% 
          count(classification) )
 ```
 
-Analogously, we can inspect the classification of _candidate proteins_ suggested by the differential detection analysis.
-```{r}
-print( tib_plot %>% 
-         filter(diff_detect_zscore_candidate) %>% 
-         count(classification) )
-```
 
 Taken together, the high true positive rates from this simplified approach that is only based on detection counts suggests it could complement the differential expression analyses (DEA) which is based on peptide abundance values, particularly to rank those proteins that lack data points in one experimental condition but not the other (eg; proteins on which no DEA is possible). In our hands, this approach has proven particularly useful in wildtype _vs_ knockout APMS datasets measured in Data Dependent Acquisition mode which yields many proteins that have observed peptides in one condition but very few in the other (thus cannot be used in DEA).
 
 
 ## ROC
 
-Additionally, we can visualize the differential detection z-scores by ROC to show these scores are much better than random.
+Additionally, we can visualize the differential detection z-scores by ROC to show these scores are much better than random (but ROC performance is not as good as DEA based on peptide abundance values obviously).
 
 ```{r zscore-roc}
-roc_obj = pROC::roc(tib_plot$classification, abs(tib_plot$diff_detect_zscore), levels=c("human", "yeast"), direction="<")
+roc_obj = pROC::roc(tib_plot$classification, abs(tib_plot$zscore_count_detect), levels=c("human", "yeast"), direction="<")
 pROC::plot.roc(roc_obj)
 ```

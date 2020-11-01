@@ -181,6 +181,7 @@ dataset = analysis_quickstart(dataset,
                               dea_algorithm = c("ebayes", "msempire", "msqrob"),
                               dea_qvalue_threshold = 0.05,
                               dea_log2foldchange_threshold = NA,
+                              diffdetect_min_samples_observed = 2, # for differential detection only
                               output_qc_report = TRUE,
                               # note; within the Docker container, /data maps to the directory on your computer
                               # defined when launching the MS-DAP Docker container

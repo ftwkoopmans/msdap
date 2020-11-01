@@ -21,8 +21,12 @@ write_statistical_results_to_file = function(dataset, output_dir) {
                     by="protein_id")
   }
 
-
   if(nrow(tib) > 0) {
+    # add # unique peptides per protein in entire dataset
+    pepcount = dataset$peptides %>% select(peptide_id, protein_id) %>% distinct(peptide_id, .keep_all = T) %>% count(protein_id, name = "unique_peptides")
+    # system.time({pepcount = dataset$peptides %>% group_by(protein_id) %>% summarise(unique_peptides = n_distinct(peptide_id))}) # slow
+    tib = add_column(tib, unique_peptides = pepcount$unique_peptides[data.table::chmatch(tib$protein_id, pepcount$protein_id)], .before = 1)
+
     # if there is protein metadata, join and put those columns in front
     if(is_tibble(dataset$proteins) && nrow(dataset$proteins) > 0) {
       tib = full_join(tib, dataset$proteins, by="protein_id") %>% select(!!colnames(dataset$proteins), everything())
@@ -35,26 +39,26 @@ write_statistical_results_to_file = function(dataset, output_dir) {
     openxlsx::addWorksheet(wb, "statistics")
     openxlsx::writeData(wb, "legend", data.frame(Legend=c("This data table contains the results from statistical analyses, each row describes one protein(group).",
                                                           "",
-                                                          "The first few columns describe the protein metadata; the protein accessions together with the respective descriptions and gene symbol(s) as listed in the provided fasta file. If no gene symbol is given in the fasta file for a protein, the 'gene_symbols_or_id' column simply contains the value from 'protein_id'.",
+                                                          "The first few columns describe the protein metadata; the protein accessions together with the respective descriptions and gene symbol(s) as listed in the provided fasta file. If no gene symbol is provided in the fasta file for a protein, the 'gene_symbols_or_id' column simply contains the value from 'protein_id'.",
                                                           "",
                                                           "The next set of columns describe the results from each contrast (comparison of sample groups).",
                                                           "'peptides_used_for_dea' shows the number of peptides that pass the filter rules within some contrast (eg; comparing WT vs KO, how many peptides for protein P could be used for statistical analysis?).",
                                                           "",
-                                                          "For each statistical model applied (eBayes, msqrob, msempire), the log2 foldchange, pvalue and qvalue (adjusted pvalue) are provided.",
+                                                          "For each statistical model applied (eBayes, MSqRob, etc.), the log2 foldchange, pvalue and qvalue (adjusted pvalue) are provided.",
                                                           "If multiple DEA models were applied, the column signif_count_<contrast> shows how many algorithms deemed each protein significant.",
-                                                          "As shown in our data analyses, applying eBayes/msqrob/msempire and then selecting proteins significant in at least 2 of these algorithms is a compromise between using multiple algorithms to maximize your search for proteins-of-interest and robustness against false positives (eg; proteins uniquely scoring well in one statistical model and not the others).",
+                                                          "If you choose to post-hoc combine results from multiple DEA models, we recommend selecting proteins significant in at least 2 of these algorithms as a compromise between using multiple algorithms to maximize your search for proteins-of-interest and robustness against false positives (eg; proteins uniquely scoring well in one statistical model and not the others).",
                                                           "Note; if you apply multiple DEA algorithms but don't follow this selection rule (eg; protein found in N+ DEA algorithms), you should apply some form of multiple-testing-correction to compensate for running multiple hypotheses tests. Consult your local statistician.",
                                                           "",
                                                           "After the differential expression analysis results, qualitative data shows in how many replicates within each group peptides were identified (MS/MS for DDA, identification confidence < x for DIA).",
                                                           "'count_peptides_detected_within_group_<sample group>' shows how many time a peptide for the protein on this row was detected over all replicates within a group (for each sample, count unique detected peptides, then sum for all replicates within group). So if a protein has 3 peptides in total and there are 4 replicates in a group, this is at most 12.",
-                                                          "This is pseudo-count data, intended to be used for qualitative analysis when peptide abundances for this protein are absent in one sample group (or quantified in too few replicates to use for differential abundance analysis).",
+                                                          "This is pseudo-count data, intended to be used for qualitative analysis when peptide abundances for a protein are absent in one sample group (or quantified in too few replicates to use for differential abundance analysis).",
                                                           "For instance, in a 'WT vs KO' comparison one should see no (or very few) such peptide detections in the KO for the target protein and many more in the WT sample group.",
                                                           "",
                                                           "Differential Detection:",
                                                           "Compute a z-score for each protein based on the total number of detected peptides per sample group.",
                                                           "To easily prioritize proteins-of-interest, some which may not have sufficient abundance values for differential expression analysis but that do have many more detects in one sample group than the other, we provide a simple score based on identification count data.",
                                                           "This is a simplified approach that is intended to rank proteins for further qualitative analysis, be careful of over-interpretation and keep differences in sample group size (#replicates) and the absolute amount of peptides identified in a sample in mind !",
-                                                          "columns that start with 'diff_detect_zscore_contrast:' contain the z-scores for each contrast, proteins that meet pre-defined selection criteria are flagged in columns that start with 'diff_detect_zscore_candidate_contrast:'",
+                                                          "columns that start with 'diff_detect_zscore_contrast:' contain the z-scores for each contrast (only for proteins observed in at least N samples samples in either group, to exclude one-hit-wonders)",
                                                           "",
                                                           "Please refer to the online documentation for further details: https://github.com/ftwkoopmans/msdap")), keepNA = FALSE, headerStyle = header_style)
 

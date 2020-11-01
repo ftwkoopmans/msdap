@@ -398,7 +398,8 @@ val2ecdf = function(x) {
 val2col = function(x) {
   y = val2ecdf(x)
   z = cut(y * 10, breaks = 0:10)
-  clr = rev(RColorBrewer::brewer.pal(11, "Spectral")) # RColorBrewer::display.brewer.all()
+  clr = colorspace::diverge_hcl(n=11, palette = "Purple-Green", rev = T)
+  # clr = rev(RColorBrewer::brewer.pal(11, "Spectral")) # RColorBrewer::display.brewer.all()
   return(clr[as.numeric(z)])
 }
 
@@ -502,12 +503,19 @@ make_bins = function(x, from, to, length) {
 #' @param span argument for loess()
 #' @param remove_na_yval set all output values where is.na(y) to NA
 smooth_loess_custom = function(x, y, span=.1, remove_na_yval = TRUE) {
-  if(length(y) < 10) return(y)
   # X<<-x; Y<<-y
-  z = predict(loess(y ~ x, span = span, na.action = na.omit), x)
+  x_orig = x
+  y_orig = y
+  flag_valid = is.finite(x) & is.finite(y)
+  x = x[flag_valid]
+  y = y[flag_valid]
+
+  if(length(y) < 10) return(y_orig)
+  z = predict(loess(y ~ x, span = span), x_orig)
   if(remove_na_yval) {
-    z[is.na(y)] = NA
+    z[is.na(y_orig)] = NA
   }
+
   return(z)
 }
 
@@ -544,14 +552,14 @@ scale_between_quantiles = function(x, min_quantile = 0.01, max_quantile = 0.99) 
 
 
 
-#' placeholder title
+#' format R code
 #' parameter can either be a string or an array of strings (eg; lines from R history)
-#' @param rcode todo
+#' @param rcode R code as an array of characters (strings)
 #'
 #' @importFrom formatR tidy_source
 #' @importFrom styler cache_deactivate style_text
-format_r_code = function(rcode) {
-  rcode_formatr = formatR::tidy_source(text=rcode, width=20, output = F, comment = F, blank = F)
+format_r_code = function(rcode_lines) {
+  rcode_formatr = formatR::tidy_source(text=rcode_lines, width=20, output = F, comment = F, blank = F)
   styler::cache_deactivate(verbose = FALSE)
   rcode_formatr_styler = styler::style_text(rcode_formatr$text.tidy, scope = "line_breaks", strict = T)
   return(as.character(rcode_formatr_styler))
@@ -562,14 +570,14 @@ format_r_code = function(rcode) {
 #' in case users run the pipeline a few times consecutively (eg; testing various parameters) without resetting R history, we only want to keep the relevant portion of the code.
 #' simple/transparent way is to show everything from latest dataset import function or source() on
 #'
-#' @param code_lines todo
-subset_relevant_code_snippet_for_report = function(code_lines) {
-  i = grep("^[^#]+=\\s*import_dataset", code_lines)
-  # i = grep("^\\s*source\\(|\\s*=\\s*import_dataset", code_lines, perl = T)
+#' @param rcode_lines R code as an array of characters (strings)
+subset_relevant_code_snippet_for_report = function(rcode_lines) {
+  i = grep("^[^#]+=\\s*import_dataset", rcode_lines)
+  # i = grep("^\\s*source\\(|\\s*=\\s*import_dataset", rcode_lines, perl = T)
   if(length(i) > 0) {
-    code_lines = code_lines[tail(i,1):length(code_lines)]
+    rcode_lines = rcode_lines[tail(i,1):length(rcode_lines)]
   }
-  return(code_lines)
+  return(rcode_lines)
 }
 
 

@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: beta 0.2.5.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: beta 0.2.6.3  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true
@@ -60,7 +60,7 @@ barplot_ht = min(9, 1.5 + 0.2 * nrow(dataset$samples))
 
 samples_metadata_counts_colors = samples_colors_long %>%
   filter(!grepl("(detected|all)_(peptides|proteins)", prop)) %>%
-  left_join(dataset$samples %>% select(shortname, detected_peptides), by = "shortname") %>%
+  left_join(dataset$samples %>% select(shortname, exclude, detected_peptides), by = "shortname") %>%
   droplevels() # important to drop unused factor levels after filtering !
 
 samples_metadata_counts_colors$shortname = as.factor(samples_metadata_counts_colors$shortname)
@@ -104,7 +104,7 @@ Note that the _exclude_ metadata is a user-provided indication of 'outlier sampl
 ```{r, echo=F, message=F, warning=F, results="asis"}
 l = ggplot_sample_detect_vs_metadata_scatterplot_by_prop(samples_metadata_counts_colors)
 for(prp in names(l)) {
-  subchunkify(print(l[[prp]]$plot), unique_chunk_id = paste0("detect_vs_metadata_scatterplot_", prp), fig_height = min(10, 1.5 + 0.2 * l[[prp]]$n), fig_width = 7)
+  subchunkify(suppressWarnings(print(l[[prp]]$plot)), unique_chunk_id = paste0("detect_vs_metadata_scatterplot_", prp), fig_height = min(10, 1.5 + 0.2 * l[[prp]]$n), fig_width = 7)
   cat('\n\n')
 }
 ```
@@ -147,7 +147,7 @@ The figures in this subsection are used to identify unexpected mass-spec sensiti
 ```{r, echo=F, message=F, warning=F, results="asis"}
 p_intensity = plot_abundance_distributions(dataset$peptides, dataset$samples, isdia)
 
-print(p_intensity$intensity_distributions_all)
+suppressWarnings(print(p_intensity$intensity_distributions_all))
 cat('\n\n')
 for(p in p_intensity$intensity_distributions_bygroup) {
   suppressWarnings(print(p))
@@ -168,6 +168,8 @@ The density of the number of peptides eluting at each point in time. The figure 
 ```{r, echo=F, message=F, warning=F, results="asis"} 
 p_rt = plot_retention_time_v2(dataset$peptides, dataset$samples, isdia)
 suppressWarnings(print(p_rt$rt_distributions_all))
+suppressWarnings(print(p_rt$rt_distributions_colour_groups))
+suppressWarnings(print(p_rt$rt_distributions_collapse_groups))
 ``` 
 
 ### retention time local effects 
@@ -386,7 +388,7 @@ if(length(l_contrast) > 0) {
   
     i=0
     for(p in l_contrast[[contr_index]]$p_volcano_contrast) {
-      subchunkify(print(p), unique_chunk_id = paste0("volcano_", contr_index, "_", i), fig_height = 8, fig_width = 7)
+      subchunkify(suppressWarnings(print(p)), unique_chunk_id = paste0("volcano_", contr_index, "_", i), fig_height = 8, fig_width = 7)
       cat('\n\n') 
       i = i + 1
     }
@@ -399,7 +401,7 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob model tends to assign zero (log)foldchange for proteins with minor difference between conditions where the model is very sure the null hypothesis cannot be rejected (shrinkage by the ridge regression model). As a result, many foldchanges will be zero and the density plot for MSqRob may look like a spike instead of the expected Gaussian shape observed in other models* \n\n") 
     }
 
-    subchunkify(print(l_contrast[[contr_index]]$p_foldchange_density), unique_chunk_id = paste0("foldchange_density_", contr_index), fig_height = 7, fig_width = 7)
+    subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_foldchange_density)), unique_chunk_id = paste0("foldchange_density_", contr_index), fig_height = 7, fig_width = 7)
 
     cat('\n\\newpage \n')
     cat('\n### p-value distribution \n\n') 
@@ -411,17 +413,18 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob and MS-EmpiRe models often yield p-value distributions that show a large peak at p-value 1, these are typically proteins with estimated log foldchanges at/near zero where these models are very sure the null hypothesis cannot be rejected* \n\n") 
     }
 
-    subchunkify(print(l_contrast[[contr_index]]$p_pvalue_hist), unique_chunk_id = paste0("pvalue_hist_", contr_index), fig_height = 7, fig_width = 7)
+    subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_pvalue_hist)), unique_chunk_id = paste0("pvalue_hist_", contr_index), fig_height = 7, fig_width = 7)
 
 
     ## differential detect
     if(exists("dd_plots") && contr %in% names(dd_plots)) {
       cat('\n\\newpage \n')
       cat('\n### differential detect \n\n')
-      cat('Some proteins may not have peptides with sufficient abundance values for differential expression analysis, but do show strong differences in the number of detected peptides between sample groups. A simple z-score is computed for each protein based on the number of detected peptides per sample group. DEA is much more powerful for differential testing, but theze z-scores can offer complementary information in some experimental designs (e.g. a wildtype-knockout APMS study). \n\n')
-      cat('Below figure shows the distribution of these scores with thresholds at 2 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
+      cat('Some proteins may not have peptides with sufficient data points over samples to be used for differential expression analysis (depending on the user-defined filtering criteria in how many replicates peptides should be observed), but do show a strong difference in the number of detected peptides between sample groups. In some proteomics experimental designs, for example a wildtype-knockout APMS study, those are interesting proteins. The DEA based on peptide abundance values (volcano plots above) are the main result for differential testing in MS-DAP but as a situationally useful tool MS-DAP also includes a \'protein detection\' z-score, based on the number of times a peptide for each protein was detected per sample group (/experimental condition), as an alternative means of differential testing. \n\n')
+      cat('Below figure shows the distribution of these scores with thresholds at 3 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
       
-      subchunkify(print(dd_plots[[contr_index]]), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 4, fig_width = 4)
+      # !! index by name. Order may be different from l_contrasts !!
+      subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 4, fig_width = 4)
       # cat('\n\n **top10 candidate genes:** \n\n')
       # cat(paste(head(dd_plots[[contr_index]]$genes, 10), collapse = ", "), "\n")
     }

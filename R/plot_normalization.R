@@ -39,7 +39,16 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
       theme(legend.position = "bottom",
             legend.text = element_text(size = ifelse(n_samples < 4, 10, ifelse(n_samples < 6, 8, 6)) ),
             legend.title = element_text(size=10) )
-    l_group_intensity_distributions[[g]] = p
+
+    ## split legend into separate plot if more than N entries
+    if(n_samples > 12) {
+      p_split = ggplot_split_legend(p)
+      l_group_intensity_distributions[[g]] = p_split$plot
+      l_group_intensity_distributions[[paste0(g, "_legend")]] = p_split$legend # + guides(colour = guide_legend(ncol = 2))
+    } else {
+      l_group_intensity_distributions[[g]] = p
+    }
+
   }
 
   return(list(intensity_distributions_all = p_all_intensity_distributions, intensity_distributions_bygroup = l_group_intensity_distributions))
@@ -57,6 +66,11 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
   for (g in ugrp) { # g = ugrp[1]
     g_key = samples$key_group[match(g, samples$group)]
     skey = samples %>% filter(group == g) %>% pull(key_sample)
+    # cannot make within-group foldchange plots for groups with less than 2 samples
+    if(length(skey) < 2) {
+      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', require at least 2 replicates", g), type = "warning")
+      next
+    }
 
     # if a peptide*sample data point has a filtered+normalized intensity, it has at least N observations within this group
     # this filtering step ensures we only data points that are in both the input and the output (eg; same filtering applied to both, just normalization that differs)
@@ -73,15 +87,16 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
       left_join(samples %>% select(key_sample, shortname, exclude), by = "key_sample")
 
     tib_plot$exclude = factor(tib_plot$exclude, levels = c(FALSE, TRUE))
+    tib_plot$group = g
 
     # plot limits
     g_fc_xlim = c(-1, 1) * max(abs(quantile(DT_diff_to_mean$input, probs = c(.005, .995), na.rm = T)))
 
-    plotlist[[g]] = ggplot(tib_plot, aes(x = intensity, labels = shortname, colour = shortname, linetype = exclude)) +
+    p = ggplot(tib_plot, aes(x = intensity, labels = shortname, colour = shortname, linetype = exclude)) +
       geom_vline(xintercept = 0, size = 1, colour = "darkgrey") + # , linetype = 2
       geom_line(stat = "density", size = 1, alpha=0.8, show.legend = T, na.rm=T) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
-      facet_wrap(.~normalized) +
+      facet_wrap(.~group + normalized) +
       xlim(g_fc_xlim) +
       labs(x = "log2 fold-change compared to group mean", colour = "sample", linetype = "exclude sample") +
       guides(linetype = "none", colour = guide_legend(title = element_blank())) +
@@ -89,6 +104,17 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
       theme(legend.position = "bottom",
             legend.text = element_text(size = ifelse(length(skey) < 4, 10, ifelse(length(skey) < 6, 8, 6)) ),
             legend.title = element_text(size=10))
+
+    ## split legend into separate plot if more than N entries
+    if(dplyr::n_distinct(tib_plot$shortname) > 12) {
+      p_split = ggplot_split_legend(p)
+      plotlist[[g]] = p_split$plot
+      plotlist[[paste0(g, "_legend")]] = p_split$legend # + guides(colour = guide_legend(ncol = 2))
+    } else {
+      plotlist[[g]] = p
+    }
+
+
   }
   return(plotlist)
 }
@@ -102,7 +128,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
 #'
 #' @importFrom tibble enframe
 #' @importFrom ggrepel geom_text_repel
-#' @importFrom matrixStats rowSums2
+#' @importFrom matrixStats rowSums2 colMedians
 ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, samples_colors) {
   start_time <- Sys.time()
   # XX<<-tib_input; YY<<-samples; ZZ<<-samples_colors
@@ -111,7 +137,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
   ### leave-one-out computation, per group
   tib_loo_cov = tibble()
   plotlist = list()
-  for(grp in unique(samples$group)) {
+  for(grp in unique(samples$group)) { #grp=unique(samples$group)[1]
     # samples for current group
     sid = samples %>% filter(group == grp) %>% pull(sample_id)
     # we use the basic filter+normalization data as input, as this has already been pre-selected for bare minimum of detect/quant (less so than filters below) AND normalized, making CoV estimations more reflective of actual data
@@ -120,21 +146,32 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     # if some sample fell out during qc filter, remove from same array
     sid = intersect(sid, colnames(tibw_grp_intensities))
     # skip if <n samples in group. analogous to the generic CoV plot function, but now we require 4 samples per group (after all, we need 3 samples to compute CoV and below we remove 1)
-    if(length(sid) < 4) next
+    if(length(sid) < 4) {
+      append_log(sprintf("No data available for CoV leave-one-out computation in sample group '%s', skipping plots", grp), type = "warning")
+      next
+    }
+
+    # from tibble to matrix
+    mat_grp_intensities = as_matrix_except_first_column(tibw_grp_intensities)
+    # # normalize by mode (normalization should have been done upstream already, but only takes a few seconds per group anyway)
+    # mat_grp_intensities = normalize_matrix(mat_grp_intensities, mask_sample_groups = rep(1, ncol(mat_grp_intensities)), algorithm = "vwmb")
 
     dropcols = NULL
     mat_loo_cov = matrix(NA, nrow=nrow(tibw_grp_intensities), ncol=length(sid), dimnames = list(tibw_grp_intensities$peptide_id, sid))
     for(sid_exclude in sid) {
       # analogous to the generic CoV plot function, but now we use all samples in group minus the 'leave-one-out'
-      m = as.matrix(tibw_grp_intensities %>% select(!!(setdiff(sid, sid_exclude))))
+      # m = as.matrix(tibw_grp_intensities %>% select(!!(setdiff(sid, sid_exclude))))
+      m = mat_grp_intensities[ , setdiff(sid, sid_exclude), drop=F]
       rows_fail = matrixStats::rowSums2(!is.na(m)) < 3
       # less than 50 peptides have a value, not a meaningful set of datapoints for CoV analysis
       if(sum(!rows_fail) < 50) {
         dropcols = c(dropcols, sid_exclude)
         next
       }
-      # normalize by mode
-      m_subset_norm = normalize_matrix(m[!rows_fail, ], mask_sample_groups = rep(1, ncol(m)), algorithm = "vwmb")
+      m_subset_norm = m[!rows_fail, ]
+      # optionally, normalize by mode after removing sample s. This significantly slows down the analysis! For a dataset of N samples, we'd have to normalize the dataset N times (so 200 sample dataset = ~30 minutes for this step alone on a fast workstation and fast vwmb normalization)
+      # m_subset_norm = normalize_matrix(m[!rows_fail, ], mask_sample_groups = rep(1, ncol(m)), algorithm = "vwmb")
+
       mat_loo_cov[!rows_fail, sid_exclude] = coefficient_of_variation_vectorized(log2_to_ln(m_subset_norm))
     }
     # debug/QC: bp=boxplot(mat_loo_cov[,order(apply(mat_loo_cov,2,median,na.rm=T))]*100, outline=F, las=2); boxplot_add_text(bp, cex=.5)
@@ -150,8 +187,9 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     mat_loo_cov = mat_loo_cov * 100
 
     # store median value per sample for downstream plots
-    grp_tib_loo = tibble::enframe(apply(mat_loo_cov, 2, median, na.rm=T), name="sample_id", value = "median CoV") %>% arrange(`median CoV`)
-    grp_tib_loo$order_score = 1:nrow(grp_tib_loo)
+    grp_tib_loo = tibble(sample_id = colnames(mat_loo_cov), `median CoV` = matrixStats::colMedians(mat_loo_cov, na.rm = T)) %>%
+      arrange(`median CoV`) %>%
+      mutate(order_score = dplyr::row_number())
 
     tib_loo_cov = bind_rows(tib_loo_cov, grp_tib_loo)
 
@@ -162,7 +200,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     tib_plot$exclude = factor(tib_plot$exclude, levels = c(FALSE, TRUE))
 
     # plot
-    plotlist[[grp]] = ggplot(tib_plot, aes(x=cov, color=shortname, linetype=exclude)) +
+    p = ggplot(tib_plot, aes(x=cov, colour=shortname, linetype=exclude)) +
       stat_density(geom="line", position="identity", na.rm = T) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
       facet_grid(~group) +
@@ -176,6 +214,17 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
       theme(plot.title = element_text(size=10),
             legend.text = element_text(size = ifelse(length(sid) < 4, 10, ifelse(length(sid) < 6, 8, 6)) ),
             legend.position = "bottom", legend.title = element_blank())
+
+
+    ## split legend into separate plot if more than N entries
+    if(dplyr::n_distinct(tib_plot$shortname) > 12) {
+      p_split = ggplot_split_legend(p)
+      plotlist[[grp]] = p_split$plot
+      plotlist[[paste0(grp, "_legend")]] = p_split$legend # + guides(colour = guide_legend(ncol = 2))
+    } else {
+      plotlist[[grp]] = p
+    }
+
 
     # debug/QC: sort by CoV, then fix sample_id order by conversion to factor with levels in respective order
     # ggplot(tib_plot %>% arrange(`median CoV`) %>% left_join(samples %>% select(sample_id, shortname, group, exclude), by="sample_id") %>%  mutate(shortname = factor(shortname, levels=shortname)),

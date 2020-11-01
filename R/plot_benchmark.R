@@ -9,7 +9,7 @@
 #'
 #' @importFrom pROC plot.roc coords
 #' @importFrom gtools mixedsort
-#' @importFrom RColorBrewer brewer.pal
+#' @importFrom colorspace hcl_palettes
 plot_roc = function(tib, mtitle="", universe="all", plot_coords = FALSE) {
   if(!(universe %in% c("all", "signif", "signif_any"))) {
     append_log('universe parameter must be any of; "all", "signif", "signif_any"', type = "error")
@@ -27,7 +27,8 @@ plot_roc = function(tib, mtitle="", universe="all", plot_coords = FALSE) {
   ualg_max_nchar = max(nchar(ualg))
 
   # clrs = paste0(brewer.pal(n = 12, name = 'Paired'), "BB")
-  clrs = brewer.pal(n = 9, name = 'Set1')
+  # clrs = RColorBrewer::brewer.pal(n = 9, name = 'Set1')
+  clrs = colorspace::hcl_palettes(n = 9, palette = 'Dark3')
 
   qval_cutoff = 0.01
   min_fc=1
