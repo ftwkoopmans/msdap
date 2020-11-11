@@ -58,7 +58,7 @@ msqrobsum <- function(
   ### end original code
   fit_fun = match.fun(fit_fun)
   # prep data
-  df <- data %>% select(group_vars,model_vars, 'expression', 'feature','sample') %>% group_by_at(group_vars) %>% nest
+  df <- data %>% select(dplyr::any_of(c(group_vars, model_vars)), 'expression', 'feature','sample') %>% group_by_at(group_vars) %>% nest
   ## actual code change, from future package to foreach. Internal version number for updates to this codebase; v2.2
   if(!exists("cl")) stop("first, setup a cluster for multiprocessing")
   ## functions from global/parent environment
@@ -71,6 +71,7 @@ msqrobsum <- function(
             , contrasts = contrasts, keep_model = keep_model
             , formulas = formulas, mode = mode)
   }
+  # debug; x = do_mm(df$data[[1]], formulas, contrasts, mode, robust_lmer_iter, rlm_args, lmer_args, keep_model = T)
   ### FRANK: end multithreading fix
 
   df = df %>% unnest(cols = mm) %>% ungroup() ### FRANK; add ungroup
@@ -176,7 +177,7 @@ do_mm <- function(d, formulas, contrasts, mode ='msqrobsum', robust_lmer_iter = 
 #' @importFrom MASS psi.huber
 do_lmerfit <- function(df, form, robust_lmer_iter, args_lmer = list()){
   tol <- 1e-6
-  fit <- rlang::exec(lmer,form, data = df, !!!args_lmer)
+  fit <- rlang::exec(lme4::lmer, form, data = df, !!!args_lmer)
   ##Initialize SSE
   sseOld <- fit@devcomp$cmp['pwrss']
   while (robust_lmer_iter > 0){

@@ -311,7 +311,7 @@ dea_results_to_wide = function(dataset) {
                     replace(is.na(.), 0),
                   #
                   dataset$de_proteins %>%
-                    select(protein_id, algo_de, contrast, any_of(c("contrast_ranvars")), foldchange.log2, pvalue, qvalue, signif) %>%
+                    select(protein_id, algo_de, contrast, foldchange.log2, pvalue, qvalue, signif) %>%
                     pivot_wider(names_from = c(algo_de, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif)),
                   by="protein_id")
 

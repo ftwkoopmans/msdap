@@ -209,28 +209,45 @@ de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_ar
     Biobase::exprs(eset) = x
   }
 
+
+  #### below text quoted from MSqRobsum manual   @   https://github.com/statOmics/MSqRobSum/blob/master/vignettes/msqrobsum.Rmd
+  # We can also use the `msqrobsum()` function to perform a MSqRob analysis on peptide intensities without first summarizing to protein summaries.
+  # Because a protein can have intensities from multiple peptides and the intensities belonging to 1 peptide are correlated with eachother whe have to account for this in our model.
+  # Previously we only had 1 protein summary per sample but now we have multiple peptide intensities per sample and these are also correlated with eachother.
+  # Hence our model: `expression ~ (1|condition) + (1|sample) + (1|feature)`.
+  # However some proteins will only have intensities from 1 peptide and the model fitting wil fail if we try to use the model above. For these proteins we should use te reduced model `expression ~ (1|condition)`. `msqrobsum()`
+  # The  `formulas ` parameter accepts a vector of formulas. Model fitting with the first model will be attempted first but if that fails it tries the second model and so on.
+
   msnset = MSnbase::as.MSnSet.ExpressionSet(eset)
   if (use_peptide_model) {
-    form_string = "expression ~ (1 | peptide_id) + (1 | sample_id) + (1 | condition)"
+    form_string = c("expression ~ (1 | condition) + (1 | sample_id) + (1 | peptide_id)", "expression ~ (1 | condition)")
+    # form_string = "expression ~ (1 | peptide_id) + (1 | sample_id) + (1 | condition)"
   } else {
-    form_string = "expression ~ (1 | sample_id) + (1 | condition)"
+    form_string = "expression ~ (1 | condition)"
   }
+
   # compose updated formula
   if(length(random_variables) > 0) {
-    form_string = paste(c(form_string, sprintf("(1 | %s)", random_variables)), collapse=" + ")
-    append_log(paste("MSqRob regression formula after including user-provided random variables;", form_string), type = "info")
+    form_string = sapply(form_string, function(x) paste(c(x, sprintf("(1 | %s)", random_variables)), collapse=" + "), USE.NAMES = FALSE)
   }
+
+  form_string = unique(c(form_string, "expression ~ (1 | condition)"))
+  append_log(paste("MSqRob regression formulas (prioritized, if model fit fails due to lack of data the next formula is tried);", paste(form_string, collapse = "  ,  ")), type = "info")
+
+  # always add y~(1|condition) without any optional random_variables as a last-resort model if all other model specifications fail (due to lack of data) -->> then convert from string to formula/expression
+  form_eval = sapply(form_string, function(x) eval(parse(text=x)), USE.NAMES = FALSE)
 
   # MSqRob model (re-implemented in msqrobsum package, by original authors)
   if (use_peptide_model) {
-    result = suppressWarnings(msqrobsum(data = msnset, formulas = c(eval(parse(text=form_string)), expression ~ (1 | condition)), group_vars = "protein_id", contrasts = "condition", mode = "msqrob"))
+    result = suppressWarnings(msqrobsum(data = msnset, formulas = form_eval, group_vars = "protein_id", contrasts = "condition", mode = "msqrob"))
+    # result = suppressWarnings(msqrobsum(data = msnset, formulas = c(eval(parse(text=form_string)), expression ~ (1 | condition)), group_vars = "protein_id", contrasts = "condition", mode = "msqrob"))
     # our version 1, without user-specified random variables; form = c(expression ~ (1 | condition) + (1 | sample_id) + (1 | peptide_id), expression ~ (1 | condition))
   } else {
     # rollup to protein level, 'robust' approach appears to be an improvement over the traditional 'sum'
     protset = suppressWarnings(suppressMessages(combineFeatures(msnset, fun = ifelse(protein_rollup_robust, "robust", "sum"), groupBy = Biobase::fData(msnset)$protein_id)))
-    result = suppressWarnings(msqrobsum(data = protset, formulas = eval(parse(text=form_string)), contrasts = "condition", mode = "msqrobsum", group_vars = "protein_id"))
+    result = suppressWarnings(msqrobsum(data = protset, formulas = form_eval, group_vars = "protein_id", contrasts = "condition", mode = "msqrobsum"))
     ## our version 1, without user-specified random variables;
-    #result = suppressWarnings(msqrobsum(data = protset, expression ~ (1 | sample_id) + (1 | condition), contrasts = "condition", mode = "msqrobsum", group_vars = "protein_id"))
+    #result = suppressWarnings(msqrobsum(data = protset, expression ~ (1 | condition), contrasts = "condition", mode = "msqrobsum", group_vars = "protein_id"))
   }
 
   result_unpacked = as_tibble(result) %>%

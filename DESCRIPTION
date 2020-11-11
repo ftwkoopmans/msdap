@@ -3,7 +3,7 @@ Package: msdap
 Title: Mass Spectrometry Downstream Analysis Pipeline
 Description: Mass Spectrometry Downstream Analysis Pipeline.
 URL: https://github.com/ftwkoopmans/msdap
-Version: 0.2.6.3
+Version: 0.2.6.3.1
 Authors@R: 
     person(given = "Frank",
            family = "Koopmans",
