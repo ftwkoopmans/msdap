@@ -75,6 +75,7 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
   tibble_evidence$pep[!is.finite(tibble_evidence$pep)] = NA
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tibble_evidence$intensity = log2(tibble_evidence$intensity)
+  tibble_evidence$intensity[!is.na(tibble_evidence$intensity) & tibble_evidence$intensity < 1] = 1
   tibble_evidence$protein_id = pep2prot$protein_id[match(tibble_evidence$sequence_plain, pep2prot$sequence_plain)]
 
   if("isdecoy" %in% colnames(tibble_evidence)) {
@@ -291,6 +292,7 @@ import_maxquant_peptides = function(file_peptides, remove_shared_peptides = T, p
   ## conform to expected properties, standardized throughout input data parsers in this codebase
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tib$intensity = log2(tib$intensity)
+  tib$intensity[!is.na(tib$intensity) & tib$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib$rt = NA # no retention time info in peptides.txt
   tib$detect = T # cannot differentiate between MBR and MS/MS identified
 

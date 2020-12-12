@@ -12,7 +12,7 @@ de_msempire(eset, input_intensities_are_log2 = F)
 \item{input_intensities_are_log2}{whether the provided intensities are already log2 transformed}
 }
 \description{
-input data must NOT be log transformed
+input data should NOT be log2 transformed (if it is, we revert this prior to passing data to MS-EmpiRe)
 }
 \details{
 TODO: proper standarderror computation

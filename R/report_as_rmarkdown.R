@@ -17,7 +17,7 @@
 #' @export
 generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_label_samples_by_shortname = NA) {
 
-  start_time <- Sys.time()
+  start_time = Sys.time()
   append_log("creating PDF report...", type = "progress")
 
   ################ prepare data ################

@@ -96,7 +96,7 @@ write_peptide_abundance_matrix_to_file = function(dataset, filename, norm_algori
     append_log(paste("filename must end with .xlsx  @ ", filename), type = "error")
   }
   remove_file_if_exists(filename)
-  start_time <- Sys.time()
+  start_time = Sys.time()
 
 
   ############ peptides
@@ -128,7 +128,7 @@ write_peptide_abundance_matrix_to_file = function(dataset, filename, norm_algori
     dplyr::select(sample_id, protein_id, intensity_norm, intensity_all_group) %>%
     dplyr::mutate(intensity_norm = 2^intensity_norm, intensity_all_group = 2^intensity_all_group) %>%
     dplyr::group_by(sample_id, protein_id) %>%
-    dplyr::summarise_all(sum) %>%
+    dplyr::summarise_all(sum, na.rm = TRUE) %>%
     dplyr::mutate(intensity_norm = log2(intensity_norm), intensity_all_group = log2(intensity_all_group))
 
   # analogous to peptide table

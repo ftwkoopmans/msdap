@@ -130,7 +130,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
 #' @importFrom ggrepel geom_text_repel
 #' @importFrom matrixStats rowSums2 colMedians
 ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, samples_colors) {
-  start_time <- Sys.time()
+  start_time = Sys.time()
   # XX<<-tib_input; YY<<-samples; ZZ<<-samples_colors
   # tib_input=XX; samples=YY; samples_colors=ZZ
 

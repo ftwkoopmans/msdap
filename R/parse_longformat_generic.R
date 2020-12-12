@@ -500,9 +500,11 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
   DT$intensity = log2(DT$intensity)
   DT$intensity[!is.finite(DT$intensity)] = NA
+  DT$intensity[is.finite(DT$intensity) & DT$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   if("intensity_norm" %in% colnames(DT)) {
     DT$intensity_norm = log2(DT$intensity_norm)
     DT$intensity_norm[!is.finite(DT$intensity_norm)] = NA
+    DT$intensity_norm[is.finite(DT$intensity_norm) & DT$intensity_norm < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   }
 
   # for DIA data we can compute Cscore histograms of both target and decoy peptides (which will be shown in report downstream)

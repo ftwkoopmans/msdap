@@ -95,7 +95,8 @@ The first two requirements from the previous section apply here was well, but th
 - samples; tibble with sample metadata, take note of the columns 'sample_id' and 'condition' so you can classify samples into conditions while A/B testing
 - eset_peptides; ExpressionSet for peptides
 - eset_proteins; ExpressionSet for proteins (collapsed peptide-level data)
-- input_intensities_are_log2 = boolean that tells you whether the intensities are log2 transformed (they are by default, but could change in future, so implement a check like below)
+- input_intensities_are_log2; boolean that tells you whether the intensities are log2 transformed (they are by default, but could change in future, so implement a check like below)
+- random_variables; array of column names in the samples table
 
 The return data must be a tibble with these columns;
 
@@ -108,7 +109,7 @@ The return data must be a tibble with these columns;
 The example code, together with code comments, should provide a code skeleton for the implementation of your custom DEA algorithm.
 
 ```{r}
-my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_intensities_are_log2) {
+my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_intensities_are_log2, random_variables, ...) {
   ### 1) from provided protein-level data; extract the protein intensity matrix, to which condition each sample belongs and find the columns matching groups 1 and 2
   x = Biobase::exprs(eset_proteins)
   # transform to log2 if input data is non-log
@@ -161,7 +162,6 @@ dataset = analysis_quickstart(dataset,
                               dea_qvalue_threshold = 0.05,
                               dea_log2foldchange_threshold = NA, # estimate a fold-change threshold for proteins to be significant
                               output_qc_report = FALSE, # disabled in this document, but do create a QC report when testing code to review those volcano's, p-value and foldchange distributions !
-                              output_peptide_plots = "none",
                               output_dir = getwd(), # optionally, change the output directory (now files are printed to the working directory)
                               output_within_timestamped_subdirectory = FALSE)
 ```

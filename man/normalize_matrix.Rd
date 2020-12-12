@@ -12,12 +12,12 @@ normalize_matrix(
 )
 }
 \arguments{
-\item{x_as_log2}{the numeric matrix, all values must be log2 transformed}
+\item{x_as_log2}{the numeric matrix, must already be log2 transformed}
 
 \item{algorithm}{the normalization algorithm to apply. Either one of the built-in options, see normalization_algorithms(), or the name of your custom normalization function (see online documentation/examples)}
 
 \item{mask_sample_groups}{a character array of the same length as the number of columns in the provided data matrix, describing the grouping of each column/sample}
 }
 \description{
-Normalize a numeric matrix
+wrapper function around various normalization algorithms. Thresholds returned log2 intensity values below 1.
 }

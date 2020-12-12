@@ -38,6 +38,7 @@ import_dataset_metamorpheus = function(path, protein_qval_threshold = 0.05, coll
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tib_result$intensity = log2(tib_result$intensity)
+  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
 
   # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
   if(collapse_peptide_by == "") {
@@ -146,7 +147,7 @@ import_metamorpheus_quantifiedpeaks = function(file_quantpeaks) {
            mz = suppressWarnings(as.numeric(mz)),
            intensity = suppressWarnings(as.numeric(intensity)),
            detect = toupper(detect_type) == "MSMS") %>%
-    filter(is.finite(rt) & rt != 0 & is.finite(intensity) & intensity != 0)
+    filter(is.finite(rt) & rt != 0 & is.finite(intensity) & intensity > 0)
 
   # !! in some MetaMorpheus versions, the AllQuantifiedPeaks.tsv table contains multiple (modified) peptide sequences on one row in the "Full Sequence" column, delimited by a "|"
   # we just assume the first peptide is whatever has the highest PSM score and remove the rest

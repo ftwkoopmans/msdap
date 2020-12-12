@@ -13,8 +13,9 @@ analysis_quickstart(
   filter_min_peptide_per_prot = 1,
   filter_topn_peptides = 0,
   filter_by_contrast = FALSE,
-  norm_algorithm = "vwmb",
-  dea_algorithm = c("ebayes"),
+  norm_algorithm = c("vwmb", "modebetween_protein"),
+  dea_protein_rollup = "maxlfq",
+  dea_algorithm = c("deqms", "msqrob"),
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
   diffdetect_min_samples_observed = 3,
@@ -45,7 +46,9 @@ analysis_quickstart(
 
 \item{norm_algorithm}{normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero}
 
-\item{dea_algorithm}{algorithms for differential expression analysis. options: ebayes, msempire, msqrob (to run multiple, provide an array)}
+\item{dea_protein_rollup}{strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein}
+
+\item{dea_algorithm}{algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)}
 
 \item{dea_qvalue_threshold}{threshold for significance of adjusted p-values in figures and output tables}
 

@@ -512,7 +512,7 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #   column_contrasts = grep("^contrast:", colnames(samples), ignore.case = T, value = T)
 #   append_log("plot peptide data for each protein...", type = "info")
 #   for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-#     start_time <- Sys.time()
+#     start_time = Sys.time()
 #     lbl = sub("^contrast: *", "", col_contr)
 #
 #     samples_for_contrast = samples

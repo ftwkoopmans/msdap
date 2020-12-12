@@ -1,4 +1,19 @@
 
+
+#' placeholder title
+#' @param x_as_log2 todo
+#' @param grp_var todo
+simple_rollup_peptide_matrix = function(x_as_log2, grp_var) {
+  stopifnot(is.matrix(x_as_log2))
+  stopifnot(!"protein_id" %in% colnames(x_as_log2))
+  expr_prot = as_tibble(2^x_as_log2) %>% replace(is.na(.), 0) %>% add_column(protein_id=grp_var) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA)
+  m = as.matrix(expr_prot[,-1])
+  rownames(m) = expr_prot$protein_id
+  # convert to log2 again (note; we already replaced zero's with NA above)
+  return(log2(m))
+}
+
+
 #' placeholder title
 #' @param peptides todo
 #' @param proteins todo
@@ -47,45 +62,58 @@ tibble_as_eset = function(peptides, proteins, samples) {
 #' Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
 #'
 #' @param eset_peptides A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes
+#' @param mode roll-up strategy
 #' @importFrom Biobase fData pData exprs
 #' @export
-eset_from_peptides_to_proteins = function(eset_peptides) {
+eset_from_peptides_to_proteins = function(eset_peptides, mode = "sum") {
   fdata = Biobase::fData(eset_peptides)
+  pdata = Biobase::pData(eset_peptides)
   if(!("protein_id" %in% colnames(fdata))) {
     append_log("expressionset fData() must contain column 'protein_id'", type = "error")
   }
 
-  # peptide abundance matrix -->> row-wise aggregation. don't replace NA with zero before undoing the log2 transformation
-  expr_prot = as_tibble(2^Biobase::exprs(eset_peptides)) %>% replace(is.na(.), 0) %>% add_column(protein_id=fdata$protein_id) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA)
-  m = as.matrix(expr_prot[,-1])
-  rownames(m) = expr_prot$protein_id
-  # convert to log2 again (note; we already replaced zero's with NA above)
-  m = log2(m)
+  # rollup abundance values, from peptides to proteins
+  if(mode == "ipl") {
+    col_groups = head(intersect(c("condition", "group"), colnames(pdata)), 1)
+    m = impute_peptide_local(x = Biobase::exprs(eset_peptides), protein_ids = fdata$protein_id, groups = pdata[,col_groups])
+  } else {
+    m = simple_rollup_peptide_matrix(Biobase::exprs(eset_peptides), grp_var=fdata$protein_id)
+  }
+
+  return(protein_eset_from_data(m, eset = eset_peptides))
+}
+
+
+
+#' Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
+#'
+#' @param eset_peptides A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes
+#' @param mode roll-up strategy
+#' @importFrom Biobase fData pData exprs
+#' @export
+protein_eset_from_data = function(x, eset) {
+  fdata = Biobase::fData(eset)
+  pdata = Biobase::pData(eset)
+  if(!("protein_id" %in% colnames(fdata))) {
+    append_log("expressionset fData() must contain column 'protein_id'", type = "error")
+  }
+  if(!all(rownames(x) %in% fdata$protein_id)) {
+    append_log("expressionset fData() column 'protein_id' must contain an entry for each 'rowname' of matrix x", type = "error")
+  }
+  if(ncol(x) != nrow(pdata) || !all(colnames(x) == pdata$sample_id)) {
+    append_log("expressionset pData() must align with matrix x; each row in pdata must describe a column in x AND the pdata column 'sample_id' must match column names of x", type = "error")
+  }
 
   # create ExpressionSet with empty feature/protocol data
   eset_proteins = Biobase::ExpressionSet(
-    assayData = m,
-    featureData = Biobase::annotatedDataFrameFrom(m, byrow = T),
-    protocolData = Biobase::annotatedDataFrameFrom(m, byrow = F)
+    assayData = x,
+    featureData = Biobase::annotatedDataFrameFrom(x, byrow = T),
+    protocolData = Biobase::annotatedDataFrameFrom(x, byrow = F)
   )
 
-  Biobase::pData(eset_proteins) = Biobase::pData(eset_peptides)
-  Biobase::fData(eset_proteins) = fdata[match(expr_prot$protein_id, fdata$protein_id), !grepl("sequence|peptide", colnames(fdata), ignore.case = T)]
-
-  ## reference implementation, v1
-  #' @importFrom MSnbase as.MSnSet.ExpressionSet combineFeatures
-  # # need non-log values for combineFeatures()
-  # tmp_eset = eset_peptides
-  # Biobase::exprs(tmp_eset) = 2^Biobase::exprs(tmp_eset)
-  # Biobase::exprs(tmp_eset)[!is.finite(Biobase::exprs(tmp_eset))] = 0
-  #
-  # # rollup to protein level, for eBayes we use the traditional sum approach
-  # eset_proteins = suppressWarnings(suppressMessages(MSnbase::combineFeatures(MSnbase::as.MSnSet.ExpressionSet(tmp_eset), fun = "sum", groupBy = Biobase::fData(tmp_eset)$protein_id)))
-  #
-  # # convert to log2 again
-  # Biobase::exprs(eset_proteins) = log2(Biobase::exprs(eset_proteins))
-  # Biobase::exprs(eset_proteins)[!is.finite(Biobase::exprs(eset_proteins))] = NA
-
+  # transfer metadata
+  Biobase::fData(eset_proteins) = fdata[match(rownames(x), fdata$protein_id), !grepl("sequence|peptide", colnames(fdata), ignore.case = T), drop=F]
+  Biobase::pData(eset_proteins) = pdata
   return(eset_proteins)
 }
 

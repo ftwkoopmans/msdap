@@ -9,7 +9,9 @@ normalization_algorithms = function() {
 
 #' Normalize a numeric matrix
 #'
-#' @param x_as_log2 the numeric matrix, all values must be log2 transformed
+#' wrapper function around various normalization algorithms. Thresholds returned log2 intensity values below 1.
+#'
+#' @param x_as_log2 the numeric matrix, must already be log2 transformed
 #' @param algorithm the normalization algorithm to apply. Either one of the built-in options, see normalization_algorithms(), or the name of your custom normalization function (see online documentation/examples)
 #' @param mask_sample_groups a character array of the same length as the number of columns in the provided data matrix, describing the grouping of each column/sample
 #'
@@ -31,36 +33,36 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_
   valid_rows_group_by = length(rows_group_by) == nrow(x_as_log2) && all(!is.na(rows_group_by) & rows_group_by != "")
 
   if (algorithm == "median") {
-    return(normalize_median(x_as_log2))
+    return(threshold_numerics(normalize_median(x_as_log2), 1))
   }
 
   if (algorithm == "loess") {
     # limma package
-    return(limma::normalizeCyclicLoess(x_as_log2, iterations = 10, method = "fast"))
+    return(threshold_numerics(limma::normalizeCyclicLoess(x_as_log2, iterations = 10, method = "fast"), 1))
   }
 
   if (algorithm == "rlr") {
     # implementation from MSqRob, application of MASS package
-    return(normalize_rlr(x_as_log2))
+    return(threshold_numerics(normalize_rlr(x_as_log2), 1))
   }
 
   if (algorithm == "vsn") {
     # vsn package
-    return(suppressMessages(vsn::justvsn(2^x_as_log2))) # justvsn wants non-log input
+    return(threshold_numerics(suppressMessages(vsn::justvsn(2^x_as_log2)), 1)) # justvsn wants non-log input
   }
 
   if (algorithm == "vwmb") {
     if (!valid_mask) {
       append_log("vwmb normalization requires a definition of sample groups for within- and between-group normalization", type = "error")
     }
-    return(normalize_vwmb(x_as_log2, groups=mask_sample_groups)) # use default settings
+    return(threshold_numerics(normalize_vwmb(x_as_log2, groups=mask_sample_groups), 1)) # use default settings
   }
 
   if (algorithm == "modebetween") {
     if (!valid_mask) {
       append_log("'mode between' normalization requires a definition of sample groups for between-group normalization", type = "error")
     }
-    return(normalize_vwmb(x_as_log2, groups=mask_sample_groups, metric_within = "")) # disable within-group normalization
+    return(threshold_numerics(normalize_vwmb(x_as_log2, groups=mask_sample_groups, metric_within = ""), 1)) # disable within-group normalization
   }
 
   if (algorithm == "modebetween_protein") {
@@ -80,7 +82,7 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_
     for(j in seq_along(scale_per_sample)) {
       x_as_log2[,j] = x_as_log2[,j] - scale_per_sample[j]
     }
-    return(x_as_log2)
+    return(threshold_numerics(x_as_log2, 1))
     # debug; x_as_log2 = cbind(rnorm(100,2), rnorm(100,2.5), rnorm(100,4.5), rnorm(100,5)); mask_sample_groups = c("a","a","b","b"); rows_group_by = rep(1:(nrow(x_as_log2)/2), times=2); boxplot(x_as_log2)
   }
 
@@ -92,7 +94,7 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_
       append_log("MS-EmpiRe normalization only supports normalization between 2 groups", type = "error")
     }
     capture.output(result <- log2(suppressMessages(normalize_msempire(2^x_as_log2, mask_sample_groups))))
-    return(result)
+    return(threshold_numerics(result, 1))
   }
 
   # guess if the user provided some custom function for normalization
@@ -103,12 +105,13 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_
     if(!is.matrix(result) || nrow(result) != nrow(x_as_log2) || ncol(result) != ncol(x_as_log2) || colnames(result) != colnames(x_as_log2) || mode(result) != "numeric" || any(!is.na(result) & is.infinite(result))) {
       append_log(sprintf("provided custom function for normalization '%s' must return a numeric matrix (either NA or numeric values, no infinites) with the same dimensions and column names as the input matrix", algorithm), type = "error")
     }
-    return(result)
+    return(threshold_numerics(result, 1))
   }
 
   # fall-through for unknown params
   append_log(paste("unsupported normalization parameter:", algorithm), type = "error")
 }
+
 
 
 #' simply scale samples by median value

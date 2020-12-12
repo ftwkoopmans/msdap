@@ -68,7 +68,7 @@ Below code demonstrates how to apply only the MS-DAP functions for feature selec
 # feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm)
 dataset = filter_dataset(dataset,
                          filter_min_detect = 3,
-                         norm_algorithm = "vwmb",
+                         norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
 
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)

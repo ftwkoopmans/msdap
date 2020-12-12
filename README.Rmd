@@ -23,13 +23,13 @@ We are currently preparing a manuscript for publication, feel free to explore th
 
 ## Installation
 
-MS-DAP is available as a [Docker container](doc/docker.md) that includes everything required to get starting right away, and as a [R package](doc/rpackage.md) that may be installed into a preexisting bioinformatics workflow. Both installation guides include a quickstart example.
+MS-DAP is available as a [Docker container](doc/docker.md) that includes everything required to get starting right away, and as a [R package](doc/rpackage.md) that may be installed into a preexisting bioinformatics workflow.
 
 ![MS-DAP docker](doc/images/msdap_docker_cartoon.png)
 
 A) Installing the dockerized version of MS-DAP is trivialized to first installing the Docker application and then pulling the MS-DAP container from the online Docker repository ( [as shown in this guide](doc/docker.md) ). Using containers guarantees the exact same software versions are used throughout the entire stack, from operating system to the actual application, a crucial aspect of software reproducibility. As the MS-DAP application matures, users can re-run analyses on any legacy MS-DAP release by simply pulling the respective container version (e.g. to repeat a previously published analysis). 
 
-B) The MS-DAP R package can also be installed into preexisting development environments. To start using MS-DAP in your data analysis workflows, refer to [this installation guide](doc/rpackage.md).
+B) Already working with R? [Click here for an installation guide](doc/rpackage.md) to install the MS-DAP R package.
 
 
 
@@ -55,6 +55,4 @@ Features planned for future releases:
 
 - compatibility with the recent R 4.0 release
 - expand upstream software support
-- integrate additional normalization/DEA algorithms
-- multiple group analysis (current version includes A/B testing)
 - labeled quantitative data; iTRAQ/TMT

@@ -130,6 +130,8 @@ normalize_vwmb = function(x, groups=NA, metric_within="var", metric_between="mod
   x = x + (x_median - median(x, na.rm = T))
   # reset colnames
   colnames(x) = x_colnames
+  # threshold very low values
+  x = threshold_numerics(x, 1)
 
 
   #### optionally, add some metadata for downstream QC

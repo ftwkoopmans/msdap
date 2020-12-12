@@ -405,6 +405,16 @@ val2col = function(x) {
 
 
 
+#' generate colours analogous to ggplot's default palette
+#' https://stackoverflow.com/a/8197703
+#' @param n number of colors
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 1)
+  hcl(h = hues, l = 65, c = 100)[1:n]
+}
+
+
+
 #' Accept pvalues that are exactly zero as the 'best pvalue'
 #'
 #' @param x values to transform
@@ -423,6 +433,16 @@ minlog10 = function(x) {
 #' @param x numeric values that were log2 transformed
 log2_to_ln = function(x) {
   x / log2(exp(1))
+}
+
+
+
+#' basic threshold function
+#' @param x numeric array or matrix
+#' @param threshold limit values below this val
+threshold_numerics = function(x, threshold) {
+  x[is.finite(x) & x < threshold] = threshold
+  return(x)
 }
 
 

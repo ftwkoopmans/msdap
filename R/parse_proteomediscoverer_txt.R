@@ -179,6 +179,7 @@ import_dataset_proteomediscoverer_txt = function(filename) {
   # ensure downstream compatability
   tib_result$isdecoy = F
   tib_result$intensity = log2(tib_result$intensity)
+  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib_result$detect = tib_result$confidence <= 0.01 # peptide-level FDR cutoff
 
 

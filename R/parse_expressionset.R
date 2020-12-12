@@ -52,7 +52,7 @@ import_expressionset = function(eset, column_fdata_protein_id = "prot.id", colum
   tib = as_tibble(Biobase::exprs(eset)) %>%
     add_column(peptide_id = Biobase::featureNames(eset), protein_id = Biobase::fData(eset)[,column_fdata_protein_id]) %>%
     pivot_longer(cols = c(-peptide_id, -protein_id), names_to = "sample_id", values_to = "intensity") %>%
-    filter(is.finite(intensity) & intensity != 0)
+    filter(is.finite(intensity) & intensity > 0)
 
   # peptide sequence/modified mapping. default = peptide ID
   tib$sequence_plain = tib$sequence_modified = tib$peptide_id
@@ -74,6 +74,7 @@ import_expressionset = function(eset, column_fdata_protein_id = "prot.id", colum
   if(!is_log2) {
     tib$intensity = log2(tib$intensity)
   }
+  tib$intensity[!is.na(tib$intensity) & tib$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib$rt = NA # no retention time info available
   tib$detect = T # cannot differentiate between MBR and MS/MS identified
   tib$isdecoy = F # no information on decoys in expressionset

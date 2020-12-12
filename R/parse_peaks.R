@@ -72,8 +72,12 @@ import_dataset_peaks = function(filename, collapse_peptide_by = "sequence_modifi
   # compatability with downstream pipeline (standard in every import function)
   tib$confidence = NA
   tib$detect = T
+  tib$intensity[!is.finite(tib$intensity) | tib$intensity < 0] = NA
   tib$intensity = log2(tib$intensity)
+  tib$intensity[!is.na(tib$intensity) & tib$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib$isdecoy = F
+
+  tib = tib %>% filter(!is.na(intensity))
 
   # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
   if(collapse_peptide_by == "") {

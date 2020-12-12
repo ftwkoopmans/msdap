@@ -196,6 +196,8 @@ import_dataset_openms_mztab = function(filename) {
 
   tib_pep_result$rt = tib_pep_result$rt / 60
   tib_pep_result$intensity = log2(tib_pep_result$intensity)
+  tib_pep_result$intensity[!is.na(tib_pep_result$intensity) & tib_pep_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+
   tib_pep_result$detect = tib_pep_result$confidence <= 0.01 # peptide-level FDR cutoff
 
 

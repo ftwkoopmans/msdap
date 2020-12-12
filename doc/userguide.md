@@ -3,7 +3,10 @@
       - [Import data](#import-data)
       - [Sample metadata table](#sample-metadata-table)
       - [Define contrasts](#define-contrasts)
+          - [Dealing with batch effects](#dealing-with-batch-effects)
       - [Apply pipeline](#apply-pipeline)
+      - [visualize all peptide-level data per
+        protein](#visualize-all-peptide-level-data-per-protein)
   - [Preparing input data](#preparing-input-data)
       - [MaxQuant](#maxquant)
       - [MetaMorpheus](#metamorpheus)
@@ -158,7 +161,8 @@ define contrasts containing multiple groups;
 
 ``` r
 dataset = setup_contrasts(dataset, 
-                          list(# control vs cond1
+                          contrast_list = list(
+                            # control vs cond1
                             c("control", "cond1"),
                             # control vs cond1,cond2 (eg; we here combine 2 sample groups on the right-hand side of this contrast)
                             list(c("control"), c("cond1", "cond2")),
@@ -170,6 +174,21 @@ dataset = setup_contrasts(dataset,
 # technical note: each element in a list must be separated by a comma
 ```
 
+### Dealing with batch effects
+
+For DEA algorithms that apply a linear regression (e.g. MSqRob, eBayes,
+DEqMS. But *not* MS-EmpiRe), you can easily add a random variable to the
+regression model to account for batch effects.
+
+These need to be defined when setting up your statistical contrasts
+using the `random_variables` parameter. Example code:
+
+``` r
+dataset = setup_contrasts(dataset, 
+                          contrast_list = list(c("control", "phenotype")),
+                          random_variables = "cohort")
+```
+
 ## Apply pipeline
 
 ``` r
@@ -179,11 +198,11 @@ dataset = analysis_quickstart(
   # You only have to provide active filters (but specify at least 1)
   # respective params; filter_min_detect, filter_fraction_detect, filter_min_quant, filter_fraction_quant
   #
-  # recommended settings, DDA: at least 1 detect (MS/MS ID) and quantified in at least 3 replicates and ~75% of replicates
-  # recommended settings, DIA: detect (confidence score < threshold) in at least 3 replicates and ~75% of replicates
-  filter_min_detect = 1,
+  # recommended settings, DDA: no filter on minimum number of (MS/MS IDs) and quantified in at least 3 replicates and ~75% of replicates
+  # recommended settings, DIA: set the 'detect' settings to same values as 'quant'; filter_min_detect=3, filter_fraction_detect=0.75
+  filter_min_detect = 0,
   filter_min_quant = 3,
-  filter_fraction_detect = 0.75,
+  filter_fraction_detect = 0,
   filter_fraction_quant = 0.75,
   ## filter criteria on protein level
   filter_topn_peptides = 0, # set to 0 to disable topN filtering. if enabled, a typical setting would be between 5 and 15
@@ -201,16 +220,16 @@ dataset = analysis_quickstart(
   # set filter_by_contrast = FALSE for this option
   # 
   # note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as both approaches are the same
-  filter_by_contrast = FALSE,
+  filter_by_contrast = TRUE,
 
   ## normalization algorithm. recommended best-practise is c("vsn", "modebetween"), which applies vsn (quite strong normalization reducing variation) and then balances between-group foldchanges with modebetween
   # normalization algorithms. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
-  norm_algorithm = "vwmb",
+  norm_algorithm = c("vwmb", "modebetween_protein"),
 
   ## differential expression analysis
   # algorithms for differential expression analysis. options: ebayes, msempire, msqrob
   # provide an array of options to run multiple models (in parallel), their results can be compared in the QC report and output Excel table. 
-  dea_algorithm = c("ebayes", "msempire", "msqrob"),
+  dea_algorithm = c("deqms", "msempire", "msqrob"),
   # significance cutoff used in QC plots and 'significant' column in output Excel tables
   dea_qvalue_threshold = 0.05,
   # threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
@@ -234,19 +253,28 @@ dataset = analysis_quickstart(
 
 ## optionally, print a summary. 
 # Very convenient when quickly iterating/exploring various DEA settings. For example:
-# a) disable all output files to speed things up (output_qc_report=FALSE, output_peptide_plots="none", output_abundance_tables=FALSE)
+# a) disable all output files to speed things up (output_qc_report=FALSE, output_abundance_tables=FALSE)
 # b) use only ebayes for DEA to speed things up (dea_algorithm = "ebayes"). note; we mostly use; dea_algorithm = c("ebayes", "msempire", "msqrob")
 # c) change parameters (eg; filtering rules/normalization/signif or foldchange threshold) -->> run pipeline -->> print summary -->> iterate again
 print_dataset_summary(dataset)
-
+```
 
 ## visualize all peptide-level data per protein
-# This is relatively time consuming, especially when you select to print _all_ proteins in the dataset
-# We therefore suggest to create these figures after exploring filtering, normalization and DEA parameters (and their impact on QC figures and finding significant hits).
-# The norm_algorithm parameter should list the same algorithm(s) as used in the pipeline previously
+
+This is relatively time consuming, especially when you select to print
+*all* proteins in the dataset. We therefore suggest to create these
+figures after exploring filtering, normalization and DEA parameters (and
+their impact on QC figures and finding significant hits).
+
+Importantly, the `norm_algorithm` parameter should list the same
+algorithm(s) as used in the pipeline previously
+
+``` r
 plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/", 
                   # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
-                  show_unused_datapoints = TRUE, norm_algorithm = "vwmb")
+                  show_unused_datapoints = TRUE, 
+                  # importantly, sync this parameter with the settings used for analysis_quickstart()
+                  norm_algorithm = c("vwmb", "modebetween_protein"))
 ```
 
 # Preparing input data
@@ -329,7 +357,8 @@ MS-DAP import function: `msdap::import_dataset_encyclopedia()`
 No particular settings are needed, but do note that a report with
 peptide abundance values should be prepared that;
 
-1)  has no filters enabled
+1)  has no filters enabled (don’t remove any peptide and keep decoys in
+    the output)
 2)  contains these columns: R.FileName, PG.ProteinGroups, EG.IsDecoy,
     EG.Library, EG.Qvalue, EG.iRTEmpirical, EG.Cscore, FG.Id,
     FG.MS2Quantity, FG.MS2RawQuantity

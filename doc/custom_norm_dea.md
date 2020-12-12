@@ -132,9 +132,10 @@ well, but the list of required parameters here is;
   - eset\_peptides; ExpressionSet for peptides
   - eset\_proteins; ExpressionSet for proteins (collapsed peptide-level
     data)
-  - input\_intensities\_are\_log2 = boolean that tells you whether the
+  - input\_intensities\_are\_log2; boolean that tells you whether the
     intensities are log2 transformed (they are by default, but could
     change in future, so implement a check like below)
+  - random\_variables; array of column names in the samples table
 
 The return data must be a tibble with these columns;
 
@@ -150,7 +151,7 @@ The example code, together with code comments, should provide a code
 skeleton for the implementation of your custom DEA algorithm.
 
 ``` r
-my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_intensities_are_log2) {
+my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_intensities_are_log2, random_variables, ...) {
   ### 1) from provided protein-level data; extract the protein intensity matrix, to which condition each sample belongs and find the columns matching groups 1 and 2
   x = Biobase::exprs(eset_proteins)
   # transform to log2 if input data is non-log
@@ -207,18 +208,20 @@ dataset = analysis_quickstart(dataset,
                               dea_qvalue_threshold = 0.05,
                               dea_log2foldchange_threshold = NA, # estimate a fold-change threshold for proteins to be significant
                               output_qc_report = FALSE, # disabled in this document, but do create a QC report when testing code to review those volcano's, p-value and foldchange distributions !
-                              output_peptide_plots = "none",
                               output_dir = getwd(), # optionally, change the output directory (now files are printed to the working directory)
                               output_within_timestamped_subdirectory = FALSE)
-#> progress: caching filter data took 2 seconds
+#> progress: caching filter data took 1 seconds
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
-#> progress: peptide filtering and normalization took 3 seconds
+#> progress: peptide filtering and normalization took 2 seconds
+#> info: peptide to protein rollup strategy: maxlfq
 #> info: differential abundance analysis for contrast: A vs B
 #> info: using data from peptide filter: global data filter
-#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.628
+#> progress: peptide to protein rollup with MaxLFQ took 20 seconds
+#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.692
 #> progress: eBayes took 1 seconds
-#> Example custom DEA implementation, my_dea_stats(), yielded 728 hits at qvalue<=0.01
+#> Example custom DEA implementation, my_dea_stats(), yielded 714 hits at qvalue<=0.01
+#> info: differential detection analysis: min_samples_observed=3
 ```
 
 Print the number of significant proteins
@@ -232,8 +235,8 @@ print(dataset$de_proteins %>%
 #> # A tibble: 2 x 3
 #>   algo_de      `1% FDR` `1% FDR AND foldchange threshold`
 #>   <chr>           <int>                             <int>
-#> 1 ebayes           1054                              1002
-#> 2 my_dea_stats      728                               709
+#> 1 ebayes           1046                              1002
+#> 2 my_dea_stats      714                               694
 ```
 
 A simple Venn diagram of proteins at 1% FDR for each method shows our

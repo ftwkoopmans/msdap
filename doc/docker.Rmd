@@ -7,16 +7,6 @@ output:
 
 # Using the Dockerized MS-DAP
 
-<!-- 
-A short demonstration of the _Dockerized_ MS-DAP, where you simply install Docker and then run a single script to get both RStudio (to run R code/scripts) and a graphical user interface for MS-DAP up-and-running:
-
-![MS-DAP docker demo](images/msdap_docker_animation_noloop.gif)
-
-The demo stops short of inspecting the actual pipeline result files, you can refer to the [introduction vignette](intro.md) for an overview of MS-DAP output.
-
-(And of course you can also use the GUI without Docker, if you installed just the R package simply run `library(msdap); gui()`)
-
- -->
 
 ## install Docker for Windows or macOS
 
@@ -84,14 +74,14 @@ This section details each step involved in using the MS-DAP Docker container. In
 
 3) Download the MS-DAP Docker container by executing the following command in the terminal (only have to do this 'installation step' once):
 
-```docker pull ftwkoopmans/msdap:0.2.5```
+```docker pull ftwkoopmans/msdap:0.2.7```
 
 4) Run the Docker container and give it access to the directory on your computer (the 'host' system) that contains the proteomics data. 
 **importantly, Docker containers only have access to files on the host system that are explicitly mounted: update the highlighted path in the following command** (see further @ next subsection).
 
-<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.5</code>
+<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.7</code>
 
-5) Open a browser, such as Firefox or Chrome, and access MS-DAP at http://localhost:3839 . You will be presented with a complete RStudio environment that contains MS-DAP! username: `rstudio` password: `msdap` (we suggest you permit your browser to store these credentials for future re-use)
+5) Open a browser, such as Firefox or Chrome, and access MS-DAP at http://localhost:3839 . You will be presented with a complete RStudio environment that contains MS-DAP!
 
 note: to stop the container, go to the terminal used to launch MS-DAP and press `control + C`.
 
@@ -113,34 +103,6 @@ Docker containers only have access to files on the host system that are explicit
 
 For reference, the syntax of this command: `docker run ... -v <FULL PATH ON YOUR SYSTEM>:/data ...` (the `/data` is the file location as seen from _within_ the container and should not be altered).
 
-
-### Quickstart: graphical user interface
-
-Launch the MS-DAP GUI and analyze the Klaassen et al. (2018) dataset that was pre-processed with MetaMorpheus and included with MS-DAP.
-
-- To immediately view the expected results, [click here to download the PDF report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf) we already prepared and uploaded.
-
-
-Launching the GUI:
-
-- assuming the MS-DAP Docker container is running and you accessed it using a web-browser at http://localhost:3839
-- start the MS-DAP graphical user interface (GUI) by running the following R command in the RStudio console at the bottom-left of the RStudio interface: `msdap::gui()` 
-
-Data analysis steps:
-
-- upstream software: _MetaMorpheus_
-- input data: browse files > select _exampledata_ from the dropdown menu in the top-right > left-click the folder with the Klaassen et al. dataset in the _Directories_ panel > click select button on the bottom
-- fasta: browse files > select both fasta files: left-click the first, hold shift, left-click the second fasta file (note that this shows the files from the most recent directory) > click select button on the bottom
-- output directory: select dir > select _data_ from the dropdown menu in the top-right > either select 'data' (grey icon on top-left) to store files in the _mapped directory_ or create a new folder and select that. Note that MS-DAP results are stored in a subdirectory of the location you choose here.
-- _next_
-- load sample metadata table: double-click sample_metadata.xlsx
-- _next_
-- optionally, define a statistical contrast: drag and drop sample groups to 'A' and 'B' (or leave all groups at 'unused' to skip A/B testing)
-- identified sample count: 1
-- DEA algorithm: msqrob and msempire
-- _start analysis_
-- output log and result summary are shown in the GUI
-- output files can be found in the _output directory_
 
 
 ### Quickstart: an example R script
@@ -176,15 +138,15 @@ dataset = setup_contrasts(dataset, contrast_list = list(c("wt", "ko")))
 dataset = analysis_quickstart(dataset,
                               filter_min_detect = 1,
                               filter_min_quant = 3,
-                              filter_by_contrast = FALSE,
-                              norm_algorithm = "msempire",
-                              dea_algorithm = c("ebayes", "msempire", "msqrob"),
+                              filter_by_contrast = TRUE,
+                              norm_algorithm = c("vwmb", "modebetween_protein"),
+                              dea_algorithm = c("deqms", "msempire", "msqrob"),
                               dea_qvalue_threshold = 0.05,
                               dea_log2foldchange_threshold = NA,
                               diffdetect_min_samples_observed = 2, # for differential detection only
                               output_qc_report = TRUE,
                               # note; within the Docker container, /data maps to the directory on your computer
-                              # defined when launching the MS-DAP Docker container
+                              # as defined when launching the MS-DAP Docker container
                               output_dir = "/data/dataset_Klaassen2018_pmid26931375",
                               output_within_timestamped_subdirectory = TRUE)
 # optionally, print a brief summary to console

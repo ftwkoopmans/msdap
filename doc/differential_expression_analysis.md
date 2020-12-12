@@ -88,16 +88,18 @@ typical MS-DAP use-cases.
 # feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm)
 dataset = filter_dataset(dataset,
                          filter_min_detect = 3,
-                         norm_algorithm = "vwmb",
+                         norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
-#> progress: caching filter data took 2 seconds
-#> progress: peptide filtering and normalization took 3 seconds
+#> progress: caching filter data took 1 seconds
+#> progress: peptide filtering and normalization took 2 seconds
 
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
 dataset = dea(dataset, algo_de = "ebayes", qval_signif = 0.05, fc_signif = NA)
+#> info: peptide to protein rollup strategy: maxlfq
 #> info: differential abundance analysis for contrast: A vs B
 #> info: using data from peptide filter: global data filter
-#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.650
+#> progress: peptide to protein rollup with MaxLFQ took 20 seconds
+#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.712
 #> progress: eBayes took 1 seconds
 
 # add the yeast/human protein classifications to DEA score tibble and filter to only keep human and yeast proteins
@@ -129,8 +131,8 @@ print(tib_plot %>%
 #> # A tibble: 2 x 3
 #>   classification `5% FDR` `5% FDR AND foldchange threshold`
 #>   <chr>             <int>                             <int>
-#> 1 human               155                                16
-#> 2 yeast               629                               603
+#> 1 human               120                                10
+#> 2 yeast               630                               596
 
 # analogous for more stringent q-value cutoff at 1% FDR
 print(tib_plot %>% 
@@ -141,6 +143,6 @@ print(tib_plot %>%
 #> # A tibble: 2 x 3
 #>   classification `1% FDR` `1% FDR AND foldchange threshold`
 #>   <chr>             <int>                             <int>
-#> 1 human                48                                10
-#> 2 yeast               596                               574
+#> 1 human                42                                 6
+#> 2 yeast               600                               574
 ```

@@ -3,7 +3,7 @@ Package: msdap
 Title: Mass Spectrometry Downstream Analysis Pipeline
 Description: Mass Spectrometry Downstream Analysis Pipeline.
 URL: https://github.com/ftwkoopmans/msdap
-Version: 0.2.6.3.1
+Version: 0.2.7
 Authors@R: 
     person(given = "Frank",
            family = "Koopmans",
@@ -41,7 +41,7 @@ Imports:
     Matrix (>= 1.2),
     matrixStats (>= 0.50),
     msEmpiRe,
-    MSnbase (>= 2.8),
+    MSnbase (>= 2.12),
     nloptr (>= 1.2),
     openxlsx (>= 4.1),
     pcaMethods (>= 1.70),
@@ -57,20 +57,18 @@ Imports:
     styler (>= 1.3),
     tinytex (>= 0.17),
     viridis (>= 0.5.1),
-    htmltools (>= 0.4),
-    htmlwidgets (>= 1.5),
-    shiny (>= 1.4),
-    shinyFiles (>= 0.8),
-    shinyjs (>= 1.1),
-    sortable (>= 0.4),
     vsn (>= 3.50),
+    DEqMS (>= 1.4),
+    diann (>= 1.0.1),
     testthat (>= 2.1)
 Remotes: 
     bioc::release/Biobase,
     bioc::release/MSnbase,
     bioc::release/limma,
     bioc::release/vsn,
-    github::zimmerlab/MS-EmpiRe
+    bioc::release/DEqMS,
+    github::zimmerlab/MS-EmpiRe,
+    github::vdemichev/diann-rpackage
 BiocViews:
 Encoding: UTF-8
 LazyData: true

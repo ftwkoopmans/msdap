@@ -10,7 +10,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
     append_log("plot_retention_time: `intensity_qc_basic` column is missing from peptide tibble", type = "warning")
     return(list())
   }
-  start_time <- Sys.time()
+  start_time = Sys.time()
 
   # if not DIA, take all peptides. for DIA, only detected (eg; Spectronaut qvalue < x)
   peptides = peptides %>% filter(is.finite(rt) & !is.na(intensity_qc_basic) & (!isdia | detect))
@@ -145,7 +145,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
 
   append_log_timestamp("RT plots: preparing data", start_time)
-  start_time <- Sys.time()
+  start_time = Sys.time()
 
   ## all samples in a single plot
   # note; using match for speed

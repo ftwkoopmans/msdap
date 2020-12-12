@@ -1,7 +1,7 @@
 ### original code from this commit: https://github.com/statOmics/MSqRobSum/commit/2875dcde1f89578685ed0a3316d6f66fa510b732
-### here adapted to get optimal multiprocessing for vastly reduced computation times  &  compatability with latest dplyr
+### here adapted to get optimal multiprocessing for vastly reduced computation times  &  compatibility with latest dplyr
 
-### FRANK: removed all documentation/examples/"addition functions we don't need" and kept minimal set of imports
+### FRANK: removed all documentation/examples/"additional functions we don't need" and kept minimal set of imports
 #' @import dplyr
 #' @import tidyr
 #' @importFrom limma squeezeVar

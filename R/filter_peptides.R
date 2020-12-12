@@ -21,7 +21,7 @@ invalidate_cache = function(dataset) {
 #' @importFrom data.table data.table setDT setkey chmatch merge.data.table melt.data.table
 #' @export
 cache_filtering_data = function(dataset) {
-  start_time <- Sys.time()
+  start_time = Sys.time()
   check_dataset_integrity(dataset)
 
   # add keys to samples table
@@ -206,7 +206,7 @@ filter_dataset = function(dataset,
                              norm_algorithm="",
                              # which filters to apply
                              by_group = T, all_group = T, by_contrast = F) {
-  start_time <- Sys.time()
+  start_time = Sys.time()
 
   ##### input validation
   # validate function parameters
@@ -550,7 +550,7 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
     return(DT$intensity)
   }
 
-  # start_time <- Sys.time()
+  # start_time = Sys.time()
 
   # remove NA values to ensure we remove empty rows and columns, then convert to wide. this is the matrix we need to normalize
   DT_subset = DT[!is.na(intensity), ]
@@ -607,7 +607,7 @@ normalize_intensities = function(DT, norm_algorithm = "vwmb") {
 #   if(!any(norm_algorithm != "")) {
 #     return(peptides)
 #   }
-#   start_time <- Sys.time()
+#   start_time = Sys.time()
 #   # prep data.table
 #   x = data.table::data.table(peptides %>% select(key_peptide_sample, key_peptide, key_sample, !!cols_intensity))
 #   # data.table::setkey(x, key_peptide, key_sample)
