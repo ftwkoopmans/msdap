@@ -11,14 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # install missing tinytex packages
 RUN /opt/TinyTeX/bin/*/tlmgr install ifxetex ifluatex oberdiek graphics graphics-cfg graphics-def
 
-### R packages
-RUN R -e "install.packages('tidyverse', 'devtools')"
-
-# explicitly use BiocManager for Bioconductor dependencies (more robust than relying on devtools to install our Bioconductor dependencies on ProtGenerics/MSnbase)
-RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'DEqMS'), update=T, ask=F)"
+# explicitly use BiocManager for Bioconductor dependencies (more robust than relying on devtools to install our Bioconductor dependencies, especially for ProtGenerics and MSnbase)
+RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'pcaMethods', 'DEqMS'), update=F, ask=F)"
 
 # install msdap R package from github
-RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.7', upgrade = 'never')"
+RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.7.1', upgrade = 'never')"
 
 # make sure the rstudio user can install and upgrade packages
 RUN chown -R rstudio:rstudio /usr/local/lib/R/library

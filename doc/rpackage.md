@@ -9,23 +9,21 @@ software dependencies on your computer. If you are looking for the
 
 **Windows**
 
-    None, you may immediately go to the next section.
-
-You’ll need to install the following system packages on Linux and macOS;
-netcdf and poppler
+    You will need to install GIT, which is needed to automaticall retrieve R packages from github.com (may not be installed on your system). 
+    Download and install this tool, available at https://gitforwindows.org
 
 **Ubuntu** (for Ubuntu 18.04 or older, see further
 <https://github.com/ropensci/pdftools> ):
 
-    sudo apt-get install libnetcdf-dev netcdf-bin libpoppler-cpp-dev
+    sudo apt-get install git libnetcdf-dev netcdf-bin libpoppler-cpp-dev
 
 **Fedora**
 
-    sudo dnf install netcdf-devel netcdf poppler-cpp-devel
+    sudo dnf install git netcdf-devel netcdf poppler-cpp-devel
 
 **MacOS** first, install Homebrew if you haven’t: <https://brew.sh>
 
-    brew install netcdf poppler automake
+    brew install git netcdf poppler automake
     export PKG_CONFIG_PATH=/usr/local/Cellar/zlib/1.2.8/lib/pkgconfig:/usr/local/lib/pkgconfig:/opt/X11/lib/pkgconfig
 
 **troubleshooting**
@@ -39,11 +37,19 @@ check these resources:
 
 ## installing R (if you have not already)
 
-An installation of R version 3.6 or newer is required, version 3.6.3 is
-recommended (4.0 is not supported yet, some of the packages we rely on
-are not compatible with 4.0 yet)
+  - R version 4 is supported; 4.0.3 or newer is recommended.
+  - R version 3 is supported; 3.6.3 is recommended.
 
 **Windows**
+
+If you do not have R installed yet, go to
+<https://cloud.r-project.org/bin/windows/>
+
+  - download and install “base” R
+  - download and install “Rtools”
+
+For reference, users that want to stick with R version 3 should grab R
+from here:
 
   - base R 3.6.3 @
     <https://cloud.r-project.org/bin/windows/base/old/3.6.3/>

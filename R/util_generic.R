@@ -173,6 +173,14 @@ remove_empty = function(x) {
 
 
 
+#' placeholder title
+#' @param x todo
+remove_by_charlength = function(x, minchar) {
+  x[!is.na(x) & nchar(x) >= minchar]
+}
+
+
+
 #' split array into a list of N-sized chunks
 #' @param x todo
 #' @param chunk_size todo

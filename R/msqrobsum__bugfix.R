@@ -10,6 +10,7 @@
 ### FRANK: add 2 imports below
 #' @importFrom foreach %dopar%
 #' @importFrom parallel clusterExport
+#' @importFrom tidyselect any_of
 ### FRANK: below code is adapted only on lines/sections tagged with my name
 msqrobsum <- function(
   data, formulas, group_vars = 'protein', contrasts = NULL
@@ -58,7 +59,7 @@ msqrobsum <- function(
   ### end original code
   fit_fun = match.fun(fit_fun)
   # prep data
-  df <- data %>% select(dplyr::any_of(c(group_vars, model_vars)), 'expression', 'feature','sample') %>% group_by_at(group_vars) %>% nest
+  df <- data %>% select(tidyselect::any_of(c(group_vars, model_vars)), 'expression', 'feature','sample') %>% group_by_at(group_vars) %>% nest
   ## actual code change, from future package to foreach. Internal version number for updates to this codebase; v2.2
   if(!exists("cl")) stop("first, setup a cluster for multiprocessing")
   ## functions from global/parent environment

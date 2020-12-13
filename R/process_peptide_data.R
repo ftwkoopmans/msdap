@@ -172,7 +172,8 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
     summarise(
       accessions = paste(acc, collapse = ";"),
       fasta_headers = paste(header, collapse = ";"),
-      gene_symbols_or_id = paste(remove_empty(unique(gene_symbols_or_id)), collapse = ";")
+      # for genes; take unique values, remove NA, remove strings of less than 2 characters
+      gene_symbols_or_id = paste(remove_by_charlength(unique(gene_symbols_or_id), minchar = 2), collapse = ";")
     )
 
   rows_fail = is.na(tib_result$gene_symbols_or_id) | tib_result$gene_symbols_or_id == ""

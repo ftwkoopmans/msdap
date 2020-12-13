@@ -115,7 +115,7 @@ with the launcher script).
     command in the terminal (only have to do this ‘installation step’
     once):
 
-`docker pull ftwkoopmans/msdap:0.2.7`
+`docker pull ftwkoopmans/msdap:0.2.7.1`
 
 4)  Run the Docker container and give it access to the directory on your
     computer (the ‘host’ system) that contains the proteomics data.
@@ -124,7 +124,7 @@ with the launcher script).
     in the following command** (see further @ next subsection).
 
 <code>docker run -p 3839:8787 -e PASSWORD=msdap -v
-**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.7</code>
+**C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.7.1</code>
 
 5)  Open a browser, such as Firefox or Chrome, and access MS-DAP at
     <http://localhost:3839> . You will be presented with a complete

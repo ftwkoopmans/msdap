@@ -53,6 +53,5 @@ Bioinformatic analyses beyond the typical MS-DAP workflow are described in the f
 
 Features planned for future releases:
 
-- compatibility with the recent R 4.0 release
 - expand upstream software support
 - labeled quantitative data; iTRAQ/TMT
