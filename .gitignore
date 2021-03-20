@@ -23,5 +23,5 @@ Thumbs.db
 /manuscript/
 
 !/examples/
-/examples/**
+/examples/*
 !/examples/data/
