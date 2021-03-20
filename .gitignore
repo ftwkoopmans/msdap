@@ -10,7 +10,6 @@ Thumbs.db
 .RData
 .Ruserdata
 
-*example_quickstart.R
 /TODO
 /TODO.txt
 /doc/*.xlsx
@@ -18,6 +17,11 @@ Thumbs.db
 /docker/Dockerfile.dev
 /docker/temp
 /docker/build_image*
-/dist/
 /docker/docker_compose
+/dist/
 /dev/
+/manuscript/
+
+!/examples/
+/examples/**
+!/examples/data/
