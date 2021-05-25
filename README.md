@@ -16,9 +16,10 @@ GitHub repository meanwhile \!
 
 ## Overview
 
-![MS-DAP overview](doc/images/msdap-fig1-overview.png) [Check this
-introduction to MS-DAP](doc/intro.md) for an overview of data
-visualizations (complete PDF reports are available at the bottom).
+![MS-DAP overview](doc/images/msdap-fig1-overview.png)
+
+[Check this introduction to MS-DAP](doc/intro.md) for an overview of
+data visualizations (complete PDF reports are available at the bottom).
 
 ## Quickstart
 

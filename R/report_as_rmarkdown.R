@@ -119,15 +119,15 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
     ### analogous for differential detection
     if(is_tibble(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
       tib_report_diffdetects_summary = dataset$dd_proteins %>%
-        filter(!is.na(zscore_count_detect)) %>%
         left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by="protein_id") %>%
         # sort such that top hits come first
         arrange(desc(abs(zscore_count_detect))) %>%
         # summary stats per contrast
         group_by(contrast) %>%
-        summarise(`#proteins tested` = n(),
-                  `#abs(zscore) >= 3` = sum(abs(zscore_count_detect) >= 3),
-                  `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id, 10), width = 10, side = "right"), collapse=", ") )) %>%
+        # note; we don't filter/remove all non-finite z-scores up front because we'd lose contrasts / tests in the summary that yield no results. Alternatively, do filter up-front and then post-hoc append entries for "contrasts that yield no results" (e.g. same number of detects in all samples = everything is NA)
+        summarise(`#proteins tested` = sum(is.finite(zscore_count_detect)),
+                  `#abs(zscore) >= 3` = sum(is.finite(zscore_count_detect) & abs(zscore_count_detect) >= 3),
+                  `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id[is.finite(zscore_count_detect)], 10), width = 10, side = "right"), collapse=", ") )) %>%
         ungroup() %>%
         arrange(match(contrast, column_contrasts)) %>%
         mutate(contrast = sub("^contrast: ", "", contrast))

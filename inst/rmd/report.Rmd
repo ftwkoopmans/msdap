@@ -489,7 +489,7 @@ if(length(l_contrast) > 0) {
 
 
 ```{r, echo=F, message=F, warning=F, results="asis"} 
-if(exists("tib_report_stats_summary")) {
+if(exists("tib_report_stats_summary") && nrow(tib_report_stats_summary) > 0) {
   cat("\n\\newpage \n# Summary of differential testing \n\n")
   cat("Differential Expression Analysis: number of proteins found statistically significant. \n\n")
   #  The number of hits after optional post-hoc filtering by (absolute) foldchange is also shown.
@@ -504,7 +504,7 @@ if(exists("tib_report_stats_summary")) {
   cat('\\bigskip \n\n')
   cat('\\bigskip \n\n')
   cat("Differential Detection: prioritize proteins with more peptide detections in some group. A simple metric to complement results from DEA, which is the main result (eg; consider proteins with too few data points for DEA). \n\n")
-  if(exists("tib_report_diffdetects_summary")) {
+  if(exists("tib_report_diffdetects_summary") && nrow(tib_report_diffdetects_summary) > 0) {
     rmarkdown_xtable_custom(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", align="lp{2in}llp{3.5in}", scalebox = 0.9)
     # print(kableExtra::column_spec(knitr::kable(tib_report_diffdetects_summary, format="latex", row.names = FALSE), 4, width = "4in"))
     # print(xtable::xtable(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", scalebox = 0.8, floating = FALSE), include.rownames = FALSE, comment=FALSE)

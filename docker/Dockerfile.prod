@@ -11,11 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # install missing tinytex packages
 RUN /opt/TinyTeX/bin/*/tlmgr install ifxetex ifluatex oberdiek graphics graphics-cfg graphics-def
 
+
 # explicitly use BiocManager for Bioconductor dependencies (more robust than relying on devtools to install our Bioconductor dependencies, especially for ProtGenerics and MSnbase)
 RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'pcaMethods', 'DEqMS'), update=F, ask=F)"
 
+# specify r-project cloud server as repository and install/update selected packages (in this docker image, it'll otherwise default to mran.microsoft and for example use outdated version 1.3 of the iq package)
+# further, we need an updated version of tidyverse packages (e.g. dplyr verion 1.0 or later for newly introduced function dplyr::across() )
+RUN R -e "install.packages(c('devtools', 'tidyverse', 'iq'), repos = 'https://cloud.r-project.org')"
+
 # install msdap R package from github
-RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.7.1', upgrade = 'never')"
+RUN R -e "devtools::install_github('ftwkoopmans/msdap@0.2.8.1', upgrade = 'never')"
 
 # make sure the rstudio user can install and upgrade packages
 RUN chown -R rstudio:rstudio /usr/local/lib/R/library

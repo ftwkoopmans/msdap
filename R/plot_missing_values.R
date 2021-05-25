@@ -57,22 +57,22 @@ ggplot_peptide_detect_frequency_distribution = function(peptides, samples, inclu
   if(remove_exclude_samples) {
     tib = tib %>% filter(sample_id %in% (samples %>% filter(!exclude) %>% pull(sample_id)))
   }
+
+  n_samples = n_distinct(tib$sample_id)
+
   tib = tib %>%
     group_by(peptide_id) %>%
     summarise(identified=sum(detect), quantified=n())
 
   # summarize cumulative amounts, eg; how many peptides identified in at least N samples ?
   tib_plot = NULL
-  for(n in 1:max(tib$quantified)) {
+  for(n in 1:n_samples) {
     tib_plot = bind_rows(tib_plot, tibble(n=n, count=sum(tib$identified >= n), type="identified"))
     tib_plot = bind_rows(tib_plot, tibble(n=n, count=sum(tib$quantified >= n), type="quantified"))
   }
 
-  #
-  tib_plot = bind_rows(tib_plot,
-                       tibble(n=max(tib_plot$n), count=0, type="identified"),
-                       tibble(n=max(tib_plot$n), count=0, type="quantified")) %>%
-    mutate(n_frac = n/max(n))
+  # besides absolute counts, add the fraction of counts
+  tib_plot = tib_plot %>% mutate(n_frac = n/max(n))
 
   if(!include_quant) {
     tib_plot = tib_plot %>% filter(type == "identified")
@@ -90,6 +90,7 @@ ggplot_peptide_detect_frequency_distribution = function(peptides, samples, inclu
     scale_y_continuous(labels = scales::percent_format(), limits=c(0,1),
                        # sec.axis = dup_axis(name = "Number of samples", labels = function(x) {x * max(tib_plot$n)} )) +
                        sec.axis = sec_axis(~. , breaks = sec_axis_breaks/max(sec_axis_breaks), labels = sec_axis_breaks, name = "Number of samples") ) +
+    coord_cartesian(xlim = c(0, max(tib_plot$count))) +
     scale_colour_discrete(labels=c(identified="identified & quantified", quantified="quantified")) +
     labs(title = "data completeness in entire dataset", y = "Fraction of samples", x = "Cumulative amount of peptides") +
     theme_bw() +
@@ -99,11 +100,13 @@ ggplot_peptide_detect_frequency_distribution = function(peptides, samples, inclu
   i5 = head(which(tib_plot$type=="identified" & tib_plot$n_frac>= 0.5), 1)
   i9 = head(which(tib_plot$type=="identified" & tib_plot$n_frac>= 0.9), 1)
   if(length(i5) == 1) {
-    p = p + annotate("text", size = 3.5, label = tib_plot$count[i5], x=tib_plot$count[i5], y = tib_plot$n_frac[i5], hjust=ifelse(tib_plot$count[i5]/max(tib_plot$count) > 0.15, 1.2, 0.5))
+    p = p + ggrepel::geom_text_repel(aes(label=count), data=tib_plot[i5,], size = 3.5, color="black", direction = "x", segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf, box.padding = 0.2) # optionally, only nudge labels in horizontal direction
+    # p = p + annotate("text", size = 3.5, label = tib_plot$count[i5], x=tib_plot$count[i5], y = tib_plot$n_frac[i5], hjust=ifelse(tib_plot$count[i5]/max(tib_plot$count) > 0.15, 1.2, 0.5))
     # p = p + annotate("text", label = paste0(tib_plot$count[i5], ", ", tib_plot$n[i5]), x=tib_plot$count[i5], y = tib_plot$n_frac[i5], hjust=1.1)
   }
   if(length(i9) == 1) {
-    p = p + annotate("text", size = 3.5, label = tib_plot$count[i9], x=tib_plot$count[i9], y = tib_plot$n_frac[i9], hjust=ifelse(tib_plot$count[i9]/max(tib_plot$count) > 0.15, 1.2, 0.5))
+    p = p + ggrepel::geom_text_repel(aes(label=count), data=tib_plot[i9,], size = 3.5, color="black", direction = "x", segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf, box.padding = 0.2)
+    # p = p + annotate("text", size = 3.5, label = tib_plot$count[i9], x=tib_plot$count[i9], y = tib_plot$n_frac[i9], hjust=ifelse(tib_plot$count[i9]/max(tib_plot$count) > 0.15, 1.2, 0.5))
     # p = p + annotate("text", label = paste0(tib_plot$count[i9], ", ", tib_plot$n[i9]), x=tib_plot$count[i9], y = tib_plot$n_frac[i9], hjust=1.1)
   }
 
@@ -111,12 +114,14 @@ ggplot_peptide_detect_frequency_distribution = function(peptides, samples, inclu
   if(include_quant) {
     q5 = head(which(tib_plot$type=="quantified" & tib_plot$n_frac>= 0.5), 1)
     q9 = head(which(tib_plot$type=="quantified" & tib_plot$n_frac>= 0.9), 1)
-    if(length(q5) == 1) {
-      p = p + annotate("text", size = 3.5, label = tib_plot$count[q5], x=tib_plot$count[q5], y = tib_plot$n_frac[q5], hjust=ifelse(tib_plot$count[q5]/max(tib_plot$count) < 0.85, -0.2, 0.5))
+    if(length(q5) == 1 && tib_plot$count[i5] != tib_plot$count[q5]) {
+      p = p + ggrepel::geom_text_repel(aes(label=count), data=tib_plot[q5,], size = 3.5, color="black", direction = "x", segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf, box.padding = 0.2)
+      # p = p + annotate("text", size = 3.5, label = tib_plot$count[q5], x=tib_plot$count[q5], y = tib_plot$n_frac[q5], hjust=ifelse(tib_plot$count[q5]/max(tib_plot$count) < 0.85, -0.2, 0.5))
       # p = p + annotate("text", label = paste0(tib_plot$count[q5], ", ", tib_plot$n[q5]), x=tib_plot$count[q5], y = tib_plot$n_frac[q5], hjust=-0.1)
     }
-    if(length(q9) == 1) {
-      p = p + annotate("text", size = 3.5, label = tib_plot$count[q9], x=tib_plot$count[q9], y = tib_plot$n_frac[q9], hjust=ifelse(tib_plot$count[q9]/max(tib_plot$count) < 0.85, -0.2, 0.5))
+    if(length(q9) == 1 && tib_plot$count[i9] != tib_plot$count[q9]) {
+      p = p + ggrepel::geom_text_repel(aes(label=count), data=tib_plot[q9,], size = 3.5, color="black", direction = "x", segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf, box.padding = 0.2)
+      # p = p + annotate("text", size = 3.5, label = tib_plot$count[q9], x=tib_plot$count[q9], y = tib_plot$n_frac[q9], hjust=ifelse(tib_plot$count[q9]/max(tib_plot$count) < 0.85, -0.2, 0.5))
       # p = p + annotate("text", label = paste0(tib_plot$count[q9], ", ", tib_plot$n[q9]), x=tib_plot$count[q9], y = tib_plot$n_frac[q9], hjust=-0.1)
     }
   }
