@@ -143,7 +143,7 @@ plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, s
       } else {
         p_labeled = p +
           geom_point(aes(shape = I(ifelse(exclude & pch_as_exclude, 0, 21)))) +
-          ggrepel::geom_text_repel(show.legend = FALSE, size = 2, segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), na.rm = TRUE, max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf, box.padding = 0.2)
+          ggrepel::geom_text_repel(show.legend = FALSE, size = 2, segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), na.rm = TRUE, max.iter = 10000, seed = 123, box.padding = 0.2)
         # ggrepel::geom_text_repel(vjust = -0.5, show.legend = FALSE, size = 2, segment.alpha = .3, min.segment.length = unit(0.2, 'lines'), na.rm = TRUE, max.iter = 10000, max.time = 2, seed = 123, max.overlaps = Inf)
       }
 

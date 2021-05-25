@@ -517,10 +517,10 @@ if(exists("tib_report_stats_summary") && nrow(tib_report_stats_summary) > 0) {
 
 
 <!-- same color-coding as used in R console output, defined in function: log_type_to_color() -->
-\definecolor{textColorRed}{HTML}{cc2516}
-\definecolor{textColorBlue}{HTML}{04368c}
-\definecolor{textColorSuccess}{HTML}{018023}
-\definecolor{textColorGray}{HTML}{555555}
+\definecolor{textColorRed}{RGB}{204,37,22}
+\definecolor{textColorBlue}{RGB}{4,54,140}
+\definecolor{textColorSuccess}{RGB}{1,128,35}
+\definecolor{textColorGray}{RGB}{85,85,85}
 
 ```{r, results = 'asis', echo = F}
 if(exists("log_") && length(log_) > 0) {
