@@ -8,7 +8,7 @@ generate_pdf_report(
   dataset,
   output_dir,
   norm_algorithm = "vwmb",
-  pca_label_samples_by_shortname = NA
+  pca_sample_labels = "auto"
 )
 }
 \arguments{
@@ -18,7 +18,7 @@ generate_pdf_report(
 
 \item{norm_algorithm}{normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively}
 
-\item{pca_label_samples_by_shortname}{whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)}
+\item{pca_sample_labels}{see plot_sample_pca() function for params}
 }
 \description{
 Normally used as part of the analysis_quickstart() function, refer to its implementation for example code.

@@ -2,13 +2,13 @@
 % Please edit documentation in R/util_files.R
 \name{remove_file_if_exists}
 \alias{remove_file_if_exists}
-\title{placeholder title}
+\title{remove file if exists}
 \usage{
 remove_file_if_exists(f)
 }
 \arguments{
-\item{f}{todo}
+\item{f}{full path to some file}
 }
 \description{
-placeholder title
+remove file if exists
 }

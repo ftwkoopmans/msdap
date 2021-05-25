@@ -2,15 +2,15 @@
 % Please edit documentation in R/util_files.R
 \name{path_exists}
 \alias{path_exists}
-\title{placeholder title}
+\title{check if a path exists}
 \usage{
 path_exists(path, file)
 }
 \arguments{
-\item{path}{todo}
+\item{path}{a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix}
 
-\item{file}{todo}
+\item{file}{filename within this directory}
 }
 \description{
-placeholder title
+check if a path exists
 }

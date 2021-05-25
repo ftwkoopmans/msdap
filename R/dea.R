@@ -1,11 +1,32 @@
 
+#' pretty-print label for an intensity column
+#' @param col todo
+column_intensity_to_label = function(col) {
+  ref = c("global data filter" = "intensity_all_group",
+          "custom filtering and normalization" = "intensity_norm",
+          "filter by group independently" = "intensity_by_group",
+          "input data as-is" = "intensity")
+  i = match(col, ref)
+  if(!is.na(i)) {
+    return(names(ref[i]))
+  }
+
+  if(grepl("^intensity_contrast:", col)) {
+    return(paste0("filter by contrast;", sub("^intensity_contrast:", "", col)))
+  }
+
+  return(col)
+}
+
+
+
 #' returns named variable variable (label=column_name) indicating which type of intensity data is used
 #' @param peptides todo
 #' @param contr_lbl todo
 get_column_intensity = function(peptides, contr_lbl = NA) {
   ref = c("filter by contrast" = paste0("intensity_", contr_lbl),
           "global data filter" = "intensity_all_group",
-          "custom filtered/normalized" = "intensity_norm",
+          "custom filtering and normalization" = "intensity_norm",
           "input data as-is" = "intensity")
   return(ref[ref %in% colnames(peptides)][1])
 }
@@ -15,12 +36,11 @@ get_column_intensity = function(peptides, contr_lbl = NA) {
 #' Differential expression analysis
 #'
 #' @param dataset your dataset
-#' @param qval_signif threshold for significance of adjusted p-values. default: 0.05
-#' @param fc_signif threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
+#' @param qval_signif threshold for significance of adjusted p-values
+#' @param fc_signif threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
 #' @param algo_de algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)
-#' @param algo_rollup strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein
-#' @param output_dir_for_eset optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that required this data
-#' @importFrom diann diann_maxlfq
+#' @param algo_rollup strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()
+#' @param output_dir_for_eset optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that requires this data
 #' @export
 dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", algo_rollup = "maxlfq", output_dir_for_eset = "") {
   ### input validation
@@ -32,8 +52,8 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     append_log("log2 foldchange threshold must be a single numerical value or NA (parameter fc_signif)", type = "error")
   }
 
-  if (length(algo_rollup) != 1 || ! algo_rollup %in% c("sum", "ipl", "maxlfq")) {
-    append_log("algo_rollup parameter only supports 'sum', 'maxlfq' and 'ipl' (the latter is experimental)", type = "error")
+  if (length(algo_rollup) != 1 || ! algo_rollup %in% c("sum", "maxlfq_diann", "maxlfq")) {
+    append_log("algo_rollup parameter only supports 'sum', 'maxlfq' and 'maxlfq_diann'", type = "error")
   }
 
 
@@ -65,9 +85,10 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
   ### data checks out
   # for computational efficiency, check whether we need protein-level data in any of the statistical models (eg; even is MaxLFQ is used as the rollup strategy, we don't want to wait for that if we are only doing msqrob)
   need_protein_rollup = any(! algo_de %in% c("msqrob","msempire"))
-  if(need_protein_rollup) {
+  # if(need_protein_rollup) {
     append_log(paste("peptide to protein rollup strategy:", algo_rollup), type = "info")
-  }
+  # }
+
   # remove preexisting results
   dataset$de_proteins = NULL
   # init result tibble
@@ -75,7 +96,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
 
   ### iterate contrasts
   for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-    append_log(paste("differential abundance analysis for", col_contr), type = "info")
+    append_log(paste("differential expression analysis for", col_contr), type = "info")
 
     # returns named variable variable (label=column_name) indicating which type of intensity data is used
     col_contr_intensity = get_column_intensity(dataset$peptides, col_contr)
@@ -120,43 +141,52 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
 
 
     ## convert our long-format peptide table to a peptide- and protein-level ExpressionSet
+    # subset peptide tibble for current contrast
     peptides_for_contrast = dataset$peptides %>%
       select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity)) %>%
       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
-
+    # peptide ExpressionSet
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
-    eset_proteins = NULL
-    if(need_protein_rollup) {
-      # depending on the peptide-to-protein rollup strategy, combine peptides to protein (eg; summation, maxlfq, etc.)
-      if(algo_rollup == "maxlfq") {
-        start_time_maxlfq = Sys.time()
-        # maxlfq will crash on zero values. we simply threshold at 1, _assuming_ upstream data providers (eg; intensity values from user input dataset) are well above zero and any incidental value < 1 is caused by normalization of values that were already near zero
-        peptides_for_contrast$intensity[!is.na(peptides_for_contrast$intensity) & peptides_for_contrast$intensity < 1] = 1
-        # use the MaxLFQ implementation provided by the DIA-NN team
-        x = diann::diann_maxlfq(peptides_for_contrast, sample.header = "sample_id", group.header="protein_id", id.header = "peptide_id", quantity.header = "intensity")
-        x = x[, colnames(MSnbase::exprs(eset_peptides))] # align data matrix with the peptide-level ExpressionSet
-        eset_proteins = protein_eset_from_data(x, eset = eset_peptides) # wrap the protein*sample abundance matrix in an ExpressionSet, re-using metadata from the peptide-level ExpressionSet
-        rm(x)
-        append_log_timestamp("peptide to protein rollup with MaxLFQ", start_time_maxlfq) # maxlfq is pretty slow, so print timer to console so the users are aware this is a time consuming step
-      } else {
-        eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = algo_rollup)
-      }
+    # rollup peptide abundance matrix to protein-level
+    m = rollup_pep2prot(peptides_for_contrast, intensity_is_log2 = T, algo_rollup = algo_rollup, return_as_matrix = T)
+    # align columns with peptide-level ExpressionSet
+    m = m[,match(colnames(Biobase::exprs(eset_peptides)), colnames(m)),drop=F] # use match() instead of direct key/string-based indexing because some samples may have names like 1,2,3,4 (eg; if key_sample is used for column names instead of sample_id, as we do in filter_dataset() )
+    # protein ExpressionSet
+    eset_proteins = protein_eset_from_data(m, eset = eset_peptides)
+    rm(m)
 
-      ## test code; optionally, normalize after non-standard rollup. very similar results when applying modebetween_protein on peptide-level data prior
-      # if(algo_rollup == "ipl") {
-      #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "vwmb", mask_sample_groups = Biobase::pData(eset_proteins)$condition)
-      # }
-      # if(algo_rollup == "maxlfq") {
-      #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "modebetween", mask_sample_groups = Biobase::pData(eset_proteins)$condition) # post-hoc correction between groups
-      # }
-    } else {
-      eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = "sum")
-    }
+    # eset_proteins = NULL
+    # if(need_protein_rollup) {
+    #   # depending on the peptide-to-protein rollup strategy, combine peptides to protein (eg; summation, maxlfq, etc.)
+    #   if(algo_rollup == "maxlfq") {
+    #     start_time_maxlfq = Sys.time()
+    #     # maxlfq will crash on zero values. we simply threshold at 1, _assuming_ upstream data providers (eg; intensity values from user input dataset) are well above zero and any incidental value < 1 is caused by normalization of values that were already near zero
+    #     peptides_for_contrast$intensity[!is.na(peptides_for_contrast$intensity) & peptides_for_contrast$intensity < 1] = 1
+    #     # use the MaxLFQ implementation provided by the DIA-NN team
+    #     x = diann::diann_maxlfq(peptides_for_contrast, sample.header = "sample_id", group.header="protein_id", id.header = "peptide_id", quantity.header = "intensity")
+    #     x = x[, colnames(MSnbase::exprs(eset_peptides))] # align data matrix with the peptide-level ExpressionSet
+    #     eset_proteins = protein_eset_from_data(x, eset = eset_peptides) # wrap the protein*sample abundance matrix in an ExpressionSet, re-using metadata from the peptide-level ExpressionSet
+    #     rm(x)
+    #     append_log_timestamp("peptide to protein rollup with MaxLFQ", start_time_maxlfq) # maxlfq is pretty slow, so print timer to console so the users are aware this is a time consuming step
+    #   } else {
+    #     eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = algo_rollup)
+    #   }
+    #
+    #   ## test code; optionally, normalize after non-standard rollup. very similar results when applying modebetween_protein on peptide-level data prior
+    #   # if(algo_rollup == "ipl") {
+    #   #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "vwmb", mask_sample_groups = Biobase::pData(eset_proteins)$condition)
+    #   # }
+    #   # if(algo_rollup == "maxlfq") {
+    #   #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "modebetween", mask_sample_groups = Biobase::pData(eset_proteins)$condition) # post-hoc correction between groups
+    #   # }
+    # } else {
+    #   eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = "sum")
+    # }
 
     # if a directory for file storage was provided, store eset in a .RData file
     if(length(output_dir_for_eset) == 1 && !is.na(output_dir_for_eset) && nchar(output_dir_for_eset)>0 && dir.exists(output_dir_for_eset)) {
-      save(eset_peptides, file=paste0(output_dir_for_eset, "/ExpressionSet_peptides_", gsub("\\W+", " ", col_contr), ".RData"), compress = T)
-      save(eset_proteins, file=paste0(output_dir_for_eset, "/ExpressionSet_proteins_", gsub("\\W+", " ", col_contr), ".RData"), compress = T)
+      save(eset_peptides, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_peptides_", gsub("\\W+", " ", col_contr), ".RData")), compress = T)
+      save(eset_proteins, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_proteins_", gsub("\\W+", " ", col_contr), ".RData")), compress = T)
     }
 
     contr_fc_signif = fc_signif
@@ -183,7 +213,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
           alg_matched = T
         }
         if (alg == "msempire") {
-          tib = bind_rows(tib, de_msempire(eset_peptides, input_intensities_are_log2 = T))
+          tib = bind_rows(tib, de_msempire(eset_peptides, input_intensities_are_log2 = T)) # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
           alg_matched = T
         }
         if (alg == "msqrob") {
@@ -200,19 +230,19 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
           alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
           # validation checks on expected output, to facilitate debugging/feedback for custom implementations
           if(!is_tibble(alg_result) || nrow(alg_result) == 0 || !all(c("protein_id", "pvalue", "qvalue", "foldchange.log2", "algo_de") %in% colnames(alg_result))) {
-            append_log(sprintf("provided custom function for differential abundance analysis '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|algo_de", alg), type = "error")
+            append_log(sprintf("provided custom function for differential expression analysis '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|algo_de", alg), type = "error")
           }
           alg_result_name = unique(alg_result$algo_de)
           if(length(alg_result_name) != 1 || !is.character(alg_result_name) || nchar(alg_result_name) < 2 || alg_result_name %in% c("ebayes", "msempire", "msqrob", "msqrobsum", "combined")) {
-            append_log(sprintf("provided custom function for differential abundance analysis '%s' contains invalid values in algo_de column (must be a single non-empty character string uniquely indicating the name/label of your method. cannot be either of ebayes|msempire|msqrob|msqrobsum|combined)", alg), type = "error")
+            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in algo_de column (must be a single non-empty character string uniquely indicating the name/label of your method. cannot be either of ebayes|msempire|msqrob|msqrobsum|combined)", alg), type = "error")
           }
           if(!all(!is.na(alg_result$protein_id) & alg_result$protein_id %in% peptides_for_contrast$protein_id)) {
-            append_log(sprintf("provided custom function for differential abundance analysis '%s' contains invalid values in protein_id column (either NA or not found in provided data structures)", alg), type = "error")
+            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in protein_id column (either NA or not found in provided data structures)", alg), type = "error")
           }
           if(!all( (is.na(alg_result$pvalue) | is.numeric(alg_result$pvalue)) &
                    (is.na(alg_result$qvalue) | is.numeric(alg_result$qvalue)) &
                    (is.na(alg_result$foldchange.log2) | is.numeric(alg_result$foldchange.log2)) ))  {
-            append_log(sprintf("provided custom function for differential abundance analysis '%s' contains invalid values in pvalue|qvalue|foldchange.log2 columns (can only be NA or numeric)", alg), type = "error")
+            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in pvalue|qvalue|foldchange.log2 columns (can only be NA or numeric)", alg), type = "error")
           }
           # finally, concatenate results
           tib = bind_rows(tib, alg_result)

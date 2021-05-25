@@ -73,11 +73,27 @@ normalize_matrix = function(x_as_log2, algorithm, mask_sample_groups = NA, rows_
       append_log("'modebetween_protein' normalization requires an array of protein identifiers (not NA or empty string), equal to the number of rows of the peptide matrix, that will be used for peptide-to-protein rollup", type = "error")
     }
 
-    # rollup
-    x_as_log2__rollup = suppressMessages(as_tibble(2^x_as_log2, .name_repair = "universal") %>% replace(is.na(.), 0) %>% add_column(protein_id=rows_group_by) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA) %>% select(-protein_id) %>% log2 %>% as.matrix)
+    ## rollup
+    # from peptide matrix to long-format tibble
+    x_as_log2_tib = as_tibble(x_as_log2) %>%
+      add_column(peptide_id=1:nrow(x_as_log2),
+                 protein_id=rows_group_by) %>%
+      tidyr::pivot_longer(cols = c(-protein_id, -peptide_id), names_to = "sample_id", values_to = "intensity") %>%
+      filter(is.finite(intensity) & intensity > 0)
+    # rollup by MaxLFQ
+    x_as_log2__rollup = rollup_pep2prot_maxlfq(x_as_log2_tib, intensity_is_log2 = TRUE, implementation = "iq", return_as_matrix = TRUE)
+
+    # x_as_log2__rollup = rollup_pep2prot_summation(x_as_log2_tib, intensity_is_log2 = TRUE, return_as_matrix = TRUE)
+    # oneliner for summation-based rollup; x_as_log2__rollup = suppressMessages(as_tibble(2^x_as_log2, .name_repair = "universal") %>% replace(is.na(.), 0) %>% add_column(protein_id=rows_group_by) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA) %>% select(-protein_id) %>% log2 %>% as.matrix)
+
+    # importantly, enforce consistent column order to preserve aligned with sample-to-group assignments
+    stopifnot(ncol(x_as_log2) == ncol(x_as_log2__rollup) && all(colnames(x_as_log2) %in% colnames(x_as_log2__rollup)))
+    x_as_log2__rollup = x_as_log2__rollup[,match(colnames(x_as_log2), colnames(x_as_log2__rollup)),drop=F] # use match() instead of direct key/string-based indexing because some samples may have names like 1,2,3,4 (eg; if key_sample is used for column names instead of sample_id, as we do in filter_dataset() )
+
     # vwmb + param to return scaling factors
     x_as_log2__rollup = normalize_vwmb(x_as_log2__rollup, groups=mask_sample_groups, metric_within = "", include_attributes = TRUE) # disable within-group normalization
     scale_per_sample = attr(x_as_log2__rollup, "scaling")
+
     # apply scaling factors, determined through normalization on protein-level, to peptide-level (simple loop is more efficient than transpose+scale+transpose)
     for(j in seq_along(scale_per_sample)) {
       x_as_log2[,j] = x_as_log2[,j] - scale_per_sample[j]

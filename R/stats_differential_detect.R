@@ -143,18 +143,22 @@ differential_detect = function(dataset, min_samples_observed = 3) { #, threshold
         left_join(nsample_observed_max, by = "key_protein")
 
       # only proteins that pass user-specified filtering criteria; at least detected in N samples in either condition 1 or 2
-      x_contr_score_scaled = x_contr_score_scaled %>% filter(is.finite(nmax) & nmax >= min_samples_observed)
+      min_samples_observed__limit = min(min_samples_observed, length(g1), length(g2))
+      x_contr_score_scaled = x_contr_score_scaled %>% filter(is.finite(nmax) & nmax >= min_samples_observed__limit)
 
-      # log2 scaled foldchange, padding each condition with minimum non-zero score (to deal with zero cases)
-      zratio_scaled = log2(x_contr_score_scaled$`2` + min(x_contr_score_scaled$`2`[x_contr_score_scaled$`2` != 0])) -
-        log2(x_contr_score_scaled$`1` + min(x_contr_score_scaled$`1`[x_contr_score_scaled$`1` != 0]))
+      if(nrow(x_contr_score_scaled) > 0) {
+        # log2 scaled foldchange, padding each condition with minimum non-zero score (to deal with zero cases)
+        zratio_scaled = log2(x_contr_score_scaled$`2` + min(x_contr_score_scaled$`2`[x_contr_score_scaled$`2` != 0])) -
+          log2(x_contr_score_scaled$`1` + min(x_contr_score_scaled$`1`[x_contr_score_scaled$`1` != 0]))
 
-      # standardize score
-      z_scaled = zratio_scaled - mean(zratio_scaled, na.rm = T)
-      z_scaled = z_scaled / sd(z_scaled, na.rm = T)
+        # standardize score
+        z_scaled = zratio_scaled - mean(zratio_scaled, na.rm = T)
+        z_scaled = z_scaled / sd(z_scaled, na.rm = T)
 
-      tib_results = bind_rows(tib_results,
-                              tibble(key_protein = x_contr_score_scaled$key_protein, zscore_count=z_scaled, contrast=col_contr, type=type_detect_quant)) # , zscore_count=z_noscale, zscore_count_candidate=z_candidate_noscale
+        tib_results = bind_rows(tib_results,
+                                tibble(key_protein = x_contr_score_scaled$key_protein, zscore_count=z_scaled, contrast=col_contr, type=type_detect_quant)) # , zscore_count=z_noscale, zscore_count_candidate=z_candidate_noscale
+      }
+
 
       ################ v1
       # ## differential detect score; score*condition in wide format, then compute z-score
@@ -209,13 +213,16 @@ differential_detect = function(dataset, min_samples_observed = 3) { #, threshold
     }
   }
 
-  tib = tidyr::pivot_wider(tib_results, id_cols = c("key_protein", "contrast"), names_from = "type", names_prefix = "zscore_count_", values_from = "zscore_count") # , "zscore_count_candidate"
+  if(nrow(tib_results) > 0) {
+    tib = tidyr::pivot_wider(tib_results, id_cols = c("key_protein", "contrast"), names_from = "type", names_prefix = "zscore_count_", values_from = "zscore_count") # , "zscore_count_candidate"
 
-  # finally, replace the "key" we use internally (faster to match integers all the time) with the actual protein_id
-  tib$protein_id = dataset$peptides$protein_id[match(tib$key_protein, dataset$peptides$key_protein)]
+    # finally, replace the "key" we use internally (faster to match integers all the time) with the actual protein_id
+    tib$protein_id = dataset$peptides$protein_id[match(tib$key_protein, dataset$peptides$key_protein)]
 
-  # reorder column names
-  dataset$dd_proteins = tib %>% select(protein_id, key_protein, contrast, dplyr::starts_with("zscore"))
+    # reorder column names
+    dataset$dd_proteins = tib %>% select(protein_id, key_protein, contrast, dplyr::starts_with("zscore"))
+  }
+
   return(dataset)
 
   # debug; print(tib %>% filter(contrast==column_contrasts[2] & zscore_count_candidate) %>% arrange(desc(abs(zscore_count))) %>% left_join(dataset$proteins), n=50)
@@ -244,8 +251,12 @@ diffdetect_results_to_wide = function(dataset) {
     left_join(dataset$groups %>% select(key_group, group), by="key_group") %>%
     tidyr::pivot_wider(id_cols = "key_protein", names_from = "group", names_sep = "__", values_from = c("count_peptides_detected_within_group", "count_peptides_quantified_within_group"), values_fill = list(count_peptides_detected_within_group=0, count_peptides_quantified_within_group=0))
 
+  # bugfix
+  # account for default behaviour by tidyr::pivot_wider()  -->>  if there is just 1 "values_from" column, the names are not prefixed but if there are multiple (eg. both detect and quant scores), the input column names are prefixed
+  # we always want this "prefix" because in current implementation, for DIA we only have "zscore_count_detect" while for DDA we get both detect and quant z-scores
+  # solution: `names_glue` parameter
   tib_zscores = dataset$dd_proteins %>%
-    tidyr::pivot_wider(id_cols = "key_protein", names_from = "contrast", values_from = intersect(c("zscore_count_detect", "zscore_count_quant"), colnames(dataset$dd_proteins)) )
+    tidyr::pivot_wider(id_cols = "key_protein", names_from = "contrast", names_glue = "{.value}__{contrast}", values_from = intersect(c("zscore_count_detect", "zscore_count_quant"), colnames(dataset$dd_proteins)) )
 
 
   tib_result = full_join(tib_counts, tib_zscores, by="key_protein")

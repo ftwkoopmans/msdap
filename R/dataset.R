@@ -29,15 +29,21 @@ dataset_contrasts = function(dataset) {
 #' @export
 print_dataset_summary = function(dataset) {
   ### report some basic stats
-  cat(sprintf("%d samples (of which %d marked as 'exclude' by user) in %d sample groups; %s\n",
-              nrow(dataset$samples), sum(dataset$samples$exclude), n_distinct(dataset$samples$group), paste(unique(dataset$samples$group), collapse=", ") ))
+  if("samples" %in% names(dataset)) {
+    cat(sprintf("%d samples (of which %d marked as 'exclude' by user) in %d sample groups; %s\n",
+                nrow(dataset$samples), sum(dataset$samples$exclude), n_distinct(dataset$samples$group), paste(unique(dataset$samples$group), collapse=", ") ))
+  }
 
-  if("intensity_all_group" %in% colnames(dataset$peptides)) {
+  if("peptides" %in% names(dataset) && "intensity_all_group" %in% colnames(dataset$peptides)) {
     cat(sprintf("%d peptides from %d proteins, of which %d peptides pass user-defined filter criteria in all sample groups ('exclude' samples disregarded)\n",
                 n_distinct(dataset$peptides$peptide_id), n_distinct(dataset$peptides$protein_id), n_distinct(dataset$peptides$peptide_id[!is.na(dataset$peptides$intensity_all_group)]) ))
   } else {
     cat(sprintf("%d peptides from %d proteins\n",
                 n_distinct(dataset$peptides$peptide_id), n_distinct(dataset$peptides$protein_id) ))
+  }
+
+  if(!"samples" %in% names(dataset)) {
+    return(invisible(NULL))
   }
 
   column_contrasts = dataset_contrasts(dataset)
@@ -111,9 +117,17 @@ print_dataset_summary = function(dataset) {
 #' @param dataset dataset to validate
 #' @export
 check_dataset_integrity = function(dataset) {
+  if(!is.list(dataset)) {
+    append_log('the dataset should be a "list" type', type = "error")
+  }
+
+  if(!"samples" %in% names(dataset)) {
+    append_log("incomplete dataset object, samples are missing! Did you forget to import sample metadata using the 'import_sample_metadata()' function ?", type = "error")
+  }
+
   property_required = c("peptides","proteins","samples", "acquisition_mode")
-  if(!is.list(dataset) || !all(property_required %in% names(dataset))) {
-    append_log(paste("dataset must be a list with at least the following properties:", paste(property_required, collapse=", ")), type = "error")
+  if(!all(property_required %in% names(dataset))) {
+    append_log(paste0("dataset object is lacking the following properties:", paste(setdiff(property_required, names(dataset)), collapse=", ") ), type = "error")
   }
 
   check_valid_tibble_peptides(dataset$peptides)

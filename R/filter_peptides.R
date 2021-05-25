@@ -691,9 +691,13 @@ filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard
   # filter
   dataset$peptides[ , colname] = dataset$peptides$intensity
   if(disregard_exclude_samples) {
-    dataset$peptides[is.na(i) | dataset$dt_pep_group$nquant_noexclude[i] < nquant | dataset$dt_pep_group$ndetect_noexclude[i] < ndetect, colname] <- NA
+    # update: if criterium is larger than group-size, limit to group-size (eg; nquant=3 while only 2 samples in group)
+    dataset$peptides[!is.finite(i) | dataset$dt_pep_group$nquant_noexclude[i] < pmin(dataset$dt_pep_group$size_noexclude[i], nquant) | dataset$dt_pep_group$ndetect_noexclude[i] < pmin(dataset$dt_pep_group$size_noexclude[i], ndetect), colname] <- NA
+    # dataset$peptides[is.na(i) | dataset$dt_pep_group$nquant_noexclude[i] < nquant | dataset$dt_pep_group$ndetect_noexclude[i] < ndetect, colname] <- NA
   } else {
-    dataset$peptides[is.na(i) | dataset$dt_pep_group$nquant[i] < nquant | dataset$dt_pep_group$ndetect[i] < ndetect, colname] <- NA
+    # analogous to above, but filter on all samples
+    dataset$peptides[!is.finite(i) | dataset$dt_pep_group$nquant[i] < pmin(dataset$dt_pep_group$size[i], nquant) | dataset$dt_pep_group$ndetect[i] < pmin(dataset$dt_pep_group$size[i], ndetect), colname] <- NA
+    # dataset$peptides[is.na(i) | dataset$dt_pep_group$nquant[i] < nquant | dataset$dt_pep_group$ndetect[i] < ndetect, colname] <- NA
   }
 
   # normalize

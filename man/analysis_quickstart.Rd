@@ -19,8 +19,8 @@ analysis_quickstart(
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
   diffdetect_min_samples_observed = 3,
-  plot_pca_label_by_shortname = NA,
-  output_abundance_tables = FALSE,
+  pca_sample_labels = "auto",
+  output_abundance_tables = TRUE,
   output_qc_report = TRUE,
   output_dir,
   output_within_timestamped_subdirectory = TRUE,
@@ -28,7 +28,7 @@ analysis_quickstart(
 )
 }
 \arguments{
-\item{dataset}{a valid dataset object generated upstream by, for instance, import_dataset_skyline}
+\item{dataset}{a valid dataset object generated upstream by an MS-DAP import function. For instance, import_dataset_skyline() or import_dataset_maxquant_evidencetxt()}
 
 \item{filter_min_detect}{in order for a peptide to 'pass' in a sample group, in how many replicates must it be detected?}
 
@@ -38,38 +38,39 @@ analysis_quickstart(
 
 \item{filter_fraction_quant}{in order for a peptide to 'pass' in a sample group, what fraction of replicates must it be quantified?}
 
-\item{filter_min_peptide_per_prot}{in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters?}
+\item{filter_min_peptide_per_prot}{in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters? 1 is default, but 2 can be a good choice situationally (eg; to not rely on proteins with just 1 quantified peptide)}
 
-\item{filter_topn_peptides}{maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates). 1 is default, 2 can be a good choice situationally. If set to 1, make sure to inspect individual peptide data/plots for proteins with 1 peptide.}
+\item{filter_topn_peptides}{maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates).}
 
 \item{filter_by_contrast}{should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately.}
 
 \item{norm_algorithm}{normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero}
 
-\item{dea_protein_rollup}{strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein}
+\item{dea_protein_rollup}{strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()}
 
 \item{dea_algorithm}{algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)}
 
-\item{dea_qvalue_threshold}{threshold for significance of adjusted p-values in figures and output tables}
+\item{dea_qvalue_threshold}{threshold for significance of adjusted p-values in figures and output tables. Output tables will also include all q-values as-is}
 
-\item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0}
+\item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA}
 
 \item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
 
-\item{plot_pca_label_by_shortname}{whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)}
+\item{pca_sample_labels}{whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let the code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)}
 
-\item{output_abundance_tables}{whether to create an Excel document with all peptide abundances, with multiple sheets indicating results from all filters applied. For large datasets this results in huge files, so only recommended for small datasets. options: FALSE, TRUE}
+\item{output_abundance_tables}{whether to write protein-level data matrices to file. options: FALSE, TRUE}
 
-\item{output_qc_report}{whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE. Set to FALSE to skip the report PDF (eg; to just do statistics and skip the time-consuming report creation)}
+\item{output_qc_report}{whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE (default). Set to FALSE to skip the report PDF (eg; to only do differential expression analysis and skip the time-consuming report creation)}
 
-\item{output_dir}{output directory where all output files are stored, must be an existing directory}
+\item{output_dir}{output directory where all output files should be stored. If not an existing directory, it will be created}
 
-\item{output_within_timestamped_subdirectory}{optionally, automatically create a subdirectory (without output_dir) that has the current date&time as name and store results there}
+\item{output_within_timestamped_subdirectory}{optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there. options: FALSE, TRUE}
 
 \item{dump_all_data}{if you're interested in performing custom bioinformatic analyses and want to use any of the data generated by this tool, you can dump all intermediate files to disk. Has performance impact so don't enable by default. options: FALSE, TRUE}
 }
 \description{
-all-in-one function that covers the vast majority of use-cases. Typically, this function is all you need (besides importing your data upstream).
+all-in-one function that covers the vast majority of use-cases of analyzing a dataset imported into MS-DAP.
+(assuming you already loaded peptide data, sample metadata and fasta files using MS-DAP import functions).
 }
 \section{Filtering}{
 
@@ -86,7 +87,7 @@ If there are only 3 replicates, we recommend filtering such that there are at le
 Taken together, recommended settings for a DDA dataset with 3~8 replicates in each sample group look like this;
 
 \code{
-filter_min_detect = 1, filter_fraction_detect = 0.25, filter_min_quant = 3, filter_fraction_quant = 0.75
+filter_min_detect = 1 (or zero to fully rely on MBR), filter_fraction_detect = 0.25 (or zero to fully rely on MBR), filter_min_quant = 3, filter_fraction_quant = 0.75
 }
 
 Analogous for DIA;
@@ -120,14 +121,14 @@ Note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as bo
 
 \section{Normalization}{
 
-options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween".
+normalization algorithms are applied to the peptide-level data matrix.
+options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
 
 You can combine normalizations by providing an array of options to apply subsequential normalizations.
 
-For instance, \code{norm_algorithm = c("vsn", "modebetween")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group foldchanges with the modebetween normalization from the vwmb algorithm.
+For instance, \code{norm_algorithm = c("vsn", "modebetween_protein")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group protein-level foldchanges with modebetween normalization.
 
-By default uses the built-in normalization algorithm Variation Within, Mode Between (vwmb).
-Benchmarks have shown that vsn&modebetween (code example above) is a great alternative to consider.
+Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the optimal strategies, see MS-DAP manuscript.
 }
 
 \section{Differential Expression Analysis}{
@@ -141,11 +142,9 @@ MS-EmpiRe a peptide-level model that works especially well for DDA data. Referen
 
 eBayes is robust but conservative, using the limma package to apply moderated t-tests on protein-level abundances. Reference: https://doi.org/doi:10.18129/B9.bioc.limma
 
-options: ebayes, msempire, msqrob (to run multiple, provide an array)
+options: ebayes, deqms, msempire, msqrob, msqrobsum
 
-Users are encouraged to simply run all statistical models and consider the set of candidate proteins that pop up in multiple approaches. Output tables already contain columns to convenience this approach, if 3 DEA algorithms have been selected.
-e.g.; \code{dea_algorithm = c("ebayes", "msempire", "msqrob")}
-
-All statistical results are shown in the QC report and output tables and can be easily compared.
+You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
+e.g.; \code{dea_algorithm = c("ebayes", "deqms", "msempire", "msqrob")}
 }
 

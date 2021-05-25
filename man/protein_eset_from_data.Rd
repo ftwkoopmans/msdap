@@ -2,15 +2,15 @@
 % Please edit documentation in R/util_expressionset.R
 \name{protein_eset_from_data}
 \alias{protein_eset_from_data}
-\title{Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample}
+\title{Construct an ExpressionSet}
 \usage{
 protein_eset_from_data(x, eset)
 }
 \arguments{
-\item{eset_peptides}{A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes}
+\item{x}{protein abundance matrix}
 
-\item{mode}{roll-up strategy}
+\item{eset}{A Biobase ExpressionSet with protein_id and sample_id metadata}
 }
 \description{
-Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
+Construct an ExpressionSet
 }

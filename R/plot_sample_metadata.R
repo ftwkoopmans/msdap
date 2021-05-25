@@ -51,33 +51,33 @@ sample_color_coding = function(samples) {
   result = tibble()
   count = 0
   count_continuous = 0
+  samples_rows_exclude = rep("exclude" %in% colnames(samples), nrow(samples))  &  toupper(samples$exclude) %in% c("1", "TRUE")
+
   for (i in seq_along(sample_properties)) {
     prop = sample_properties[i]
     # values to color-code
     val = val_orig = samples %>% select(!!prop) %>% pull()
-    uval = unique(val)
+    uval = na.omit(unique(val))
     sample_id = samples$sample_id
 
     # if not color-coding group/exclude, we skip if there is nothing to color-code
-    if(length(uval) == 1 && !prop %in% c("group", "exclude")) {
+    if(length(uval) < 2 && !prop %in% c("group", "exclude")) {
       # note; if we want these datapoints in the result table, add an entry here with some default color so downstream code that cycles the palettes is not triggered
       next
     }
 
-    prop_is_numeric = !prop %in% c("group", "exclude") && suppressWarnings(all(is.finite(as.numeric(uval))))
-    prop_is_boolean = all(!is.na(uval) & toupper(uval) %in% c("0","1","TRUE", "FALSE"))
+    prop_is_numeric = !prop %in% c("group", "exclude") && suppressWarnings(all(is.finite(as.numeric(uval)))) # since NA's are already removed from 'uval', true numeric array will contain finite values after as.numeric() conversion
+    prop_is_boolean = all(toupper(uval) %in% c("0","1","TRUE", "FALSE"))
     if(prop_is_numeric && !prop_is_boolean) {
       val = as.numeric(val)
       ## create continuous color gradient between lowest and highest value
       # cycle through color palettes; special rule for peptide/protein counts -->> hardcoded palette name
       if(grepl("(detected|all)_(peptides|proteins)", prop)) {
-        palette_index = c(which(color_pals_continuous$name=="Plasma"), 1)[1]
+        palette_index = c(which(color_pals_continuous$name=="Plasma"), 1)[1] # in case we refactor and drop "Plasma" from pallettes but forget to update this hard-code, this line doesn't break
       } else {
         palette_index = 1 + (count_continuous %% nrow(color_pals_continuous))
         count_continuous = count_continuous + 1
       }
-
-      # palette_colors = RColorBrewer::brewer.pal(9, color_pals_continuous$name[palette_index])[-1:-2] # standard color scale, but take out 2 colors closest to white
 
       # customize the HCL range a bit to prevent very bright colors (which don't work well on a white background)
       # alternatively, use each palette as-is and remove the 1~2 brightest colors
@@ -87,29 +87,38 @@ sample_color_coding = function(samples) {
         # if there is just one unique value, use the last (darkest) value in this palette
         sample_colors[,prop] = tail(palette_colors, 1)
       } else {
-        # interpolate colors to a widel palette
-        # clr = colorRampPalette(palette_colors, space = "Lab")(25)
         clr = palette_colors
-        # optionally, limit outliers/extremes
+        ## optionally, use value range from non-exclude samples to compute color breaks (eg; suppose 1 exclude samples has 0 detected peptides, colour scale goes from 0~20000 instead of 16k~20k)
         val_transformed = val
-        val_transformed[!is.finite(val_transformed) | val_transformed == 0] = NA
-        q = quantile(val_transformed, probs = c(.01, .99), na.rm = T)
-        val_transformed[is.finite(val_transformed) & val_transformed < q[1]] = q[1]
-        val_transformed[is.finite(val_transformed) & val_transformed > q[2]] = q[2]
-        # map values to colors
+        # if there are exclude sample and more than 2 non-exclude samples, set values for exclude samples (in this vector) to NA -->> they are disregarded in computing value interval downstream
+        if(any(samples_rows_exclude) && sum(!samples_rows_exclude) > 2) {
+          val_transformed[samples_rows_exclude] = NA
+        }
+        ## optionally, limit outliers/extremes
+        # val_transformed[!is.finite(val_transformed) | val_transformed == 0] = NA # remove zero's
+        val_transformed_range = quantile(val_transformed, probs = c(.01, .99), na.rm = T)
+        val_transformed[is.finite(val_transformed) & val_transformed < val_transformed_range[1]] = val_transformed_range[1]
+        val_transformed[is.finite(val_transformed) & val_transformed > val_transformed_range[2]] = val_transformed_range[2]
+        ## map values to colors
         val_cut = as.numeric(ggplot2::cut_interval(val_transformed, length(clr)))
+        # values outside the quantile-limited range are NA in val_cut -->> if respective values are not NA and not "extreme values" (100% beyond min or max), set value to min/max color index
+        val_cut[is.na(val_cut) & is.finite(val) & val < val_transformed_range[1] & (val - val_transformed_range[1])/(val_transformed_range[2]-val_transformed_range[1]) > -1 ] = 1
+        val_cut[is.na(val_cut) & is.finite(val) & val > val_transformed_range[2] & (val - val_transformed_range[2])/(val_transformed_range[2]-val_transformed_range[1]) < 1] = max(val_cut, na.rm = T)
+        # from color index to color
         val_clr = clr[val_cut]
-        val_clr[!is.finite(val_cut)] = "#BBBBBB" # in continuous palette, we color-code NA values (and zeros) in grey
+        val_clr[is.na(val_clr) | is.na(val)] = "#BBBBBB" # in continuous palette, we color-code NA values in grey. analogous to below
+        # debug; cbind(val, val_transformed, val_cut, val_clr)
         # sample_colors[,prop] = clr[val_cut]
-        result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=FALSE) %>% mutate(val=as.character(val)))
+        result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=FALSE, is_numeric=prop_is_numeric, is_logical=prop_is_boolean) %>% mutate(val=as.character(val)))
       }
     } else {
+      # sort values before color coding. However, the "group" property should never be sorted (user may have set deliberate ordering upstream)
       if(prop != "group") {
         uval = gtools::mixedsort(uval)
       }
       # cycle through color palettes; special rule for booleans -->> hardcoded palette name
       if(prop_is_boolean) {
-        val2col = c("FALSE"="#00BFC4", "TRUE"="#F8766D")[(toupper(val) %in% c("1", "TRUE")) + 1]
+        val_clr = c("FALSE"="#00BFC4", "TRUE"="#F8766D")[(toupper(val) %in% c("1", "TRUE")) + 1] # inline conversion to boolean -->> apply to named array
       } else {
         palette_index = 1 + (count %% length(color_categorical)) #(count %% nrow(color_pals))
         count = count + 1
@@ -119,11 +128,12 @@ sample_color_coding = function(samples) {
         if(length(uval) > length(uval_clr)) {
           uval_clr = colorRampPalette(uval_clr, space = "Lab", bias = 0.8)(length(uval))
         }
-        val2col = uval_clr[match(val, uval)]
+        val_clr = uval_clr[match(val, uval)]
+        val_clr[is.na(val_clr) | is.na(val)] = "#BBBBBB" # in continuous palette, we color-code NA values in grey. analogous to above
       }
 
       # store respective colors
-      result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val2col, is_categorical=TRUE) %>% mutate(val=as.character(val)))
+      result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=TRUE, is_numeric=prop_is_numeric, is_logical=prop_is_boolean) %>% mutate(val=as.character(val)))
     }
 
   }
@@ -133,29 +143,19 @@ sample_color_coding = function(samples) {
 
 
 
-# #' convert color matrix to long format
-# #' @param samples todo
-# #' @param samples_colors todo
-# sample_color_coding_as_long_tibble = function(samples, samples_colors) {
-#   # iterate each property used for color coding, then combine the property, value and respective color in long-format tibble
-#   tib_color_coding = NULL
-#   for (prop in setdiff(colnames(samples_colors), c("sample_id", "sample_index", "shortname"))) { #prop="group"
-#     tib_color_coding = bind_rows(tib_color_coding, samples %>%
-#                                    select(shortname, val=!!prop) %>%
-#                                    mutate_all(as.character) %>%
-#                                    add_column(clr = samples_colors %>% pull(!!prop)) %>%
-#                                    add_column(prop = prop, .after = "shortname"))
-#   }
-#
-#   # exclude color codings that have just 1 unique value
-#   tib_counts = tib_color_coding %>% group_by(prop) %>% summarise(n=n_distinct(clr))
-#   tib_color_coding = tib_color_coding %>% filter(prop %in% (tib_counts %>% filter(n>1) %>% pull(prop)))
-#
-#   # convert the properties to a factor, ordered exactly as in the input sample metadata table (eg; respective column names)
-#   tib_color_coding$prop = factor(tib_color_coding$prop, levels = intersect(colnames(samples), tib_color_coding$prop))
-#
-#   return(tib_color_coding)
-# }
+#' generate color-codings for all sample metadata
+#'
+#' @param samples sample metadata table, typically; dataset$samples
+#' @export
+sample_color_coding__long_format = function(samples) {
+  samples %>% select(sample_id, shortname) %>%
+    # generate color codings
+    left_join(sample_color_coding(samples), by="sample_id") %>%
+    # set sample property factor levels (arrangement for plotting later) according to the column name order in the sample metadata table
+    mutate(prop = factor(prop, levels=intersect(colnames(samples), prop))) %>%
+    # sort such that first, properties are arranged accordingly to factor levels and then samples by their order in the sample metadata table
+    arrange(as.numeric(prop), match(sample_id, samples$sample_id))
+}
 
 
 
@@ -262,9 +262,10 @@ ggplot_sample_detect_counts_barplots = function(samples, samples_colors_long) {
 
 
 #' compact scatterplot with color-coding captures all sample metadata in one figure
+#'
 #' @param tib_plot todo
 ggplot_sample_detect_vs_metadata_scatterplot = function(tib_plot) {
-  # by appending the property to respective values we ensure that duplicated values across the metadata table (eg; 2 properties that both take TRUE/FALSE values) are color-coded properly
+  # by appending the property to respective values we ensure that duplicated values across the metadata table (eg; 2 properties that both take TRUE/FALSE values) are color-coded properly  +  deals with NA values
   tib = tib_plot %>% mutate(val = paste(prop,val))
   # unique set of colors used in this plot
   tib_col = tib %>% distinct(val, clr)
@@ -312,11 +313,14 @@ ggplot_sample_detect_vs_metadata_scatterplot_by_prop = function(tib_plot) {
     tib = tib_plot %>% filter(prop == prp)
 
     if(tib$is_categorical[1]) {
+      # convert NA values to a character
+      tib$val[is.na(tib$val)] = "<NA>"
+
       # median detect count by unique value
       tib_stat = tib %>%
         group_by(val) %>%
-        summarise(median_detect_count = median(detected_peptides),
-                  median_detect_count_noexclude = median(detected_peptides[exclude == FALSE]) ) %>%
+        summarise(median_detect_count = median(detected_peptides, na.rm = T),
+                  median_detect_count_noexclude = median(detected_peptides[exclude == FALSE], na.rm = T) ) %>%
         arrange(desc(median_detect_count))
       tib_stat$index = 1:nrow(tib_stat)
 
@@ -343,30 +347,33 @@ ggplot_sample_detect_vs_metadata_scatterplot_by_prop = function(tib_plot) {
                              labs(x="number of detected peptides per sample", y="") + #, title=paste("sample metadata used for color-coding:", prp)) +
                              theme(legend.position = "none", plot.title = element_text(size = 10), axis.title.x.bottom = element_text(size = 9)) )
     } else {
-      tib = tib %>% mutate(val = as.numeric(val))
+      tib = tib %>% mutate(val = as.numeric(val)) %>% filter(is.finite(val))
 
-      tib = bind_rows(tib %>% add_column(plottype="asis"),
-                      tib %>% add_column(plottype="loess"))
+      if(nrow(tib) > 1) {
+        tib = bind_rows(tib %>% add_column(plottype="asis"),
+                        tib %>% add_column(plottype="loess"))
 
-      p = ggplot(tib, aes(x=detected_peptides, y=val)) +
-        geom_point(aes(shape = I(ifelse(exclude, 0, 21))), alpha=0.5, na.rm = T) +
-        facet_grid( ~ plottype, labeller = labeller(plottype = array(c(prp, prp), dimnames = list(c("asis", "loess"))) ) ) +
-        labs(x="number of detected peptides per sample", y=prp) +
-        theme_bw() +
-        theme(legend.position = "none", plot.title = element_text(size = 10), plot.subtitle = element_text(size = 8), axis.title.x.bottom = element_text(size = 9))
+        p = ggplot(tib, aes(x=detected_peptides, y=val)) +
+          geom_point(aes(shape = I(ifelse(exclude, 0, 21))), alpha=0.5, na.rm = T) +
+          facet_grid( ~ plottype, labeller = labeller(plottype = array(c(prp, prp), dimnames = list(c("asis", "loess"))) ) ) +
+          labs(x="number of detected peptides per sample", y=prp) +
+          theme_bw() +
+          theme(legend.position = "none", plot.title = element_text(size = 10), plot.subtitle = element_text(size = 8), axis.title.x.bottom = element_text(size = 9))
 
-      ## add a loess fit
-      if(any(tib$val!=0 & tib$exclude==FALSE)) {
-        p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0 & exclude==FALSE))
+        ## add a loess fit
+        if(any(tib$val!=0 & tib$exclude==FALSE)) {
+          p = p + geom_smooth(method = "loess", formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0 & exclude==FALSE))
+          # p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0 & exclude==FALSE))
+        }
+
+        ## if there are excluded samples, add another regression line that includes these samples with distinct visualization
+        # if(any(tib$val!=0 & tib$exclude==TRUE)) {
+        #   p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0), se = FALSE, colour = "black", linetype="dotted")
+        # }
+
+        result[[prp]] = list(n = 10, # some default height
+                             plot = p)
       }
-
-      ## if there are excluded samples, add another regression line that includes these samples with distinct visualization
-      # if(any(tib$val!=0 & tib$exclude==TRUE)) {
-      #   p = p + geom_smooth(method = "loess", method.args = list(family="symmetric"), span=.5, formula = y~x, orientation = "y", na.rm = T, data = tib %>% filter(plottype=="loess" & val!=0), se = FALSE, colour = "black", linetype="dotted")
-      # }
-
-      result[[prp]] = list(n = 10, # some default height
-                           plot = p)
     }
 
     #### test code / plots

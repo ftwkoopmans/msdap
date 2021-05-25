@@ -13,6 +13,7 @@
 #' @importFrom Biobase pData fData exprs featureNames classVersion
 #' @export
 import_expressionset = function(eset, column_fdata_protein_id = "prot.id", column_pdata_sample_group = "condition", acquisition_mode = 'dda', is_log2 = FALSE) {
+  reset_log()
   if(!acquisition_mode %in% c("dda", "dia")) {
     append_log("`acquisition_mode` parameter can only be 'dda' or 'dia'", type = "error")
   }
@@ -74,7 +75,7 @@ import_expressionset = function(eset, column_fdata_protein_id = "prot.id", colum
   if(!is_log2) {
     tib$intensity = log2(tib$intensity)
   }
-  tib$intensity[!is.na(tib$intensity) & tib$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  tib$intensity[!is.na(tib$intensity) & tib$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib$rt = NA # no retention time info available
   tib$detect = T # cannot differentiate between MBR and MS/MS identified
   tib$isdecoy = F # no information on decoys in expressionset

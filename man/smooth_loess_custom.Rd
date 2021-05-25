@@ -2,20 +2,30 @@
 % Please edit documentation in R/util_generic.R
 \name{smooth_loess_custom}
 \alias{smooth_loess_custom}
-\title{wrapper for; predict(loess(y ~ x, span = span, na.action = na.omit), x)}
+\title{Loess fit on finite value pairs. Ignores overfit warnings, returns input data on error}
 \usage{
-smooth_loess_custom(x, y, span = 0.1, remove_na_yval = TRUE)
+smooth_loess_custom(
+  x,
+  y,
+  span = 0.1,
+  remove_na_yval = TRUE,
+  min_values = 10,
+  ...
+)
 }
 \arguments{
 \item{x}{numeric vector}
 
 \item{y}{numeric vector}
 
-\item{span}{argument for loess()}
+\item{span}{span argument for loess() function}
 
-\item{remove_na_yval}{set all output values where is.na(y) to NA}
+\item{remove_na_yval}{set all output values where is.na(y) to NA. default is TRUE}
+
+\item{min_values}{minimum number of values required (if less, input parameter y is returned). default is 10}
+
+\item{...}{passed to loess() function}
 }
 \description{
-also adds option to disregard predicted values if input y is NA.
-does nothing if less than 10 values are passed.
+if a robust loess fit is desired, add parameter family='symmetric' which will be passed to loess() function
 }

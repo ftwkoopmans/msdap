@@ -28,7 +28,7 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
   for (g in unique(samples$group)) {
     n_samples = sum(samples$group == g)
     p = ggplot(tib %>% filter(group == g), aes(x = intensity, colour = shortname, labels = shortname, linetype = exclude)) +
-      stat_density(adjust = 1, geom="line", position="identity", na.rm = T) +
+      stat_density(geom="line", position="identity", adjust = 1, na.rm = T) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
       coord_cartesian(xlim = overall_xlim) +
       labs(x="peptide intensity (log10)", y="density", colour="sample", linetype = "exclude sample") +
@@ -68,7 +68,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     skey = samples %>% filter(group == g) %>% pull(key_sample)
     # cannot make within-group foldchange plots for groups with less than 2 samples
     if(length(skey) < 2) {
-      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', require at least 2 replicates", g), type = "warning")
+      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', require at least 2 replicates", g), type = "info")
       next
     }
 
@@ -147,7 +147,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     sid = intersect(sid, colnames(tibw_grp_intensities))
     # skip if <n samples in group. analogous to the generic CoV plot function, but now we require 4 samples per group (after all, we need 3 samples to compute CoV and below we remove 1)
     if(length(sid) < 4) {
-      append_log(sprintf("No data available for CoV leave-one-out computation in sample group '%s', skipping plots", grp), type = "warning")
+      append_log(sprintf("No data available for CoV leave-one-out computation in sample group '%s', skipping plots", grp), type = "info")
       next
     }
 
@@ -179,7 +179,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     # deal with samples that failed loo computation (eg; too few datapoints after n-value-per-row filter)
     mat_loo_cov = mat_loo_cov[ , !(colnames(mat_loo_cov) %in% dropcols), drop=F]
     if(ncol(mat_loo_cov) == 0) {
-      append_log(sprintf("No data available for CoV leave-one-out computation in sample group '%s', skipping plots", grp), type = "warning")
+      append_log(sprintf("No data available for CoV leave-one-out computation in sample group '%s', skipping plots", grp), type = "info")
       next # skips the bind_rows() below, so no data added to overall data tibble `tib_loo_cov`
     }
 
@@ -302,7 +302,7 @@ ggplot_coefficient_of_variation = function(tib_input, samples, samples_colors) {
     # skip if <n samples in group
     if(length(sid) < 3) {
       dropcols = c(dropcols, grp)
-      append_log(sprintf("no CoV computation for sample group '%s', require at least 3 replicates", grp), type = "warning")
+      append_log(sprintf("no CoV computation for sample group '%s', require at least 3 replicates", grp), type = "info")
       next
     }
 
@@ -321,7 +321,7 @@ ggplot_coefficient_of_variation = function(tib_input, samples, samples_colors) {
   # remove sample groups that have too few replicates
   mat_cov = mat_cov[ , !(colnames(mat_cov) %in% dropcols), drop=F]
   if(ncol(mat_cov) == 0) {
-    append_log("No data available for CoV computation, skipping plots", type = "warning")
+    append_log("No data available for CoV computation, skipping plots", type = "info")
     return(list())
   }
 

@@ -2,17 +2,17 @@
 % Please edit documentation in R/util_expressionset.R
 \name{tibble_as_eset}
 \alias{tibble_as_eset}
-\title{placeholder title}
+\title{peptide-level ExpressionSet from long-format peptide data}
 \usage{
 tibble_as_eset(peptides, proteins, samples)
 }
 \arguments{
-\item{peptides}{todo}
+\item{peptides}{peptide tibble}
 
-\item{proteins}{todo}
+\item{proteins}{protein tibble}
 
-\item{samples}{todo}
+\item{samples}{sample tibble}
 }
 \description{
-placeholder title
+peptide-level ExpressionSet from long-format peptide data
 }

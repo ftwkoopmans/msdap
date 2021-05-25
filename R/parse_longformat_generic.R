@@ -7,6 +7,7 @@
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @export
 import_dataset_openswath = function(filename, confidence_threshold = 0.01, return_decoys = FALSE, do_plot = TRUE) {
+  reset_log()
   append_log("reading OpenSWATH report...", type = "info")
 
   ds = import_dataset_in_long_format(filename,
@@ -39,7 +40,9 @@ import_dataset_openswath = function(filename, confidence_threshold = 0.01, retur
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @export
 import_dataset_skyline = function(filename, acquisition_mode, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified", return_decoys = FALSE, do_plot = TRUE) {
+  reset_log()
   append_log("reading Skyline report...", type = "info")
+  stopifnot(acquisition_mode %in% c("dda","dia"))
 
   ds = import_dataset_in_long_format(filename,
                                        attributes_required = list(sample_id = "FileName",
@@ -81,6 +84,7 @@ import_dataset_skyline = function(filename, acquisition_mode, confidence_thresho
 #' @param use_normalized_intensities use the abundance values as-is (recommended) or those normalized by DIA-NN
 #' @export
 import_dataset_diann = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, do_plot = TRUE) {
+  reset_log()
   append_log("reading DIA-NN report...", type = "info")
   ds = import_dataset_in_long_format(filename,
                                        attributes_required = list(sample_id = "File.Name",
@@ -121,6 +125,7 @@ import_dataset_diann = function(filename, confidence_threshold = 0.01, use_norma
 #' @export
 import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, use_irt = TRUE,
                                       return_decoys = FALSE, remove_shared_spectronaut_proteingroups = FALSE, do_plot = TRUE) {
+  reset_log()
   append_log("reading Spectronaut report...", type = "info")
 
 
@@ -193,83 +198,6 @@ import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use
   }
 
   ds$acquisition_mode = "dia"
-  return(ds)
-}
-
-
-
-#' Import a label-free proteomics dataset from FragPipe
-#'
-#' @param filename the full file path of the input file
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
-#' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
-#' @param return_decoys logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!
-#' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
-#' @export
-import_dataset_fragpipe = function(filename, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified", return_decoys = FALSE, do_plot = TRUE) {
-  myfragpiperepair = function(DT) {
-    # ### debug
-    # print(head(DT))
-    # hist(DT$confidence, breaks=50)
-    # hist(log10(DT$confidence), breaks=50)
-    # print(sum(DT$confidence >= 0.99))
-    # print(sum(DT$confidence >= 0.99) / nrow(DT))
-    # print(sum(DT$confidence >= 0.95))
-    # print(sum(DT$confidence >= 0.95) / nrow(DT))
-
-    ### specifically for fragpipe; strip full path + "interact-" + ".pep.xml" extension
-    # example entry in input table; C:\DATA\fragpipe_test\interact-a05191.pep.xml
-    DT[ , sample_id := gsub("(.*(\\\\|/)interact\\-)|(^interact\\-)|(\\.pep\\.xml$)", "", sample_id, ignore.case=F), by=sample_id]
-
-    ### FragPipe output has "PeptideProphet Probability", which is 0~1 ranged score with 1 = 100% confident.
-    # In this R package we use confidence score = qvalue (or pvalue). So as a band-aid solution we use 1-probability to approximate
-    DT$confidence = 1 - DT$confidence
-
-    ### FragPipe output lacks peptide sequences in modified sequence column if a peptiude has no modifications
-    rows = DT$sequence_modified == ""
-    DT$sequence_modified[rows] = DT$sequence_plain[rows]
-    DT$detect = DT$confidence <= confidence_threshold
-
-    ### summarize peptide_id*sample*id by taking the PSM with highest abundance
-    data.table::setkey(DT, sequence_modified, charge, sample_id)
-    # sort such that the most abundant entry for each unique key comes out on top
-    data.table::setorder(DT, -intensity, na.last = TRUE)
-    # simply select first entry
-    DT = DT[ , index := seq_len(.N), by = .(sequence_modified, charge, sample_id)][index == 1]
-    DT$index = NULL
-
-    return(DT)
-  }
-
-
-  append_log("reading FragPipe PSM report...", type = "info")
-  ds = import_dataset_in_long_format(filename,
-                                     attributes_required = list(sample_id = "Spectrum.File",
-                                                                protein_id = "Protein.ID",
-                                                                sequence_modified = "Modified Peptide",
-                                                                sequence_plain = "Peptide",
-                                                                charge = "Charge",
-                                                                rt = "Retention",
-                                                                intensity = "Intensity",
-                                                                confidence = "PeptideProphet.Probability"),
-                                     select_unique_precursor_per_modseq = FALSE,
-                                     remove_peptides_never_above_confidence_threshold = TRUE,
-                                     confidence_threshold = confidence_threshold,
-                                     custom_func_manipulate_DT_onload = myfragpiperepair,
-                                     return_decoys = return_decoys,
-                                     do_plot = do_plot)
-
-  ds$acquisition_mode = "dda"
-
-  # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
-  if(collapse_peptide_by == "") {
-    # if 'no collapse' is set, at least merge by modseq and charge. eg; there may be multiple peaks for some peptide with the same charge throughout retention time
-    ds$peptides = peptides_collapse_by_sequence(ds$peptides, prop_peptide = "peptide_id")
-    append_log("NOT collapsing peptides by plain/modified-sequence, thus 2 observations of the same sequence with different charge are considered a distinct peptide_id. This is not recommended for DDA!", type = "warning")
-  } else {
-    ds$peptides = peptides_collapse_by_sequence(ds$peptides, prop_peptide = collapse_peptide_by) # alternative, collapse modified sequences; prop_peptide = "sequence_modified"
-  }
-
   return(ds)
 }
 
@@ -433,7 +361,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
   ### first, see what data we can remove, and perform more expensive operations after
   if("isdecoy" %in% colnames(DT)) {
-    DT$isdecoy = DT$isdecoy %in% c(TRUE, 1, "decoy", "true")
+    DT$isdecoy = DT$isdecoy %in% c(TRUE, 1, "decoy", "true", "True", "TRUE")
   } else {
     DT$isdecoy = FALSE
   }
@@ -483,7 +411,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
 
   # peptide_id = modified sequence + charge (eg. unique precursors) + spectral library (so we can support scenario's where the raw data was matched to multiple spectral libraries)
-  if("spectral_library" %in% colnames(DT)) {
+  if("spectral_library" %in% colnames(DT) && n_distinct(DT$spectral_library) > 1) {
     DT[ , peptide_id := paste0(sequence_modified, "_", charge, "###", spectral_library), by= .(sequence_modified, charge)]
   } else {
     DT[ , peptide_id := paste0(sequence_modified, "_", charge), by= .(sequence_modified, charge)]
@@ -500,11 +428,11 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
   DT$intensity = log2(DT$intensity)
   DT$intensity[!is.finite(DT$intensity)] = NA
-  DT$intensity[is.finite(DT$intensity) & DT$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  DT$intensity[is.finite(DT$intensity) & DT$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   if("intensity_norm" %in% colnames(DT)) {
     DT$intensity_norm = log2(DT$intensity_norm)
     DT$intensity_norm[!is.finite(DT$intensity_norm)] = NA
-    DT$intensity_norm[is.finite(DT$intensity_norm) & DT$intensity_norm < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+    DT$intensity_norm[is.finite(DT$intensity_norm) & DT$intensity_norm < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   }
 
   # for DIA data we can compute Cscore histograms of both target and decoy peptides (which will be shown in report downstream)
@@ -555,7 +483,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
 
   if(!any(DT$isdecoy == FALSE)) {
-    append_log("there must be target peptides ('isdecoy' column == FALSE) in the peptides tibble", type = "error")
+    append_log("there must be target peptides (eg; not a decoy and intensity value > 0) in the peptides tibble", type = "error")
   }
 
   proteins = empty_protein_tibble(DT)

@@ -18,7 +18,8 @@ NULL
 
 #' Quickstart for analyses in this pipeline
 #'
-#' all-in-one function that covers the vast majority of use-cases. Typically, this function is all you need (besides importing your data upstream).
+#' all-in-one function that covers the vast majority of use-cases of analyzing a dataset imported into MS-DAP.
+#' (assuming you already loaded peptide data, sample metadata and fasta files using MS-DAP import functions).
 #'
 #' @section Filtering:
 #'
@@ -34,7 +35,7 @@ NULL
 #' Taken together, recommended settings for a DDA dataset with 3~8 replicates in each sample group look like this;
 #'
 #' \code{
-#' filter_min_detect = 1, filter_fraction_detect = 0.25, filter_min_quant = 3, filter_fraction_quant = 0.75
+#' filter_min_detect = 1 (or zero to fully rely on MBR), filter_fraction_detect = 0.25 (or zero to fully rely on MBR), filter_min_quant = 3, filter_fraction_quant = 0.75
 #' }
 #'
 #' Analogous for DIA;
@@ -64,14 +65,14 @@ NULL
 #' Note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as both approaches are the same
 #'
 #' @section Normalization:
-#' options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween".
+#' normalization algorithms are applied to the peptide-level data matrix.
+#' options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
 #'
 #' You can combine normalizations by providing an array of options to apply subsequential normalizations.
 #'
-#' For instance, \code{norm_algorithm = c("vsn", "modebetween")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group foldchanges with the modebetween normalization from the vwmb algorithm.
+#' For instance, \code{norm_algorithm = c("vsn", "modebetween_protein")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group protein-level foldchanges with modebetween normalization.
 #'
-#' By default uses the built-in normalization algorithm Variation Within, Mode Between (vwmb).
-#' Benchmarks have shown that vsn&modebetween (code example above) is a great alternative to consider.
+#' Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the optimal strategies, see MS-DAP manuscript.
 #'
 #' @section Differential Expression Analysis:
 #'
@@ -83,35 +84,32 @@ NULL
 #'
 #' eBayes is robust but conservative, using the limma package to apply moderated t-tests on protein-level abundances. Reference: https://doi.org/doi:10.18129/B9.bioc.limma
 #'
-#' options: ebayes, msempire, msqrob (to run multiple, provide an array)
+#' options: ebayes, deqms, msempire, msqrob, msqrobsum
 #'
-#' Users are encouraged to simply run all statistical models and consider the set of candidate proteins that pop up in multiple approaches. Output tables already contain columns to convenience this approach, if 3 DEA algorithms have been selected.
-#' e.g.; \code{dea_algorithm = c("ebayes", "msempire", "msqrob")}
-#'
-#' All statistical results are shown in the QC report and output tables and can be easily compared.
+#' You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
+#' e.g.; \code{dea_algorithm = c("ebayes", "deqms", "msempire", "msqrob")}
 #'
 #'
 #'
-#' @param dataset a valid dataset object generated upstream by, for instance, import_dataset_skyline
+#' @param dataset a valid dataset object generated upstream by an MS-DAP import function. For instance, import_dataset_skyline() or import_dataset_maxquant_evidencetxt()
 #' @param filter_min_detect in order for a peptide to 'pass' in a sample group, in how many replicates must it be detected?
 #' @param filter_fraction_detect in order for a peptide to 'pass' in a sample group, what fraction of replicates must it be detected?
 #' @param filter_min_quant in order for a peptide to 'pass' in a sample group, in how many replicates must it be quantified?
 #' @param filter_fraction_quant in order for a peptide to 'pass' in a sample group, what fraction of replicates must it be quantified?
-#' @param filter_min_peptide_per_prot in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters?
-#' @param filter_topn_peptides maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates). 1 is default, 2 can be a good choice situationally. If set to 1, make sure to inspect individual peptide data/plots for proteins with 1 peptide.
+#' @param filter_min_peptide_per_prot in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters? 1 is default, but 2 can be a good choice situationally (eg; to not rely on proteins with just 1 quantified peptide)
+#' @param filter_topn_peptides maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates).
 #' @param filter_by_contrast should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately.
 #' @param norm_algorithm normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero
-#' @param dea_protein_rollup strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein
+#' @param dea_protein_rollup strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()
 #' @param dea_algorithm algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)
-#' @param dea_qvalue_threshold threshold for significance of adjusted p-values in figures and output tables
-#' @param dea_log2foldchange_threshold threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
+#' @param dea_qvalue_threshold threshold for significance of adjusted p-values in figures and output tables. Output tables will also include all q-values as-is
+#' @param dea_log2foldchange_threshold threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
 #' @param diffdetect_min_samples_observed for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B
-#' @param plot_pca_label_by_shortname whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)
-#' @param output_dir output directory where all output files are stored, must be an existing directory
-#' @param output_within_timestamped_subdirectory optionally, automatically create a subdirectory (without output_dir) that has the current date&time as name and store results there
-#' @param output_abundance_tables whether to create an Excel document with all peptide abundances, with multiple sheets indicating results from all filters applied. For large datasets this results in huge files, so only recommended for small datasets. options: FALSE, TRUE
-#' @param output_qc_report whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE. Set to FALSE to skip the report PDF (eg; to just do statistics and skip the time-consuming report creation)
-# @param output_peptide_plots whether to create a plot for each protein detailing all of it's peptide abundances. options: "" or "none" to disable, "signif"=significant proteins only, "all"=all proteins, "complete"=all proteins and split by DE algorithm
+#' @param pca_sample_labels whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let the code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)
+#' @param output_dir output directory where all output files should be stored. If not an existing directory, it will be created
+#' @param output_within_timestamped_subdirectory optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there. options: FALSE, TRUE
+#' @param output_abundance_tables whether to write protein-level data matrices to file. options: FALSE, TRUE
+#' @param output_qc_report whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE (default). Set to FALSE to skip the report PDF (eg; to only do differential expression analysis and skip the time-consuming report creation)
 #' @param dump_all_data if you're interested in performing custom bioinformatic analyses and want to use any of the data generated by this tool, you can dump all intermediate files to disk. Has performance impact so don't enable by default. options: FALSE, TRUE
 #' @importFrom parallel stopCluster
 #' @importFrom openxlsx write.xlsx
@@ -124,27 +122,29 @@ analysis_quickstart = function(dataset,
                                filter_min_peptide_per_prot = 1, filter_topn_peptides = 0,
                                # apply filter to each sample group, or only apply filter within relevant sample groups being compared in a contrast?
                                filter_by_contrast = FALSE,
-                               # normalization
+                               # normalization algorithms for peptide-level data. Options listed by msdap::normalization_algorithms() , provide an array of options to run multiple sequentially
                                norm_algorithm = c("vwmb", "modebetween_protein"),
-                               # DE algorithms
+                               # DEA algorithms
                                dea_protein_rollup = "maxlfq",
-                               dea_algorithm = c("deqms", "msqrob"), # options; ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)
-                               # significance cutoff
+                               dea_algorithm = c("deqms", "msqrob"), # options; ebayes, deqms, msempire, msqrob, msqrobsum (to run multiple in parallel, provide an array of options)
+                               # define thresholds for significant proteins
                                dea_qvalue_threshold = 0.01,
-                               dea_log2foldchange_threshold = 0,
+                               dea_log2foldchange_threshold = 0, # if NA, infer from bootstrap
                                # differential detection
                                diffdetect_min_samples_observed = 3,
                                # plot options
-                               plot_pca_label_by_shortname = NA, # if NA, auto estimate
-                               #
-                               output_abundance_tables = FALSE,
+                               pca_sample_labels = "auto",
+                               # output data
+                               output_abundance_tables = TRUE,
                                output_qc_report = TRUE,
-                               # output_peptide_plots = "none", # options: "signif"=significant proteins only, "all"=all proteins, "complete"=all proteins and split by DE algorithm
-                               # where to store results
                                output_dir,
                                output_within_timestamped_subdirectory = TRUE,
                                dump_all_data = FALSE) {
 
+  # convert to absolute paths. example; user used setwd() and now sets "output" as the output_dir
+  # only forward slashes and remove redundant. normalizePath() also cleans slashes etc. like our path_clean_slashes (which does more)
+  output_dir = normalizePath(paste0(output_dir, "/"), winslash = "/", mustWork = FALSE)
+  # create output directory if it does not exist
   if(!dir.exists(output_dir)) {
     append_log(paste("output directory does not exist yet, creating;", output_dir), type = "info")
     dir.create(output_dir, recursive = T)
@@ -190,7 +190,7 @@ analysis_quickstart = function(dataset,
     } else {
       timestamp_prettyprint = format(Sys.time(), format = "%Y-%m-%d_%H;%M;%S")
     }
-    output_dir = paste0(output_dir, "/", timestamp_prettyprint, "/")
+    output_dir = path_clean_slashes(paste0(output_dir, "/", timestamp_prettyprint, "/"))
   }
 
   if(!dir.exists(output_dir)) {
@@ -201,16 +201,17 @@ analysis_quickstart = function(dataset,
   }
 
   # check if all output files we want to write to are accessible, before running all time-consuming code
-  fname_samples = sprintf("%s/samples.xlsx", output_dir)
-  fname_abundances = sprintf("%s/peptide_and_protein_abundances.xlsx", output_dir)
-
+  fname_samples = path_append_and_check(output_dir, "samples.xlsx")
   remove_file_if_exists(fname_samples)
-  remove_file_if_exists(paste0(output_dir, "/differential_abundance_analysis.xlsx"))
+
+  fname_stats = path_append_and_check(output_dir, "differential_abundance_analysis.xlsx")
+  remove_file_if_exists(fname_stats)
 
   if(output_qc_report) {
-    remove_file_if_exists(paste0(output_dir, "/report.pdf"))
+    remove_file_if_exists(path_append_and_check(output_dir, "report.pdf"))
   }
   if(output_abundance_tables) {
+    fname_abundances = path_append_and_check(output_dir, "peptide_and_protein_abundances.xlsx")
     remove_file_if_exists(fname_abundances)
   }
 
@@ -240,40 +241,32 @@ analysis_quickstart = function(dataset,
   # qualitative analysis
   dataset = differential_detect(dataset, min_samples_observed = diffdetect_min_samples_observed)
 
-  # write analysis data tables to file
+  # export data tables to file
   openxlsx::write.xlsx(dataset$samples %>% select(!!grep("^key_", colnames(dataset$samples), ignore.case = T, value = T, invert = T)), fname_samples)
-  write_statistical_results_to_file(dataset, output_dir)
+  export_statistical_results(dataset, output_dir)
   if(output_abundance_tables) {
-    # only do mode normalization, no normalizations that 'transform' (eg; vsn), users should do do downstream if they want to filter etc first
-    write_peptide_abundance_matrix_to_file(dataset, filename = fname_abundances, norm_algorithm = norm_algorithm)
+    export_protein_abundance_matrix(dataset, algo_rollup = dea_protein_rollup, output_dir = output_dir)
   }
 
   # write all data tables to compressed .tsv files
   if(dump_all_data) {
-    save(dataset, file = paste0(output_dir, "/dataset.RData"), compress = T)
-    data.table::fwrite(dataset$peptides, paste0(output_dir, "/peptides.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
-    data.table::fwrite(dataset$proteins, paste0(output_dir, "/proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
-    data.table::fwrite(dataset$samples, paste0(output_dir, "/samples.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
-    data.table::fwrite(dataset$de_proteins, paste0(output_dir, "/de_proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
-    data.table::fwrite(dataset$dd_proteins, paste0(output_dir, "/dd_proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    save(dataset, file = path_append_and_check(output_dir, "dataset.RData"), compress = T)
+    data.table::fwrite(dataset$peptides, path_append_and_check(output_dir, "peptides.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    data.table::fwrite(dataset$proteins, path_append_and_check(output_dir, "proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    data.table::fwrite(dataset$samples, path_append_and_check(output_dir, "samples.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    if(is_tibble(dataset$de_proteins) && nrow(dataset$de_proteins) > 0) {
+      data.table::fwrite(dataset$de_proteins, path_append_and_check(output_dir, "de_proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    }
+    if(is_tibble(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
+      data.table::fwrite(dataset$dd_proteins, path_append_and_check(output_dir, "dd_proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
+    }
   }
 
   # QC report
   if(output_qc_report) {
-    generate_pdf_report(dataset, output_dir = output_dir, pca_label_samples_by_shortname = plot_pca_label_by_shortname)
+    generate_pdf_report(dataset, output_dir = output_dir, pca_sample_labels = pca_sample_labels)
   }
 
-  # # peptide data plots; "signif" | "all" | "complete"
-  # if(length(output_peptide_plots) == 0 || (length(output_peptide_plots) == 1 && (is.na(output_peptide_plots) || output_peptide_plots == "" || output_peptide_plots == "none"))) {
-  #   # valid option, don't plot
-  # } else {
-  #   # we expect valid user parameter at this point
-  #   if(length(output_peptide_plots) == 1 && is.character(output_peptide_plots) && output_peptide_plots %in% c("signif", "all", "complete")) {
-  #     plot_peptide_data(dataset$peptides, dataset$proteins, dataset$samples, dataset$de_proteins, output_dir, plot_each_statistical_approach = (output_peptide_plots == "complete"), plot_all_proteins = (output_peptide_plots %in% c("all", "complete")), plot_comparison_msqrob_msempire = FALSE)
-  #   } else {
-  #     append_log(paste("invalid value(s) for parameter 'output_peptide_plots' (expected any of; NA, 'none', 'signif', 'all', 'complete') but got:", paste(output_peptide_plots, collapse=",")), type = "warning")
-  #   }
-  # }
-
+  append_log(paste("output directory;", output_dir), type = "info")
   return(dataset)
 }

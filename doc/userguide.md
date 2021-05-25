@@ -71,12 +71,16 @@ dataset = import_fasta(
             "C:/<path>/fasta/UniProt_2018-05/UP000000589_10090_additional.fasta")
 )
 
-# optionally, remove proteins (and their respective peptides) from the dataset that match some user filters.
+# optionally, remove proteins (and their respective peptides) from the dataset that match some user filters 
+# * recommend to skip this step while initially testing MS-DAP, this is not required *
+# 
 # in this example, we apply a regular expression to the fasta header of each protein to remove IGGs and keratins (useful for IP experiments)
 # in DIA experiments, you may also want to auto-detect and remove the IRT peptides, provided the IRT fasta file was used while creating the spectral library and the fasta header forthe irt protein matches the built-in regex filter (case insensitive); |IRT| OR |IRT_KIT| OR "Biognosys iRT"
 # finally, one can remove known contaminants by providing an array of gene symbols (which are also matched to fasta headers)
+# note; the set of removed/filtered proteins is immediately shown in the R console
 dataset = remove_proteins_by_name(
   dataset, 
+  # writing regular expressions can be daunting, either leave out this parameter or ask your local bioinformatician for help on complex queries
   regular_expression = "ig \\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)",
   remove_irt_peptides = FALSE,
   gene_symbols = c("gene1", "othergenesymbol")
@@ -85,17 +89,18 @@ dataset = remove_proteins_by_name(
 
 **optionally updating peptide-to-protein mappings**
 
-*This experimental feature is optional and still in development. Only
+*This experimental feature is optional and still in development.
+Recommend to skip this step while initially testing MS-DAP. Only
 MaxQuant searches can be used to update the protein\_id assigned to each
 peptide in a dataset for now.*
 
-In some situations, you may want to update the peptide-to-protein
-mappings in a dataset. For example in Spectronaut DIA analyses: when
-using a MaxQuant search as input for a Spectronaut spectral library the
-razor-peptide assignments are lost and peptides are instead assigned to
-all respective protein groups. If you would rather use the
-peptide-to-protein mapping exactly as intially inferred by MaxQuant, use
-the code snippet below.
+In some situations, you may want to update/override the
+peptide-to-protein mappings in a dataset. For example in Spectronaut DIA
+analyses: when using a MaxQuant search as input for a Spectronaut
+spectral library the razor-peptide assignments are lost and peptides are
+instead assigned to all respective protein groups. If you would rather
+use the peptide-to-protein mapping exactly as intially inferred by
+MaxQuant, use the code snippet below.
 
 example code snippet;
 
@@ -198,14 +203,14 @@ dataset = analysis_quickstart(
   # You only have to provide active filters (but specify at least 1)
   # respective params; filter_min_detect, filter_fraction_detect, filter_min_quant, filter_fraction_quant
   #
-  # recommended settings, DDA: no filter on minimum number of (MS/MS IDs) and quantified in at least 3 replicates and ~75% of replicates
+  # recommended settings, DDA: no filter on minimum number of detect (MS/MS IDs) and quantified in at least N=3 and 75% of replicates
   # recommended settings, DIA: set the 'detect' settings to same values as 'quant'; filter_min_detect=3, filter_fraction_detect=0.75
   filter_min_detect = 0,
   filter_min_quant = 3,
   filter_fraction_detect = 0,
   filter_fraction_quant = 0.75,
   ## filter criteria on protein level
-  filter_topn_peptides = 0, # set to 0 to disable topN filtering. if enabled, a typical setting would be between 5 and 15
+  filter_topn_peptides = 0, # set to 0 to disable topN filtering. if enabled, a typical setting would be between 5, 10 or 15
   filter_min_peptide_per_prot = 1,
 
   ## two distinct approaches to selecting peptides can be used for downstream statistical analysis: 1) 'within contrast' and 2) 'apply filter to all sample groups'
@@ -222,33 +227,38 @@ dataset = analysis_quickstart(
   # note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as both approaches are the same
   filter_by_contrast = TRUE,
 
-  ## normalization algorithm. recommended best-practise is c("vsn", "modebetween"), which applies vsn (quite strong normalization reducing variation) and then balances between-group foldchanges with modebetween
-  # normalization algorithms. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
+  ## normalization algorithms are applied to the peptide-level data matrix.
+  # options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+  #
+  # You can combine normalizations by providing an array of options to apply subsequential normalizations.
+  # For instance, \code{norm_algorithm = c("vsn", "modebetween_protein")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group protein-level foldchanges with modebetween normalization.
+  #
+  # Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the optimal strategies, see MS-DAP manuscript.
   norm_algorithm = c("vwmb", "modebetween_protein"),
 
-  ## differential expression analysis
-  # algorithms for differential expression analysis. options: ebayes, msempire, msqrob
-  # provide an array of options to run multiple models (in parallel), their results can be compared in the QC report and output Excel table. 
+  ## Differential Expression Analysis (DEA)
+  # algorithms for differential expression analysis. options: options: ebayes, deqms, msempire, msqrob, msqrobsum
+  # You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
   dea_algorithm = c("deqms", "msempire", "msqrob"),
   # significance cutoff used in QC plots and 'significant' column in output Excel tables
   dea_qvalue_threshold = 0.05,
-  # threshold for significance of log2 foldchanges. Set to zero to disregard, a positive value to apply a cutoff to absolute foldchanges or use bootstrap analyses to infer a suitable foldchange threshold by providing either NA or a negative value. default: 0
+  # threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
   dea_log2foldchange_threshold = NA,
 
   ## for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B
   diffdetect_min_samples_observed = 3,
 
   ## Quality Control reports
-  # whether to create the Quality Control report, set to FALSE to skip (eg; to just do statistics and skip the time-consuming report creation)
+  # whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE (default). Set to FALSE to skip the report PDF (eg; to only do differential expression analysis and skip the time-consuming report creation)
   output_qc_report = TRUE,
-
-  ## where to store results
-  # whether to create an Excel document with all peptide abundances, with multiple sheets indicating results from all filters applied. For large datasets this results in huge files, so only recommended for small datasets. options: FALSE, TRUE
+  # whether to write protein-level data matrices to file. options: FALSE, TRUE
   output_abundance_tables = TRUE,
-  # output directory where all output files are stored, must be an existing directory
+  # output directory where all output files should be stored. If not an existing directory, it will be created
   output_dir = "C:/<path>/",
   # optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there
-  output_within_timestamped_subdirectory = FALSE
+  output_within_timestamped_subdirectory = TRUE,
+  # if you're interested in performing custom bioinformatic analyses and want to use any of the data generated by this tool, you can dump all intermediate files to disk. Has performance impact so don't enable by default. options: FALSE, TRUE
+  dump_all_data = FALSE
 )
 
 ## optionally, print a summary. 
@@ -273,7 +283,7 @@ algorithm(s) as used in the pipeline previously
 plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/", 
                   # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
                   show_unused_datapoints = TRUE, 
-                  # importantly, sync this parameter with the settings used for analysis_quickstart()
+                  # importantly, sync this parameter with the setting you used for analysis_quickstart()
                   norm_algorithm = c("vwmb", "modebetween_protein"))
 ```
 
@@ -286,27 +296,33 @@ MaxQuant, Skyline, etc.) are described in this section.
 
 No particular settings are needed, MS-DAP can use the output as-is
 (assuming the analyzed dataset was label-free). As input for MS-DAP, the
-‘txt’ folder is required (typically nested somewhere in your raw data
-folder). example; C:/DATA/project\_x/sample1/combined/txt If you want to
-save on diskspace, this is the minimum set of input files needed:
-evidence.txt, peptides.txt, proteinGroups.txt (but make sure to backup
-the parameters.txt/mqpar.xml and summary.txt files as well, to document
-your configuration and result summary).
+MaxQuant ‘txt’ output folder is required (typically nested somewhere in
+your raw data folder).
 
-MS-DAP import function: `msdap::import_dataset_maxquant_evidencetxt()`
+If you want to save on diskspace, this is the minimum set of input files
+needed: evidence.txt, peptides.txt, proteinGroups.txt (but make sure to
+always backup the parameters.txt/mqpar.xml and summary.txt files as
+well, to document your configuration and result summary).
+
+MS-DAP import function: `msdap::import_dataset_maxquant_evidencetxt()`  
+Example; `dataset =
+import_dataset_maxquant_evidencetxt("C:/DATA/project_x/sample1/combined/txt")`
 
 ## MetaMorpheus
 
 If you enable label-free quantification in a MetaMorpheus search, the
-output is compatible with MS-DAP. As input for MS-DAP simply point to
-the location of the search results output folder. example;
-C:/DATA/PXD007683/2019-10-14-19-20-46/Task2-SearchTask If you want to
-save on diskspace, this is the minimum set of input files needed:
-AllProteinGroups.tsv and AllQuantifiedPeaks.tsv (but make sure to backup
-the allResults.txt file and “Task Settings” folders as well, to document
-your configuration and result summary).
+output is compatible with MS-DAP. As input for MS-DAP, the output folder
+that contains search results is required (the one that contains
+AllProteinGroups.tsv, among others).
 
-MS-DAP import function: `msdap::import_dataset_metamorpheus()`
+If you want to save on diskspace, this is the minimum set of input files
+needed: AllProteinGroups.tsv and AllQuantifiedPeaks.tsv (but make sure
+to always backup the allResults.txt file and “Task Settings” folders as
+well, to document your configuration and result summary).
+
+MS-DAP import function: `msdap::import_dataset_metamorpheus()`  
+example; `dataset =
+import_dataset_metamorpheus("C:/DATA/PXD007683/2019-10-14-19-20-46/Task2-SearchTask")`
 
 ## Skyline
 
@@ -326,11 +342,22 @@ MS-DAP import function: `msdap::import_dataset_skyline()`
 
 ## FragPipe
 
-If you enable label-free quantification in a FragPipe search, the output
-is compatible with MS-DAP. Only the psm.tsv file is needed as input for
-MS-DAP.
+To generate output files that required for MS-DAP, use FragPipe for
+label-free quantification (MS1) as follows:
 
-MS-DAP import function: `msdap::import_dataset_fragpipe()`
+  - assign Experiment IDs in the workflow tab (optionally you may simply
+    set these all to 1). Replicate can be empty
+  - enable IonQuant in the “Quant (MS1)” tab
+  - optionally, enable match-between-runs
+
+MS-DAP import function: `msdap::import_dataset_fragpipe_ionquant()`
+combines data from the MSstats.csv file and various other FragPipe
+output files into a MS-DAP dataset.
+
+Alternatively, you can directly import a psm.tsv file generated through
+FragPipe workflows into MS-DAP using the
+`msdap::import_dataset_fragpipe_psm_file()` function (niche use-case,
+most users will want to follow above workflow).
 
 ## DIA-NN
 
@@ -413,12 +440,18 @@ for label-free data analysis to all mzML files in the same directory
 using the fasta files on the same location. workflow is the same as the
 iPRG2015 OpenMS tutorial by Hannes Rost
 
-requirements: - OpenMS 2 (our test system runs version 2.5) - MSGFPlus
-installed as OpenMS thirdparty plugin - Percolator installed as OpenMS
-thirdparty plugin - java runtime is required for MSGFPlus, you probably
-have this but in case of problems/errors with MSGFPlus grab latest
-version from www.java.com - after installation of the above, you may
-need to reboot first as we found on some test systems
+requirements:
+
+  - OpenMS 2 (our test system runs version 2.5)
+  - MSGFPlus installed as OpenMS thirdparty plugin
+  - Percolator installed as OpenMS thirdparty plugin
+  - java runtime is required for MSGFPlus, you probably have this but in
+    case of problems/errors with MSGFPlus grab latest version from
+    www.java.com
+  - after installation of the above, you may need to reboot first as we
+    found on some test systems
+
+<!-- end list -->
 
 1)  place this .bat file in the directory where your input files are
 2)  input: centroided mzML files + fasta files WITHOUT decoys (will be
@@ -430,9 +463,10 @@ MS-DAP import function: `msdap::import_dataset_openms_mztab()`
 
 ## ProteomeDiscoverer
 
-*Support is experimental, we are currently extending the PD workflows
-supported by MS-DAP. Additional support and test datasets are most
-welcome*.
+*Support is experimental, we have tested some PD workflows. Additional
+support and test datasets are most welcome. Our lab doesn’t have PD
+licences, so if you have suitable label-free test dataset to contribute
+please contact us*.
 
 Input data must contain Percolator PEP scores for each PSM, so after the
 search engine node (eg; Sequest HT) make sure to connect the Percolator
@@ -441,17 +475,22 @@ node.
 As input for MS-DAP, the PSMs.txt file from a PD label-free
 quantification workflow is used.
 
-Example PD workflow: Processing Step:
-PWF\_QE\_Precursor\_Quan\_and\_LFQ\_SequestHT\_Percolator Consensus
-Step: CWF\_Comprehensive\_Enhanced Annotation\_LFQ\_and\_Precursor\_Quan
-Consensus Step: add the “result exporter” (drag\&drop from side panel to
-bottom panel)
+Example PD workflow:
+
+  - Processing Step:
+    PWF\_QE\_Precursor\_Quan\_and\_LFQ\_SequestHT\_Percolator
+  - Consensus Step: CWF\_Comprehensive\_Enhanced
+    Annotation\_LFQ\_and\_Precursor\_Quan
+  - Consensus Step: add the “result exporter” (drag\&drop from side
+    panel to bottom panel)
 
 Optionally, tweak label-free data analysis settings to explore effects
-on MS-DAP assessment of your dataset: Consensus step –\>\> “peptide and
-protein filter” –\>\> Peptide Confidence At Least –\>\> change to medium
-Processing Step –\>\> change precursor quantification from peak (height)
-to area
+on MS-DAP assessment of your dataset:
+
+  - Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
+    Confidence At Least –\>\> change to medium
+  - Processing Step –\>\> change precursor quantification from peak
+    (height) to area
 
 MS-DAP was tested with the results of the above workflow applied to the
 PXD007683 dataset.

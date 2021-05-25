@@ -21,6 +21,7 @@
 #' @export
 import_dataset_openms_mztab = function(filename) {
   # debug; test file; filename = "C:/DATA/iPRG2015_Hannes/iPRG2015_targeted_only.mzTab"
+  reset_log()
   append_log("OpenMS data import is a new feature, please consult the documentations for limitations / work-in-progress", type = "warning")
 
   # first, check if input file exists
@@ -196,7 +197,7 @@ import_dataset_openms_mztab = function(filename) {
 
   tib_pep_result$rt = tib_pep_result$rt / 60
   tib_pep_result$intensity = log2(tib_pep_result$intensity)
-  tib_pep_result$intensity[!is.na(tib_pep_result$intensity) & tib_pep_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  tib_pep_result$intensity[!is.na(tib_pep_result$intensity) & tib_pep_result$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
 
   tib_pep_result$detect = tib_pep_result$confidence <= 0.01 # peptide-level FDR cutoff
 

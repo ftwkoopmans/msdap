@@ -7,7 +7,7 @@
 #' @export
 logger.default = function(x, type = "info") {
   if (!exists("log_")) {
-    log_ <<- list()
+    reset_log()
   }
   log_[[length(log_)+1]] = c(x, type, Sys.time())
   log_ <<- log_
@@ -15,7 +15,7 @@ logger.default = function(x, type = "info") {
   x = paste0(type, ifelse(is.character(type) && nchar(type) > 0, ": ", ""), x, "\n")
   style = switch(type,
                  error = crayon::red$bold,
-                 warning = crayon::cyan$bold,
+                 warning = crayon::red,
                  info = crayon::blue,
                  success = crayon::green
   )
@@ -29,14 +29,23 @@ logger.default = function(x, type = "info") {
 
 
 
+#' clear the log
+#'
+#' @export
+reset_log = function() {
+  log_ <<- list()
+}
+
+
+
 log_type_to_color = function(type, format="hex") {
   clr = switch(type,
-               error = c(red="#bd0d1f"),
-               warning = c(orange="#f58720"),
+               error = c(red="#cc2516"),
+               warning = c(orange="#cc2516"),
                success = c(green="#018023"),
                info = c(blue="#0f07a8"))
   if (is.null(clr)) {
-    clr = c(cyan="#444444")
+    clr = c(gray="#555555")
   }
 
   return( ifelse(format=="hex", as.character(clr), names(clr)) )

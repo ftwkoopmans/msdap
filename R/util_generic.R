@@ -521,30 +521,51 @@ make_bins = function(x, from, to, length) {
 
 
 
-#' wrapper for; predict(loess(y ~ x, span = span, na.action = na.omit), x)
+#' Loess fit on finite value pairs. Ignores overfit warnings, returns input data on error
 #'
-#' also adds option to disregard predicted values if input y is NA.
-#' does nothing if less than 10 values are passed.
+#' if a robust loess fit is desired, add parameter family='symmetric' which will be passed to loess() function
 #'
 #' @param x numeric vector
 #' @param y numeric vector
-#' @param span argument for loess()
-#' @param remove_na_yval set all output values where is.na(y) to NA
-smooth_loess_custom = function(x, y, span=.1, remove_na_yval = TRUE) {
-  # X<<-x; Y<<-y
+#' @param span span argument for loess() function
+#' @param remove_na_yval set all output values where is.na(y) to NA. default is TRUE
+#' @param min_values minimum number of values required (if less, input parameter y is returned). default is 10
+#' @param ... passed to loess() function
+smooth_loess_custom = function(x, y, span=.1, remove_na_yval = TRUE, min_values = 10, ...) {
+  # debug; X<<-x; Y<<-y
+
+  # subset entries where both x and y are finite, to be used for loess fit
   x_orig = x
   y_orig = y
   flag_valid = is.finite(x) & is.finite(y)
   x = x[flag_valid]
   y = y[flag_valid]
 
-  if(length(y) < 10) return(y_orig)
-  z = predict(loess(y ~ x, span = span), x_orig)
-  if(remove_na_yval) {
-    z[is.na(y_orig)] = NA
+  if(length(y) >= min_values) {
+    # ignore loess warnings (eg; overfitting). Especially important for systems that halt on warning (eg; options(warn = 2) ) as this occurs on many datasets where this function is used in RT QC plots
+    z = tryCatch(predict(suppressWarnings(loess(y ~ x, span = span, ...)), x_orig), error=function(e) NULL)
+
+    # ? optionally, we could fall-back and try a wider span on error. eg; add param fallback_spans=c(0.25,0.5,1); for(span in na.omit(fallback_spans)) z=tryCatch(fit loess)... break loop on success
+
+    # if loess fit succeeded, return predicted values
+    if(length(z) == length(y_orig)) {
+      if(remove_na_yval) {
+        z[is.na(y_orig)] = NA
+      }
+      return(z)
+    }
   }
 
-  return(z)
+  # default / fallback
+  return(y_orig)
+
+  ## v1
+  # if(length(y) < 10) return(y_orig)
+  # z = predict(loess(y ~ x, span = span), x_orig)
+  # if(remove_na_yval) {
+  #   z[is.na(y_orig)] = NA
+  # }
+  # return(z)
 }
 
 
@@ -679,13 +700,14 @@ subset_relevant_code_snippet_for_report = function(rcode_lines) {
 
 
 #' remove starting or trailing substrings that ar the same for all strings in a vector. eg; .txt in all filesnames, or <experiment data><samplename>
+#'
 #' strip_common_substring(s = unique(peptides$sample_id))
 #' strip_common_substring(s = c("sample_a.txt","sample_b1.txt","sample_xyz.txt"))
 #' strip_common_substring(s = c("","sample_b1.txt","sample_xyz.txt"))
 #' strip_common_substring(s = c("sample.txt","sample_b1.txt","sample_xyz.txt"))
 #' assertthat::are_equal(strip_common_substring(c("sample_a.txt","sample_b1.txt","sample_xyz.txt"), c("a","b1","xyz")))
 #'
-#' @param s todo
+#' @param s array of strings
 #'
 #' @importFrom data.table uniqueN
 #' @importFrom stringr str_split_fixed str_sub

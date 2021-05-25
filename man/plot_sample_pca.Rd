@@ -9,20 +9,20 @@ plot_sample_pca(
   matrix_sample_intensities,
   samples,
   samples_colors,
-  label_samples_by_shortname = TRUE,
+  sample_label_property = "auto",
   pch_as_exclude = TRUE
 )
 }
 \arguments{
-\item{matrix_sample_intensities}{todo}
+\item{matrix_sample_intensities}{peptide or protein abundance matrix}
 
-\item{samples}{todo}
+\item{samples}{sample metadata table}
 
-\item{samples_colors}{todo}
+\item{samples_colors}{sample colors in wide format tibble}
 
-\item{label_samples_by_shortname}{todo}
+\item{sample_label_property}{labels used to represent the samples. Set to "auto" to automatically select based on number of samples (default). possible values; auto, shortname, index, index_asis}
 
-\item{pch_as_exclude}{todo}
+\item{pch_as_exclude}{should exclude samples be represented with a distinct symbol shape? possible values; FALSE, TRUE (default)}
 }
 \description{
 placeholder title

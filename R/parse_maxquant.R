@@ -8,6 +8,7 @@
 #' @importFrom data.table fread
 #' @export
 import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequence_modified", remove_shared = TRUE) {
+  reset_log()
   append_log("reading MaxQuant 'txt' folder", type = "info")
 
   if(!(collapse_peptide_by %in% c("sequence_plain", "sequence_modified", ""))) {
@@ -75,7 +76,7 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
   tibble_evidence$pep[!is.finite(tibble_evidence$pep)] = NA
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tibble_evidence$intensity = log2(tibble_evidence$intensity)
-  tibble_evidence$intensity[!is.na(tibble_evidence$intensity) & tibble_evidence$intensity < 1] = 1
+  tibble_evidence$intensity[!is.na(tibble_evidence$intensity) & tibble_evidence$intensity < 0] = 0
   tibble_evidence$protein_id = pep2prot$protein_id[match(tibble_evidence$sequence_plain, pep2prot$sequence_plain)]
 
   if("isdecoy" %in% colnames(tibble_evidence)) {
@@ -111,7 +112,7 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
 #' @importFrom data.table fread
 #' @export
 import_maxquant_proteingroups = function(path, remove_shared = T) {
-  file_prot = path_exists(path, "proteingroups.txt")
+  file_prot = path_exists(path, "proteinGroups.txt")
   file_pep = path_exists(path, "peptides.txt")
 
   ###### parse proteinGroups.txt
@@ -144,7 +145,7 @@ import_maxquant_proteingroups = function(path, remove_shared = T) {
   if (length(col_contaminant) == 1) {
     MQ_prot = MQ_prot %>% filter((is.na(contaminant) | contaminant == "") & ((is.na(reverse) | reverse == "")))
   } else {
-    append_log("cannot find contaminant column in MaxQuant proteingroups.txt", type = "warning")
+    append_log("cannot find contaminant column in MaxQuant proteinGroups.txt", type = "warning")
     MQ_prot = MQ_prot %>% filter((is.na(reverse) | reverse == ""))
   }
 
@@ -218,6 +219,8 @@ import_maxquant_proteingroups = function(path, remove_shared = T) {
 #' @importFrom data.table fread
 #' @export
 import_maxquant_peptides = function(file_peptides, remove_shared_peptides = T, pep2prot = NA) {
+  reset_log()
+  append_log("importing MaxQuant data from peptides.txt -->> we strongly recommend to import MaxQuant data using the function msdap::import_dataset_maxquant_evidencetxt() that used evidence.txt peptides.txt proteinGroups.txt", type = "warning")
 
   ## read MaxQuant peptides.txt and validate input columns
   attributes_required = list(#id = "id",
@@ -292,7 +295,7 @@ import_maxquant_peptides = function(file_peptides, remove_shared_peptides = T, p
   ## conform to expected properties, standardized throughout input data parsers in this codebase
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tib$intensity = log2(tib$intensity)
-  tib$intensity[!is.na(tib$intensity) & tib$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  tib$intensity[!is.na(tib$intensity) & tib$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib$rt = NA # no retention time info in peptides.txt
   tib$detect = T # cannot differentiate between MBR and MS/MS identified
 

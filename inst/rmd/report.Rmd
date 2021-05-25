@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: beta 0.2.7.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: beta 0.2.8.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true
@@ -83,10 +83,9 @@ suppressWarnings(print(p_dcbp))
 
 The number of detected peptides in a sample, as compared to other samples within a dataset, can be used as a measure for sample quality. Color-coding individual samples for metadata that you provided as input (e.g. experiment batch, sample handling order, gel lanes, etc.) allows visual inspection as to whether these relate to the rate of successful peptide detection.
 
-The figure below aims to provide an overview of all sample metadata at a first glance. The y-axis shows all sample metadata. On each row all samples in the dataset are shown as a dot, each color-coded by the respective property shown on the y-axis (with minor vertical jitter for visual clarity). If there is a major effect of any experimental condition on the number of detected peptides, this is easily spotted as all outlier samples (extremes in number peptide detection, x-axis) will have the same color. The following figures expand this overview into a detailed figure for each sample property, those visualization are designed to further dive into each experimental condition and provide respective color legends.
+The figure below provides an overview of all sample metadata at a first glance. On each row all samples in the dataset are shown as a data point, each color-coded by the respective property shown on the y-axis (with minor vertical jitter for visual clarity). If any of these metadata coincide with a major effect on the number of detected peptides, this should become apparent by a clustering of samples by color-code. Hereafter, an additional set of figures will further expand this overview into detailed figures for each sample property.
 
-Note that the visualization of sample metadata in this report depends on user-provided input; each column in the metadata input table (besides sample names) that contains more than 1 unique value is automatically used as a factor for color-coding all figures in this section. So the data used for color-coding is also available in the output table 'samples.xlsx'.
-
+Note that the visualization of sample metadata in this report depends on user-provided input; each column in the metadata input table (besides sample names) that contains more than 1 unique value is automatically used as a factor for color-coding all figures in this section. All information shown in these figures is also available in the output table 'samples.xlsx'.
 
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_dcvsmetadata_scatter = ggplot_sample_detect_vs_metadata_scatterplot(samples_metadata_counts_colors)
@@ -98,14 +97,13 @@ suppressWarnings(print(p_dcvsmetadata_scatter))
 
 **color-coding sample metadata, expanded**
 
-To further detail each sample property, each row in the above figure is now split into separate plots. Thus, a figure is generated for each experimental condition from the user-provided metadata (column in the samples table, it's name shown in the plot title).
+To further detail each sample property, each row in the above figure is now split into separate plots. Thus, a figure is generated for each property in the user-provided metadata (column in the samples table, its name shown in the plot title).
 
-The y-axis shows all unique variables, the x-axis the number of detected peptides and each dot is a sample. The vertical line indicates the median value for each row. Colors are consistent with the above plot.
+For categorical variables, a scatterplot shows on the y-axis all unique variables while the x-axis depicts the number of detected peptides. Colors are consistent with the above plot. _exclude_ samples, if any, are depicted as squares. The median value is shown as a vertical line (thin line = median over all samples, wider line = median while discarding _exclude_ samples). For continuous variables, a scatterplot without (left panel) and with Loess fit is shown (right panel, visualized as blue line if data was successfully fitted).
+
+Note that samples flagged as _exclude_ are user-provided in the sample metadata table. These are included in data visualizations but excluded from downstream statistical analysis (later part of the report).
 
 For example: the first plot shows color-coding by the 'group' property, so each row represents a sample group. If samples in a particular group systematically yield fewer peptides than another group, a clear pattern will be visible.
-
-Note that the _exclude_ metadata is a user-provided indication of 'outlier samples' in the dataset that are excluded from downstream statistical analysis.
-
 
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_dcvsmetadata_scatter_byprop = ggplot_sample_detect_vs_metadata_scatterplot_by_prop(samples_metadata_counts_colors)
@@ -242,7 +240,7 @@ cat('\n\\newpage \n')
 cat("### CoV, leave-one-out \n\n")
 if(isplot_cov_loo) {
   # print documentation
-  cat("The figures below describe the effect of removing a particular sample prior to within-group Coefficient of Variation (CoV) computation. The lower the CoV distribution is for a sample, the better reproducibility we get by excluding it. Only sample groups with at least 4 replicates can be used for this analysis, so 3 samples remain after leaving one out. Samples marked as 'exclude' in the provided sample metadata are included in these analyses (shown as dashed lines), and only peptides with at least 3 data points across replicates samples (after leave-one-out) are used for each CoV computation. \n\n")
+  cat("The figures below describe the effect of removing a particular sample prior to within-group Coefficient of Variation (CoV) computation. The lower the CoV distribution is for a sample, the better reproducibility we get by excluding it. Only sample groups with at least 4 replicates can be used for this analysis, so 3 samples remain after leaving one out. Samples marked as 'exclude' in the provided sample metadata are included in these analyses (shown as dashed lines), and only peptides with at least 3 data points across replicate samples (after leave-one-out) are used for each CoV computation. \n\n")
 
   # plot
   for(p in p_cov_loo$loo_bygroup) {
@@ -301,21 +299,40 @@ cat("### Coefficient of Variation \n\n")
 if(isplot_cov) {
   # print documentation
   cat("The Coefficient of Variation (CoV) is a quality metric for the reproducibility of replicate measurements, here visualized using box- and violin-plots. \n\n")
-  cat("The same data was used as detailed in the \"retention time\" section above, with only peptides quantified in at least 3 replicates used for CoV computation in a group. Only samples that are NOT marked 'exclude' in the provided sample metadata and are in a sample group among at least 3 replicates are used for these figures. \n\n")
-  #plot
+  cat("Only samples that are NOT marked 'exclude' in the provided sample metadata and are in a sample group among at least 3 replicates are used for these figures. ")
+  cat("The user-specified filtering rules (eg; filter_min_detect, filter_min_peptide_per_prot, etc.) were applied within each sample group independently and remaining peptides were subsequently normalized. ")
+  cat("Only peptides with at least 3 data points across replicate samples are used for each CoV computation. \n\n")
+
+  cat("**Peptide-level CoV:** \n\n")
   suppressWarnings(print(p_cov$boxplot))
+  cat("\n\n")
+  suppressWarnings(print(p_cov$violin))
 } else {
   cat("_No CoV computations could be made, the dataset lacks sample groups with at least 3 replicate samples._ \n\n")
 }
 ``` 
 
 
-```{r, echo=F, message=F, warning=F, results="asis"}
-if(isplot_cov && "violin" %in% names(p_cov)) {
-  suppressWarnings(print(p_cov$violin))
+```{r, echo=F, message=F, warning=F, results="hide"}
+isplot_cov_protein = FALSE
+p_cov = list()
+if(isplot_cov) {
+  x = rollup_pep2prot(dataset$peptides %>% select(peptide_id, protein_id, sample_id, intensity=intensity_by_group), algo_rollup = "maxlfq")
+  p_cov_protein = suppressWarnings(ggplot_coefficient_of_variation(x %>% rename(peptide_id=protein_id, intensity_by_group=intensity), dataset$samples, samples_colors))
+  rm(x)
+  isplot_cov_protein = length(p_cov_protein) > 0 && "boxplot" %in% names(p_cov_protein)
 }
 ``` 
 
+```{r, echo=F, message=F, warning=F, results="asis"}
+if(isplot_cov_protein) {
+  cat('\n\\newpage \n')
+  cat("**Protein-level CoV:** (analogous to peptide CoV's, but with additional MaxLFQ rollup to protein abundances) \n\n")
+  suppressWarnings(print(p_cov_protein$boxplot))
+  cat("\n\n")
+  suppressWarnings(print(p_cov_protein$violin))
+}
+``` 
 
 
 
@@ -341,7 +358,7 @@ if(any(dataset$samples$exclude) && "intensity_all_group_withexclude" %in% colnam
     pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group_withexclude)
 
   # note that we select only the color-coding for sample groups for the PCA that includes outliers
-  p_pca__incl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_withexclude), dataset$samples, samples_colors %>% select(sample_id, shortname, group), label_samples_by_shortname = pca_label_samples_by_shortname))
+  p_pca__incl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_withexclude), dataset$samples, samples_colors %>% select(sample_id, shortname, group), sample_label_property = pca_sample_labels))
   p_pca__incl_outliers__npep = nrow(tibw_withexclude)
 }
 
@@ -350,7 +367,7 @@ if("intensity_all_group" %in% colnames(dataset$peptides) && any(!is.na(dataset$p
   tibw_noexclude = dataset$peptides %>% select(key_peptide, sample_id, intensity_all_group) %>% filter(!is.na(intensity_all_group)) %>%
     pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group)
 
-  p_pca__excl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_noexclude), dataset$samples, samples_colors, label_samples_by_shortname = pca_label_samples_by_shortname))
+  p_pca__excl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_noexclude), dataset$samples, samples_colors, sample_label_property = pca_sample_labels))
   p_pca__excl_outliers__npep = nrow(tibw_noexclude)
 }
 ```
@@ -390,17 +407,17 @@ if(length(l_contrast) > 0) {
   cat('**goal: maximize reliable features for quantification** \n \n')
   cat('In a pairwise analysis of two groups of samples, only peptides with N data-points in both groups are used for quantitative analysis (where N = defined by user settings). For example; if peptide *p* is consistently quantified in sample groups A and B but not in C/D/E, it can be used when comparing group A *versus* group B but should not be used in any other group comparisons. This approach is particularly suited to maximize the number of peptides used for statistical analysis in experimental designs with many sample groups. \n\n')
   cat('A common alternative strategy is a global filtering approach where peptides are selected based on their properties in the overall dataset (eg; present in x% of samples or x% of replicates in all groups) and subsequentially the resulting data matrix is used for all downstream statistical analyses. In the example above where peptide *p* is present in a subset of sample groups, *p* would either be left out (not present in majority of samples in entire dataset) or erronously used when applying t-statistics to groups B and C (since *p* is not present in group C, it may differentially detected but there are no features available for quantitative analysis) \n\n')
-  
+
   has_msqrob = "msqrob" %in% dataset$de_proteins$algo_de
   has_msempire = "msempire" %in% dataset$de_proteins$algo_de
-  
+
   for(contr_index in seq_along(l_contrast)) {
     contr = names(l_contrast)[contr_index]
     
     # cat('\n## ', contr, '\n\n')
     cat('\n## ', unlist(lapply(strsplit(sub("^contrast:\\s*", "", contr), " vs ", fixed = T), function(x) paste(stringr::str_trunc(x, 35, "right"), collapse = " vs "))), '\n\n') # analogous to formatting contrast shortnames for table tib_report_stats_summary @ report main function
-    
-  
+
+
     col_contr_intensity = get_column_intensity(dataset$peptides, contr)
     cat("*", sprintf("**user setting:** using '%s' peptide filtering approach", names(col_contr_intensity)), " \n\n")
   
@@ -412,22 +429,23 @@ if(length(l_contrast) > 0) {
     contr_line1 = dataset$de_proteins %>% filter(contrast == contr) %>% head(n=1)
     cat("* qvalue threshold:", contr_line1 %>% pull(signif_threshold_qvalue), " \n\n")
     cat("* log2 foldchange threshold:", contr_line1 %>% pull(signif_threshold_log2fc), " \n\n")
-  
+
     cat('\n### volcano \n\n')
     cat('The plot title shows the statistical model and contrast (sample groups in the comparison). Left- and right-side figure panels on each row represent the same figure without and with labels for the 25 proteins with lowest p-value. \n\n')
     cat('Bottom figure panels have limited x- and y-axis. For datasets with a small number of strong outliers in p-value or fold-change, which may have a profound effect on the plot scales, this allows inspection of the remainder of the volcano plot without disproportionate influence by \'extreme\' values. \n\n')
-  
+    cat('Labels for proteins that are more than 12 characters long are truncated for visual clarity (indicated by trailing ...). For protein identifiers that are ambiguous, e.g. a protein-group with assigned genes "gene1a;gene1b", only the first label/ID is shown for visual clarity (indicated by trailing *). \n\n')
+
     i=0
     for(p in l_contrast[[contr_index]]$p_volcano_contrast) {
       subchunkify(suppressWarnings(print(p)), unique_chunk_id = paste0("volcano_", contr_index, "_", i), fig_height = 8, fig_width = 7)
       cat('\n\n') 
       i = i + 1
     }
-  
+
     cat('\n\\newpage \n')
     cat('\n### foldchange distribution \n\n') 
     cat('Distributions of estimated foldchanges produced by the statistical models. If the mode is far from 0, consider alternative normalization strategies. Do note the scale on the x-axis, for some experiments the foldchanges are very low which in turn may exaggerate this figure. \n\n') 
-  
+
     if(has_msqrob) {
       cat("*note; the MSqRob model tends to assign zero (log)foldchange for proteins with minor difference between conditions where the model is very sure the null hypothesis cannot be rejected (shrinkage by the ridge regression model). As a result, many foldchanges will be zero and the density plot for MSqRob may look like a spike instead of the expected Gaussian shape observed in other models* \n\n") 
     }
@@ -498,7 +516,11 @@ if(exists("tib_report_stats_summary")) {
 
 
 
-
+<!-- same color-coding as used in R console output, defined in function: log_type_to_color() -->
+\definecolor{textColorRed}{HTML}{cc2516}
+\definecolor{textColorBlue}{HTML}{04368c}
+\definecolor{textColorSuccess}{HTML}{018023}
+\definecolor{textColorGray}{HTML}{555555}
 
 ```{r, results = 'asis', echo = F}
 if(exists("log_") && length(log_) > 0) {
@@ -506,34 +528,35 @@ if(exists("log_") && length(log_) > 0) {
   cat('# log \n')
   cat('\\scriptsize \n')
 
-  # if the log is a list assume the first element in each is the log message (eg; like logger.default(), where each entry has multiple values)
+  # if the log is a list assume the first element in each is the log message (eg; like msdap::logger.default(), where each entry contains at least a message and a type)
   if(is.list(log_)) {
-    if(all(lengths(log_) >= 2)) {
-      # simply print text
-      for(i in seq_along(log_)) {
-        s = log_[[i]]
-        cat("[", s[2], "] ", s[1], " \n\n", sep="")
+    # iterate log entries
+    for(i in seq_along(log_)) {
+      l = unlist(log_[[i]]) # unlist is not strictly needed, but robust against whatever custom loggers might be used
+      if(length(l) == 0 || l[1] == "") { # guard against empty entries
+        next
       }
-      ### TODO: color-coding is a work-in-progress
-      # convert to 2-column matrix
-      # log_tib = as_tibble(matrix(unlist(lapply(log_, head, 2), use.names = F), ncol=2, byrow = T, dimnames=list(NULL, c("msg", "type"))))
-      # log_tib$clr = sapply(log_tib$type, log_type_to_color, format="latex")
-      # log_tib$msg_linewrap = stringr::str_wrap(log_tib$msg, width = 100)
-      # l = strsplit(log_tib$msg_linewrap, "\n", fixed=T)
-      # for(i in seq_along(l)) {
-      #   s = paste(sprintf("\\textcolor{%s}{%s}", log_tib$clr[i], escapeLatexSpecials(l[[i]]) ), collapse = "\n")
-      #   cat("\\textcolor{", log_tib$clr[i], "}{[", log_tib$type[i], "] ", s, "}  \n\n\n", sep="")
-      # }
+      msg = l[1]
 
-    } else {
-      log_ = unlist(lapply(log_, head, 1), use.names = F) # simplest solution; no color-coding
-      cat(gsub("\n", "  \n\n", paste(stringr::str_wrap(s, width = 100), collapse=" \\ \n"), fixed=T), "  \n\n\n")
+      if(length(l) > 1) {
+        sts = tolower(l[2])
+        clr = "black"
+        if(sts %in% c("warning", "error")) clr = "textColorRed"
+        if(sts == "info") clr = "textColorBlue"
+        if(sts == "progress") clr = "textColorGray"
+        if(sts == "success") clr = "textColorSuccess"
+        # color-coded status  +  message
+        cat(sprintf("\\textcolor{%s}{%s}", clr, paste0("[", sts, "] ")), gsub("\\s*\n", " \\ \n", msg), " \n\n", sep="")
+      } else {
+        # message only
+        cat(gsub("\\s*\n", " \\ \n", msg), " \n\n", sep="")
+      }
+      # cat("[", s[2], "] ", gsub("\\s*\n", " \\ \n", s[1]), " \n\n", sep="") # v1: no color-coding
     }
-
   } else {
-    # if(is.list(log_)) { log_ = unlist(lapply(log_, head, 1), use.names = F) } # simplest solution; no color-coding
+    # log_ is not a list, assume array of messages (for compatability with a logger other than msdap::logger.default() that simply stores an array of strings)
     for(s in log_) {
-      cat(gsub("\n", "  \n\n", paste(stringr::str_wrap(s, width = 100), collapse=" \\ \n"), fixed=T), "  \n\n\n")
+      cat(gsub("\\s*\n", " \n\n", paste(stringr::str_wrap(s, width = 100), collapse=" \\ \n"), fixed=T), " \n\n\n")
     }
   }
 

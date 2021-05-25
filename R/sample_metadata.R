@@ -63,6 +63,10 @@ write_template_for_sample_metadata = function(dataset, filename, overwrite = FAL
     append_log(paste("sample metadata filename should end with .xlsx, appending extension. Updated filename:", filename), type = "warning")
   }
 
+  if(nchar(filename) > 260) {
+    append_log(paste("failed to create output file, total path length longer than 260 characters. Choose an output_dir with shorter path length, eg; C:/data/myproject (Windows) or /home/user/myproject (unix). Attempted output file (longer than 260 characters, so invalid);", filename), type="error")
+  }
+
   if(file.exists(filename)) {
     if(overwrite) {
       remove_file_if_exists(filename)
@@ -77,8 +81,61 @@ write_template_for_sample_metadata = function(dataset, filename, overwrite = FAL
     }
   }
 
+  # get the unique set of sample IDs and apply natural sort
   s = gtools::mixedsort(unique(dataset$peptides$sample_id))
-  openxlsx::write.xlsx(data.frame(sample_id=s, shortname=strip_common_substring(s), group="", exclude="FALSE", stringsAsFactors = F), file = filename)
+  # remove leading/trailing special characters  +  strip substrings at start or end that are found in every sample_id
+  # tolower() makes this code much more robust, in practise we find lots of "dirty" input where filenames inconsistently mix casing (eg; WT1 wt2 WT3 ko1)
+  s_clean = gsub("(^[^0-9a-z]+)|([^0-9a-z]+$)", "", tolower(s)) # example; s = c("WT1_", "WT_2", ".WT3", "WT3-")
+  s_clean = strip_common_substring(s_clean) # example: s_clean = c("20191231_WT1_bob", "20191231_WT2_bob", "20191231_KO1_bob", "20191231_KO2_bob")
+  s_clean = gsub("(^[^0-9a-z]+)|([^0-9a-z]+$)", "", s_clean) # example; "8" "_1" "_2" "_3"
+  # shortname; replace special characters with underscore to encourage clean names. most common sep char -->> rename to underscore, all other to "-"
+  s_shortname = s_clean # lowercase converted upstream, so regex' can be case sensitive
+  sepchar_most_common = count_sep_char(s_shortname)
+  if(nrow(sepchar_most_common) > 0) {
+    s_shortname = gsub(sepchar_most_common$char_regex[1], "$", s_shortname) # most common sep char -->> $
+    s_shortname = gsub("[^0-9a-z$]", "-", s_shortname) # every special char except $ -->> -
+    s_shortname = gsub("$", "_", s_shortname, fixed = T) # $ -->> _
+  }
+
+  # sample metadata table
+  df = data.frame(sample_id=s, shortname=s_shortname, exclude="FALSE", group=rep("", length(s)), stringsAsFactors = F)
+  # infer / guess experiment metadata encoded in sample names. Expect "dirty" input that is not consistently formatted
+  # start with s_clean so different types of special characters are maintained, this function will use it to infer if user gave different meaning to distinct separation chars (eg; maybe whitespace is separation character and underscore is not. "condition_a rep2" "condition2 rep2")
+  s_metadata = metadata_matrix_from_filenames(s_clean)
+  if(is.matrix(s_metadata) && ncol(s_metadata) > 1) {
+    # if all is well, s_metadata contains nicely formatted/split metadata but some special chars may remain -->> regex replace (allow - though, maybe these are formatted dates)
+    s_metadata = apply(s_metadata, 2, function(x) gsub("[^0-9a-z_-]+", "_", x, ignore.case = T))
+    df = cbind(df, s_metadata) # converts to matrix, but that's fine
+  }
+  # openxlsx::write.xlsx(df, file = filename)  # simple case, just write data table (forego making a formatted Excel doc that includes help/documentation)
+
+  wb = openxlsx::createWorkbook()
+  header_style = openxlsx::createStyle(textDecoration = "Bold")
+  openxlsx::addWorksheet(wb, "samples")
+  openxlsx::addWorksheet(wb, "instructions")
+  openxlsx::writeData(wb, "samples", df, keepNA = FALSE, headerStyle = header_style)
+  openxlsx::writeData(wb, "instructions", data.frame(
+    Instructions = c("This table should describe metadata for all samples in your dataset.",
+                     "",
+                     "sample_id (required): lists the input sample names, auto-generated from your dataset, should not be edited.",
+                     "shortname (required): a recognizable name/label for each sample that will be used in QC plots. MS-DAP tried to infer this, please curate. Allowed characters: alphanumeric, underscore, space, plus and minus. We encourage using simple/clean names with just alphanumeric and underscores.",
+                     "fraction (optional):  column for datasets with fractionated data. If you add this column, data from samples with the same shortname are merged. Do not add column with this name if your data is NOT fractionated ! empty values not allowed.",
+                     "group (required): describes the sample groups, these labels should group samples at similar experimental conditions. Allowed characters: alphanumeric, underscore or minus.",
+                     "exclude (optional): boolean flag that indicates which samples you consider to be strong outliers that should be excluded from statistical analyses (but will be included in QC figures, highlighted as 'exclude' status)",
+                     "",
+                     "QC figures will be automatically generated by MS-DAP for all sample metadata you provide !",
+                     "So we highly recommend describing additional sample metadata by simply adding more columns beyond those listed above (only for parameters/columns that describe more than 1 unique value of course).",
+                     "Examples of metadata to consider adding; experiment date or batch, order of sample handling, order measurement, gel number, gel lanes, cell counts for FACS experiment, etc.",
+                     "Allowed characters are: alphanumeric, underscore, space, dot, minus, (forward)slash, backslash. We recommend sticking with alphanumeric, underscore and minus characters.",
+                     "",
+                     "MS-DAP tries to guess/infer metadata from sample names to convenience data entry. If successful, these were added in columns that start with an 'x'.",
+                     "Please double-check and rename respective columns to meaningful names/labels.",
+                     "In most cases, one represents your sample groups (move data to 'group' column and remove respective 'x' column), one the replicate IDs (we typically remove these, redundant info with 'shortname' column), and others remaining experiment conditions (rename columns and curate !)",
+                     "",
+                     "reserved 'keywords'; column names should not start with 'condition' or 'contrast', nor have the name 'sample_index'")), keepNA = FALSE, headerStyle = header_style)
+  openxlsx::saveWorkbook(wb, file = filename)
+
+  append_log(sprintf('Sample metadata file "%s" has been created. Please open it with Excel/LibreOffice and enter experiment metadata (this file contains documentation at the "instructions" tab)', filename), type = "info")
 }
 
 
@@ -161,7 +218,7 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
 
   # read from disk
   if(is_type_xlsx) {
-    df = openxlsx::read.xlsx(filename, sheet=1, sep.names="_")
+    df = openxlsx::read.xlsx(filename, sheet=1, sep.names="_", detectDates=T)
   } else {
     df = as.data.frame(data.table::fread(filename))
   }
@@ -198,28 +255,20 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
 #'
 #' @importFrom gtools mixedorder
 #' @importFrom stringr str_squish
+#' @importFrom tibble rowid_to_column
 sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_order = NA) {
   if (!is.data.frame(df) || length(df) == 0) {
     append_log("sample metadata must be a non-empty dataframe", type = "error")
   }
 
   ### first, format input table
-  # convert all properties (/ column names) to lowercase
-  colnames(df) = tolower(colnames(df))
+  # convert all properties (/ column names) to lowercase  +  replace all non-alphanumerics with underscore
+  colnames(df) = gsub("[^0-9a-z]+", "_", tolower(colnames(df)))
+  colnames(df) = gsub("(^_)|(_$)", "", colnames(df)) # strip leading/trailing underscores
 
   # dupes in column names
   if (anyDuplicated(colnames(df)) != 0) {
-    print(colnames(df)[duplicated(colnames(df))])
-    append_log("duplicated column names are not allowed", type = "error")
-  }
-
-  # replace whitespace in column names with underscores
-  colnames(df) = gsub("\\s+", "_", colnames(df))
-
-  # input validation on column names: valid characters
-  cols_invalid = grepl("[^0-Z_ -.]", colnames(df), ignore.case = T)
-  if (any(cols_invalid)) {
-    append_log(paste("invalid characters in sample metadata column names; only alphanumeric characters and underscores are allowed. Invalid:", paste(colnames(df)[cols_invalid], collapse = ",")), type = "error")
+    append_log(paste0("duplicated column names are not allowed. Duplicated column names (after conversion to lowercase and substituting special chars with underscores);\n", paste(colnames(df)[duplicated(colnames(df))], collapse = ", ")), type = "error")
   }
 
   # input validation on column names: contrasts must be constructed in-code (for now)
@@ -242,14 +291,15 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     append_log(paste("removed input columns (reserved keywords);", paste(cols_remove, collapse=", ")), type = "warning")
   }
 
-  # replace NA values with empty string
-  df[is.na(df)] = ""
-
   # trim whitespace, to prevent mistakes in input data (eg; group name has a trailing space in one row -->> should not be considered a distinct group)
-  df = data.frame(apply(df, 2, stringr::str_squish), stringsAsFactors = F)
+  df = df %>% mutate(dplyr::across(where(is_character), stringr::str_squish)) # apply function to character columns; https://dplyr.tidyverse.org/reference/across.html
+
+  # replace empty strings with NA. Importantly, do this after above whitespace trim so any cell with only spaces is recognised as empty
+  df[is.na(df) | df == ""] = NA
 
   # silently drop completely empty columns (eg; Excel may generate 'invisible' extra columns padded at the end)
-  col_all_empty = colSums(df != "") == 0
+  # and also those with just 1 value (useless for sample metadata plots anyway)
+  col_all_empty = colSums(!is.na(df)) <= as.integer(nrow(df) > 1) # if only 1 row in df, only drop empty columns. otherwise, drop columns that have 1 or 0 values
   if(any(col_all_empty)) {
     # append_log(sprintf("removing empty columns from sample metadata table;", paste(colnames(df)[col_all_empty], collapse=", ")), type = "warning")
     df = df[, !col_all_empty, drop=F]
@@ -262,46 +312,74 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     append_log("sample_id, shortname and group are required attributes for sample metadata", type = "error")
   }
 
-  # no empty strings, anywhere
-  col_has_empty = colSums(df == "") > 0
-  if (any(col_has_empty)) {
-    append_log(paste("empty values are not allowed in sample metadata table. Columns with empty values;", paste(colnames(df)[col_has_empty], collapse=", ")), type = "error")
+  if (any(is.na(df[, c("sample_id", "shortname", "group")]))) {
+    append_log("no empty values allowed in columns; sample_id, shortname and group", type = "error")
   }
 
   # dupes in sample_id
   if (anyDuplicated(df$sample_id) != 0) {
     print(df[duplicated(df$sample_id),])
-    append_log("duplicated samples in the 'sample_id' column", type = "error")
+    append_log("duplicate entries in the 'sample_id' column are not allowed", type = "error")
   }
 
+  # input validation on sample_id: must not be integers. This protects against possibly common R implementation bugs; indexing by column names is prone to bugs when the column names are string representations of integers
+  sample_id_invalid = grep("^\\d+$", df$sample_id, value=T)
+  if (length(sample_id_invalid) > 0) {
+    append_log(paste("We advice against numeric sample_id values. Preferably, use an alphanumeric string to prevent confusion between sample index and input filenames. Affected sample_id values;", paste(unique(sample_id_invalid), collapse = ", ")), type = "warning")
+  }
+
+  # analogous for shortname
+  shortname_invalid = grep("^\\d+$", df$shortname, value=T)
+  if (length(shortname_invalid) > 0) {
+    append_log(paste("We advice against numeric shortname values. Preferably, use an alphanumeric string to prevent confusion between sample index and sample names in visualizations. Affected shortname values;", paste(unique(shortname_invalid), collapse = ", ")), type = "warning")
+  }
 
   if ("fractions" %in% colnames(df) && !"fraction" %in% colnames(df)) {
     append_log("a common typo in sample metadata column names is using 'fractions' instead of 'fraction', fixing now by renaming this column...", type = "warning")
     colnames(df)[colnames(df)=="fractions"] = "fraction"
   }
 
+  # check for empty fractions
+  if ("fraction" %in% colnames(df) && any(is.na(df$fraction))) {
+    append_log("empty values in the fraction column are not allowed", type = "error")
+  }
+
   # check for dupes in fraction * shortname
   if ("fraction" %in% colnames(df) && anyDuplicated(df[, c("shortname", "fraction")]) != 0) {
     print(df[duplicated(df[, c("shortname", "fraction")]),])
-    append_log("duplicated fraction * sample-name ('shortname' column) combinations", type = "error")
+    append_log("duplicated fraction * sample-name ('shortname' column) combinations are not allowed", type = "error")
   }
 
   if (!"fraction" %in% colnames(df) && anyDuplicated(df$shortname) != 0) {
     print(df[duplicated(df$shortname),])
-    append_log("duplicated sample names in the 'shortname' column", type = "error")
+    append_log("duplicated sample names in the 'shortname' column are not allowed (unless your samples were fractionated, in which case you should provide a column named 'fraction')", type = "error")
   }
 
   # enforce valid characters in metadata
-  rows_invalid = apply(df[, setdiff(colnames(df), "sample_id")], 1, function(x) any(grepl("[^0-Z_ -/\\.]", x, ignore.case = T))) # allow alphanumeric, underscore, space, minus
-  if (any(rows_invalid)) {
-    print(df[rows_invalid, , drop = F])
-    append_log("invalid characters in sample metadata. outside of the column 'sample_id', only alphanumeric characters, underscores, - and spaces are allowed", type = "error")
+  df_check = df[, setdiff(colnames(df), "sample_id")]
+  props_invalid = colnames(df_check)[apply(df_check, 2, function(x) any(grepl("[^0-9a-z_+. /;:#*-]", x, ignore.case = T)))] # apply regex to each column, check if any row matches; allow alphanumeric, underscore, space, minus, slash, dot
+  if (length(props_invalid) > 0) {
+    print(df[ , props_invalid, drop = F])
+    append_log(paste0("invalid characters in sample metadata columns; ", paste(props_invalid, collapse = ", "), ". valid characters allowed are: alphanumeric, underscore, space, dot, minus, (forward)slash, backslash"), type = "error")
   }
-  rows_invalid = grepl("[^0-Z_+ -]", df$shortname, ignore.case = T)
+  rows_invalid = grepl("[^0-9a-z_-]", df$group, ignore.case = T)
   if (any(rows_invalid)) {
-    print(df[rows_invalid, , drop = F])
-    append_log("invalid characters in sample metadata; shortnames may only contain alphanumeric characters, underscores and spaces", type = "error")
+    append_log(paste0("invalid characters in sample metadata, column group, values; ", paste0(df$group[rows_invalid], collapse=", "), " -->> group column may only contain characters that are; alphanumeric, underscore or minus"), type = "error")
   }
+  rows_invalid = grepl("[^0-9a-z_+ -]", df$shortname, ignore.case = T)
+  if (any(rows_invalid)) {
+    append_log(paste0("invalid characters in sample metadata, column shortname, values; ", paste0(df$shortname[rows_invalid], collapse=", "), " -->> Shortnames may only contain characters that are; alphanumeric, underscore, space, plus and minus"), type = "error")
+  }
+
+
+  ### enforce data types: shortname and group must be character type
+  # Important, otherwise all downstream code will need to be checked for silent !! type conversion errors
+  # example;
+  # some code matches columns from a peptide abundance matrix (matrix type, peptide_id*sample_id), character type, against dataset$samples$shortname to find respective metadata
+  # -->> if shortname is numeric type, this yields no match but also no error (dynamic typing, R has no strong types, etc.)
+  df$sample_id = as.character(df$sample_id)
+  df$shortname = as.character(df$shortname)
+  df$group = as.character(df$group)
 
 
   ### sort data
@@ -321,27 +399,16 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     # not in df yet, init as default false
     df$exclude = FALSE
   } else {
-    # tolower is a string conversion (so works with both character and numeric input), %in% deals with NA's (although those are already caught upstream if all is well)
-    df$exclude = tolower(df$exclude) %in% c("true", "1") # if user provides 0/1 flags
+    # tolower is also a string conversion (so works with both character and numeric input). %in% deals with NA's
+    df$exclude = tolower(df$exclude) %in% c("true", "1")
   }
 
   if (length(sample_exclude_regex) == 1 && !is.na(sample_exclude_regex) && sample_exclude_regex != "") {
-    rows.remove = grepl(sample_exclude_regex, df$sample_id, ignore.case = T)
-    if (any(rows.remove)) {
-      # append_log(paste("samples on exclude list:", paste(df$sample_id[rows.remove], collapse=",")), type="info")
-      df$exclude = rows.remove
-    } else {
-      append_log("your regex for removing unwanted samples did not match anything", type = "warning")
+    df$exclude = grepl(sample_exclude_regex, df$sample_id, ignore.case = T)
+    if (!any(df$exclude)) {
+      append_log("your regex for defining 'exclude' samples did not match anything", type = "warning")
     }
   }
-
-  ## backup from old systematics; groups must contain 2+ files
-  # group_counts = table(df$group[df$exclude != TRUE])
-  # fail_groups = names(group_counts)[group_counts < 2]
-  # if (length(fail_groups) > 0) {
-  #   print(df[df$group %in% fail_groups, , drop = F])
-  #   append_log(paste("sample groups must have 2+ members (eg; a group of 1 has no replicates) -->> group(s): ", paste(fail_groups, collapse = ", ")), type = "error")
-  # }
 
   # there must be at least 1 sample group with 1 non-exclude sample
   if(all(df$exclude == TRUE)) {
@@ -349,7 +416,7 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
   }
 
   # finally, add index as the first column
-  df = data.frame(sample_index = 1:nrow(df), df, stringsAsFactors = F)
+  df = tibble::rowid_to_column(df, var = "sample_index")
 
   return(as_tibble(df))
 }
@@ -468,7 +535,7 @@ setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
     count_samples_condition_b = sum(mask == 2)
     if(count_samples_condition_a < 2 || count_samples_condition_b < 2) {
       append_log(sprintf("invalid contrast; '%s' vs '%s'. The former contains %d samples, the latter %d samples, while both should have at least 2 samples (disregarding samples that are flagged as 'exclude')",
-                   paste(groups_a, collapse = ","), paste(groups_b, collapse = ","), count_samples_condition_a, count_samples_condition_b), type = "error")
+                         paste(groups_a, collapse = ","), paste(groups_b, collapse = ","), count_samples_condition_a, count_samples_condition_b), type = "error")
     }
 
     append_log(lbl, type = "info")

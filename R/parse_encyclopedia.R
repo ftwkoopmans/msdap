@@ -13,6 +13,7 @@
 #' @importFrom data.table as.data.table
 #' @export
 import_dataset_encyclopedia = function(path, confidence_threshold = 0.01, return_decoys = FALSE) {
+  reset_log()
   append_log("reading EncyclopeDIA elib ...", type = "info")
 
   check_parameter_is_string(path)

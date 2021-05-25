@@ -50,6 +50,7 @@ import_dataset_proteomediscoverer_txt = function(filename) {
   # x = dataset$peptides %>% pivot_wider(id_cols = peptide_id, names_from = sample_id, values_from = "intensity")
   # plot(x$a05191, x$a05192, main = sprintf("R^2=%.4f", cor(x$a05191, x$a05192, use = "pairwise.complete.obs", method = "pearson")^2))
 
+  reset_log()
   append_log("ProteomeDiscoverer data import is a new feature, please consult the documentations for limitations / work-in-progress", type = "warning")
 
   # first, check if input file exists
@@ -179,7 +180,7 @@ import_dataset_proteomediscoverer_txt = function(filename) {
   # ensure downstream compatability
   tib_result$isdecoy = F
   tib_result$intensity = log2(tib_result$intensity)
-  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
   tib_result$detect = tib_result$confidence <= 0.01 # peptide-level FDR cutoff
 
 

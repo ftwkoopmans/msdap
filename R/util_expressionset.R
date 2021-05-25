@@ -1,25 +1,11 @@
 
-
-#' placeholder title
-#' @param x_as_log2 todo
-#' @param grp_var todo
-simple_rollup_peptide_matrix = function(x_as_log2, grp_var) {
-  stopifnot(is.matrix(x_as_log2))
-  stopifnot(!"protein_id" %in% colnames(x_as_log2))
-  expr_prot = as_tibble(2^x_as_log2) %>% replace(is.na(.), 0) %>% add_column(protein_id=grp_var) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA)
-  m = as.matrix(expr_prot[,-1])
-  rownames(m) = expr_prot$protein_id
-  # convert to log2 again (note; we already replaced zero's with NA above)
-  return(log2(m))
-}
-
-
-#' placeholder title
-#' @param peptides todo
-#' @param proteins todo
-#' @param samples todo
+#' peptide-level ExpressionSet from long-format peptide data
 #'
+#' @param peptides peptide tibble
+#' @param proteins protein tibble
+#' @param samples sample tibble
 #' @importFrom Biobase pData fData exprs annotatedDataFrameFrom
+#' @export
 tibble_as_eset = function(peptides, proteins, samples) {
   # append_log("grouping peptides in an ExpressionSet...", type = "info")
 
@@ -59,37 +45,11 @@ tibble_as_eset = function(peptides, proteins, samples) {
 
 
 
-#' Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
+#' Construct an ExpressionSet
 #'
-#' @param eset_peptides A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes
-#' @param mode roll-up strategy
-#' @importFrom Biobase fData pData exprs
-#' @export
-eset_from_peptides_to_proteins = function(eset_peptides, mode = "sum") {
-  fdata = Biobase::fData(eset_peptides)
-  pdata = Biobase::pData(eset_peptides)
-  if(!("protein_id" %in% colnames(fdata))) {
-    append_log("expressionset fData() must contain column 'protein_id'", type = "error")
-  }
-
-  # rollup abundance values, from peptides to proteins
-  if(mode == "ipl") {
-    col_groups = head(intersect(c("condition", "group"), colnames(pdata)), 1)
-    m = impute_peptide_local(x = Biobase::exprs(eset_peptides), protein_ids = fdata$protein_id, groups = pdata[,col_groups])
-  } else {
-    m = simple_rollup_peptide_matrix(Biobase::exprs(eset_peptides), grp_var=fdata$protein_id)
-  }
-
-  return(protein_eset_from_data(m, eset = eset_peptides))
-}
-
-
-
-#' Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
-#'
-#' @param eset_peptides A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes
-#' @param mode roll-up strategy
-#' @importFrom Biobase fData pData exprs
+#' @param x protein abundance matrix
+#' @param eset A Biobase ExpressionSet with protein_id and sample_id metadata
+#' @importFrom Biobase fData pData
 #' @export
 protein_eset_from_data = function(x, eset) {
   fdata = Biobase::fData(eset)
@@ -119,22 +79,63 @@ protein_eset_from_data = function(x, eset) {
 
 
 
-#' placeholder title
-#' @param eset todo
-#' @param valid_peptide_ids todo
-#' @param valid_sample_ids todo
-#'
-#' @importFrom Biobase fData sampleNames
-subset_eset = function(eset, valid_peptide_ids, valid_sample_ids) {
-  fdata = Biobase::fData(eset)
-  if(!("peptide_id" %in% colnames(fdata))) {
-    append_log("expressionset fData() must contain column 'peptide_id'", type = "error")
-  }
+# #' placeholder title
+# #' @param x_as_log2 todo
+# #' @param grp_var todo
+# simple_rollup_peptide_matrix = function(x_as_log2, grp_var) {
+#   stopifnot(is.matrix(x_as_log2))
+#   stopifnot(!"protein_id" %in% colnames(x_as_log2))
+#   expr_prot = as_tibble(2^x_as_log2) %>% replace(is.na(.), 0) %>% add_column(protein_id=grp_var) %>% group_by(protein_id) %>% summarise_all(sum) %>% replace(.==0, NA)
+#   m = as.matrix(expr_prot[,-1])
+#   rownames(m) = expr_prot$protein_id
+#   # convert to log2 again (note; we already replaced zero's with NA above)
+#   return(log2(m))
+# }
 
-  cols = rep(T, ncol(fdata))
-  if (length(valid_sample_ids) > 0 && all(!is.na(valid_sample_ids) && valid_sample_ids != "")) {
-    cols = Biobase::sampleNames(eset) %in% valid_sample_ids
-  }
-  # simply use matrix-style subsetting.  documentation @ https://genomicsclass.github.io/book/pages/eset.html
-  return(eset[fdata$peptide_id %in% valid_peptide_ids, cols])
-}
+
+
+# #' Convert a peptide-level ExpressionSet to protein-level by summing their respective peptide intensities per sample
+# #'
+# #' @param eset_peptides A Biobase ExpressionSet with peptide data. Intensity values are assumed to be log2 transformed! fData() must contain protein_id attributes
+# #' @param mode roll-up strategy
+# #' @importFrom Biobase fData pData exprs
+# #' @export
+# eset_from_peptides_to_proteins = function(eset_peptides, mode = "sum") {
+#   fdata = Biobase::fData(eset_peptides)
+#   pdata = Biobase::pData(eset_peptides)
+#   if(!("protein_id" %in% colnames(fdata))) {
+#     append_log("expressionset fData() must contain column 'protein_id'", type = "error")
+#   }
+#
+#   # rollup abundance values, from peptides to proteins
+#   if(mode == "ipl") {
+#     col_groups = head(intersect(c("condition", "group"), colnames(pdata)), 1)
+#     m = impute_peptide_local(x = Biobase::exprs(eset_peptides), protein_ids = fdata$protein_id, groups = pdata[,col_groups])
+#   } else {
+#     m = simple_rollup_peptide_matrix(Biobase::exprs(eset_peptides), grp_var=fdata$protein_id)
+#   }
+#
+#   return(protein_eset_from_data(m, eset = eset_peptides))
+# }
+
+
+
+# #' placeholder title
+# #' @param eset todo
+# #' @param valid_peptide_ids todo
+# #' @param valid_sample_ids todo
+# #'
+# #' @importFrom Biobase fData sampleNames
+# subset_eset = function(eset, valid_peptide_ids, valid_sample_ids) {
+#   fdata = Biobase::fData(eset)
+#   if(!("peptide_id" %in% colnames(fdata))) {
+#     append_log("expressionset fData() must contain column 'peptide_id'", type = "error")
+#   }
+#
+#   cols = rep(T, ncol(fdata))
+#   if (length(valid_sample_ids) > 0 && all(!is.na(valid_sample_ids) && valid_sample_ids != "")) {
+#     cols = Biobase::sampleNames(eset) %in% valid_sample_ids
+#   }
+#   # simply use matrix-style subsetting.  documentation @ https://genomicsclass.github.io/book/pages/eset.html
+#   return(eset[fdata$peptide_id %in% valid_peptide_ids, cols])
+# }

@@ -94,12 +94,12 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
       dataset$proteins = dataset$proteins[!rows_remove, ]
       dataset$peptides = dataset$peptides %>% filter(isdecoy | protein_id %in% dataset$proteins$protein_id)
       # optionally, print the fasta headers for proteins that were removed
-      charlim = 125
+      charlim = 150
       h_too_long = nchar(h) > charlim
       h[h_too_long] = paste(substr(h[h_too_long], 1, charlim-4), "...")
-      append_log(paste0("filtered proteins:\n  ", paste(h, collapse="\n  ")), type = "progress")
       # status report & return results
       append_log(sprintf("%d/%d proteins matching your filters were removed from the dataset", sum(rows_remove), length(rows_remove)), type = "info")
+      append_log(paste0("filtered proteins:\n  ", paste(h, collapse="\n  ")), type = "info")
       return(dataset)
     }
   }

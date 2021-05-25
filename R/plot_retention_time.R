@@ -17,8 +17,8 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
   # samples without replicates cannot be used for this analysis (eg; what is their within-group abundance variation ?)
   key_samples_not_plotted = setdiff(samples$key_sample, peptides$key_sample)
-  if(length(key_samples_not_plotted)) {
-    append_log(paste("cannot create QC plot for these samples, are they in a group without replicates? ", paste(samples$shortname[match(key_samples_not_plotted, samples$key_sample)], collapse = ", ")), type = "warning")
+  if(length(key_samples_not_plotted) > 0) {
+    append_log(paste("cannot create retention time QC plot for these samples, no peptides with RT and intensity data available (at intensity_qc_basic filter criteria); ", paste(samples$shortname[match(key_samples_not_plotted, samples$key_sample)], collapse = ", ")), type = "warning")
   }
 
   # never use non-detects to get the reference RT. For DIA, don't use non-detects in these figures
@@ -158,7 +158,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
     geom_line(stat="density", na.rm=T, alpha=0.3) +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
-    facet_grid(~"all samples") +
+    facet_grid(~"all samples, no color-coding") +
     theme_bw() +
     theme(legend.position = "none", legend.title = element_blank())
 
@@ -167,7 +167,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
     guides(linetype = FALSE) +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
-    facet_grid(~"all samples") +
+    facet_grid(~"all samples, color-coded by group") +
     theme_bw() +
     theme(legend.position = "bottom",
           legend.text = element_text(size = ifelse(ngroup < 4, 10, ifelse(ngroup < 6, 8, 6)) ),
@@ -309,7 +309,6 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
   append_log_timestamp("RT plots: creating plots", start_time)
   return(list(key_samples_not_plotted = key_samples_not_plotted, rt_distributions_all = p_all_rt_distributions, rt_distributions_colour_groups = p_all_rt_distributions_colour_groups, rt_distributions_collapse_groups = p_all_rt_distributions_collapse_groups, rt_by_sample = plotlist))
-  # for(p in plotlist) suppressWarnings(print(p))
 }
 
 

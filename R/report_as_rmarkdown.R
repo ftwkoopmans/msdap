@@ -6,7 +6,7 @@
 #' @param dataset a valid dataset object generated upstream by, for instance, import_dataset_skyline
 #' @param output_dir output directory where all output files are stored, must be an existing directory
 #' @param norm_algorithm normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
-#' @param pca_label_samples_by_shortname whether to use sample names or a numeric ID as labels in the PCA plot. options: NA (let the code decide, default), TRUE (always use sample 'shortname'), FALSE (always use numeric ID)
+#' @param pca_sample_labels see plot_sample_pca() function for params
 #'
 #' @import knitr
 #' @importFrom rmarkdown render
@@ -15,7 +15,7 @@
 #' @importFrom stringr str_wrap
 #' @importFrom devtools session_info
 #' @export
-generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_label_samples_by_shortname = NA) {
+generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_sample_labels = "auto") {
 
   start_time = Sys.time()
   append_log("creating PDF report...", type = "progress")
@@ -64,13 +64,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
   ################ plot ################
 
   ### sample metadata, color-coding and generic ggplots
-  samples_colors_long = dataset$samples %>% select(sample_id, shortname) %>%
-    left_join(sample_color_coding(dataset$samples), by="sample_id") %>%
-    # set sample property factor levels (arrangement for plotting later) according to the column name order in the sample metadata table
-    mutate(prop = factor(prop, levels=intersect(colnames(dataset$samples), prop))) %>%
-    # sort such that first, properties are arranged accordingly to factor levels and then samples by their order in the sample metadata table
-    arrange(as.numeric(prop), match(sample_id, dataset$samples$sample_id))
-
+  samples_colors_long = sample_color_coding__long_format(dataset$samples)
   # for convenience in some plotting functions, the color-codings as a wide-format tibble
   samples_colors = samples_colors_long %>% select(sample_id, shortname, prop, clr) %>% pivot_wider(id_cols = c(sample_id, shortname), names_from=prop, values_from=clr)
 

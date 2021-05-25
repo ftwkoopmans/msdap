@@ -7,6 +7,7 @@
 #' @param only_unique_peptides remove all shared peptides? recommended to leave at FALSE
 #' @export
 import_dataset_metamorpheus = function(path, protein_qval_threshold = 0.05, collapse_peptide_by = "sequence_modified", only_unique_peptides = FALSE) {
+  reset_log()
   append_log("reading MetaMorpheus search task...", type = "info")
 
   if(!(collapse_peptide_by %in% c("sequence_plain", "sequence_modified", ""))) {
@@ -38,7 +39,7 @@ import_dataset_metamorpheus = function(path, protein_qval_threshold = 0.05, coll
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   tib_result$intensity = log2(tib_result$intensity)
-  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 1] = 1 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  tib_result$intensity[!is.na(tib_result$intensity) & tib_result$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
 
   # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
   if(collapse_peptide_by == "") {

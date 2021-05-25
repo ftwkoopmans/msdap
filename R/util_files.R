@@ -1,6 +1,34 @@
 
-#' placeholder title
-#' @param f todo
+#' append a file to path. If longer than N characters (Windows filesystem max path length), try with md5 hashed filename
+#'
+#' note;
+#' in contrast to using a timestamp or substring+index, this solution yields stable filenames. Should never fail if provided path/dir is reasonable
+#'
+#' @param path a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix
+#' @param file filename that should be appended to the path
+#' @importFrom openssl md5
+path_append_and_check = function(path, file) {
+  fname = fname_asis = path_clean_slashes(paste0(path, "/", file))
+  if(nchar(fname) > 260) { # Windows path length limit
+    fextension = sub(".*(\\.[a-zA-Z0-9]{2,5})$", "\\1", file)
+    if(fextension == file) {
+      fextension = ""
+    }
+    # attempt to create a shorter path using md5 hashed filename (32 chars @ md5, perhaps shorter than intended filename. eg; auto generated filenames for statistical contrasts)
+    fname = path_clean_slashes(paste0(path, "/", openssl::md5(file), fextension))
+    if(nchar(fname) > 260) {
+      append_log(paste("failed to create output file, total path length longer than 260 characters. Choose an output_dir with shorter path length, eg; C:/data/myproject (Windows) or /home/user/myproject (unix). Attempted output file (longer than 260 characters, so invalid);", fname_asis), type="error")
+    } else {
+      append_log(sprintf('output file has a total path length longer than 260 characters; "%s". This was shortened to "%s"', fname_asis, fname), type="warning")
+    }
+  }
+  return(fname)
+}
+
+
+
+#' remove file if exists
+#' @param f full path to some file
 remove_file_if_exists = function(f) {
   if(file.exists(f)) {
     if(!suppressWarnings(file.remove(f))) {
@@ -11,9 +39,9 @@ remove_file_if_exists = function(f) {
 
 
 
-#' placeholder title
-#' @param path todo
-#' @param file todo
+#' check if a path exists
+#' @param path a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix
+#' @param file filename within this directory
 path_exists = function(path, file) {
   f = paste0(path, "/", file)
   if (!file.exists(f)) {
@@ -28,6 +56,14 @@ path_exists = function(path, file) {
 #' @param f f can either be a filename or a full path, and optionally carry a file extension. eg; remove_file_extension_from_path("file.txt"); remove_file_extension_from_path("C:/temp/file")
 remove_file_extension_from_path = function(f) {
   sub("\\.[a-zA-Z]{0,5}$", "", f)
+}
+
+
+
+#' regex replace back slashes and redundant forward/back-slashes with a single forward slash
+#' @param f full path to some file
+path_clean_slashes = function(f) {
+  gsub("[/\\]+", "/", f)
 }
 
 
