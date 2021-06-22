@@ -22,14 +22,14 @@ import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protei
   if(length(files) == 0) {
     append_log("no fasta files were provided, downstream analysis/code will use protein IDs as surrogate for fasta headers", type = "info")
     dataset$proteins = empty_protein_tibble(peptides)
+  } else {
+    dataset$proteins = import_protein_metadata_from_fasta(
+      protein_id = dataset$peptides %>% filter({if("isdecoy" %in% names(.)) isdecoy else F} != TRUE) %>% distinct(protein_id) %>% pull(),
+      fasta_files = files,
+      fasta_id_type = fasta_id_type,
+      protein_separation_character = protein_separation_character
+    )
   }
-
-  dataset$proteins = import_protein_metadata_from_fasta(
-    protein_id = dataset$peptides %>% filter({if("isdecoy" %in% names(.)) isdecoy else F} != TRUE) %>% distinct(protein_id) %>% pull(),
-    fasta_files = files,
-    fasta_id_type = fasta_id_type,
-    protein_separation_character = protein_separation_character
-  )
 
   return(dataset)
 }
@@ -180,6 +180,12 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
   if(any(rows_fail)) {
     tib_result$fasta_headers[rows_fail] = NA
     tib_result$gene_symbols_or_id[rows_fail] = NA
+  }
+
+  # add protein IDs that are in input ('protein_id' parameter of this function) but not in the fasta files and/or excluded by the reverse/contaminant filter above
+  pid_miss_input = setdiff(protein_id, tib_result$protein_id)
+  if(length(pid_miss_input) > 0) {
+    tib_result = bind_rows(tib_result, tibble(protein_id = pid_miss_input, fasta_headers = NA, gene_symbols_or_id = NA))
   }
 
   rows_miss_fasta = is.na(tib_result$fasta_headers)

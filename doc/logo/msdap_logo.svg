@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="500"
+   height="500"
+   viewBox="0 0 132.29167 132.29167"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.1 (c68e22c387, 2021-05-23)"
+   sodipodi:docname="msdap_logo.svg"
+   inkscape:export-filename="C:\Users\Frank\Desktop\msdap_logo.png"
+   inkscape:export-xdpi="300"
+   inkscape:export-ydpi="300"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:snap-global="false"
+     inkscape:zoom="1.4142136"
+     inkscape:cx="94.398753"
+     inkscape:cy="231.93102"
+     inkscape:window-width="1278"
+     inkscape:window-height="1368"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="g5679"
+     units="px"
+     width="500px"
+     viewbox-height="132.29"
+     viewbox-width="132.29">
+    <inkscape:grid
+       type="xygrid"
+       id="grid4638"
+       originx="-42.897338"
+       originy="-84.574287" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-42.897338,-84.574289)">
+    <g
+       id="g75">
+      <g
+         id="g5679"
+         transform="translate(16.162317,1.0102908)">
+        <path
+           style="fill:#a799b7;fill-opacity:1;stroke:none;stroke-width:0.376999;stroke-miterlimit:10"
+           d="m 142.86023,134.00331 -13.23278,13.38058 -11.79411,-11.58534 a 24.999999,24.999999 0 0 1 -16.94005,22.44049 l -12.203395,12.42043 13.232785,13.08705 a 50,50 0 0 0 40.94169,-49.17219 50,50 0 0 0 -0.004,-0.57102 z"
+           id="path5241" />
+        <path
+           style="fill:#c7b600;fill-opacity:1;stroke:none;stroke-width:0.376999;stroke-miterlimit:10"
+           d="m 55.41027,129.99322 -11.952759,12.08505 a 50,50 0 0 0 49.406804,42.49611 50,50 0 0 0 1.34307,-0.0186 L 80.219092,170.722 91.226685,159.51596 A 24.999999,24.999999 0 0 1 69.747898,144.0766 Z"
+           id="path5239" />
+        <path
+           style="fill:#542e71;fill-opacity:1;stroke:none;stroke-width:0.376999;stroke-miterlimit:10"
+           d="M 84.268455,85.327732 A 50,50 0 0 0 42.897338,134.11235 l 12.450405,-12.58942 12.584245,12.36204 a 24.999999,24.999999 0 0 1 16.476507,-22.80946 l 12.7615,-12.990416 z"
+           id="path5237" />
+        <path
+           style="fill:#fb3640;fill-opacity:1;stroke:none;stroke-width:0.376999;stroke-miterlimit:10"
+           d="m 92.864315,84.574289 a 50,50 0 0 0 -0.80615,0.01757 L 105.6408,98.02463 94.256475,109.6141 a 24.999999,24.999999 0 0 1 22.044655,16.26929 l 13.26534,13.0297 12.58838,-12.72894 A 50,50 0 0 0 92.864315,84.574289 Z"
+           id="path31" />
+      </g>
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:35.2778px;line-height:1.25;font-family:Arial;-inkscape-font-specification:'Arial, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.336108"
+         x="43.229546"
+         y="208.07877"
+         id="text8653"
+         transform="scale(0.96477193,1.0365144)"><tspan
+           sodipodi:role="line"
+           id="tspan8651"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:35.2778px;font-family:Arial;-inkscape-font-specification:'Arial, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.336108"
+           x="43.229546"
+           y="208.07877">MS-DAP</tspan></text>
+    </g>
+  </g>
+</svg>

@@ -133,6 +133,18 @@ check_dataset_integrity = function(dataset) {
   check_valid_tibble_peptides(dataset$peptides)
   check_valid_tibble_proteins(dataset$proteins)
   check_valid_tibble_samples(dataset$samples)
+
+  # make sure the sample metadata table contains all samples in the peptide table
+  sid_missing = setdiff(dataset$peptides %>% distinct(sample_id) %>% pull(), dataset$samples$sample_id)
+  if(length(sid_missing) > 0) {
+    append_log(paste0("invalid sample metadata table (dataset$samples)! Some sample_id entries in the peptide data table (dataset$peptides) are missing from sample metadata:\n", paste(sid_missing, collapse = "\n") ), type = "error")
+  }
+
+  # make sure the protein metadata table contains all proteins in the peptide table
+  pid_missing = setdiff(dataset$peptides %>% distinct(protein_id) %>% pull(), dataset$proteins$protein_id)
+  if(length(pid_missing) > 0) {
+    append_log(paste0("invalid protein metadata table (dataset$proteins)! Some protein_id entries in the peptide data table (dataset$peptides) are missing from protein metadata (here listed are top25 protein_id):\n", paste(head(pid_missing, 25), collapse = "\n") ), type = "error")
+  }
 }
 
 

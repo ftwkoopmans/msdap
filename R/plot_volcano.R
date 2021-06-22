@@ -27,6 +27,8 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
   # use gene symbols if available
   if("gene_symbols_or_id" %in% colnames(stats_de)) {
     stats_de$label = stats_de$gene_symbols_or_id
+    rows_nolabel = is.na(stats_de$label) | nchar(stats_de$label) < 2
+    stats_de$label[rows_nolabel] = stats_de$protein_id[rows_nolabel]
   }
   # reduce the string length of very long labels
   rows = nchar(stats_de$label) > 12

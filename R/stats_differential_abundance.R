@@ -111,9 +111,9 @@ de_deqms = function(eset_proteins, peptides, input_intensities_are_log2 = TRUE, 
   fit$count = prot_pep_count$peptides_used_for_dea[match(rownames(x), prot_pep_count$protein_id)]
 
   # overwrite the fit object with DEqMS's
-  fit = DEqMS::spectraCounteBayes(fit)
+  fit = suppressWarnings(DEqMS::spectraCounteBayes(fit))
   if(doplot) {
-    VarianceBoxplot(fit, n=20, main = "DEqMS QC plot", xlab="#unique peptides per protein")
+    suppressWarnings(VarianceBoxplot(fit, n=20, main = "DEqMS QC plot", xlab="#unique peptides per protein"))
   }
 
   ## analogous to our do_ebayes() implementation, extract results from the fit object but grab the DEqMS specific output columns where available (reference; DEqMS::outputResult() )

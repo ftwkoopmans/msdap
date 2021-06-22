@@ -1,7 +1,9 @@
 
 <!-- README.md is generated from README.Rmd using devtools::build_readme() -->
 
-# MS-DAP
+<!-- ![MS-DAP logo](doc/logo/msdap_logo_small.png)  -->
+
+<img align="left" alt="MS-DAP logo" hspace="20" vspace="10" src="doc/logo/msdap_logo_small.png">
 
 The Mass Spectrometry Downstream Analysis Pipeline is an all-in-one tool
 for the interpretation of label-free proteomics datasets. Its main
@@ -14,17 +16,24 @@ We are currently preparing a manuscript for publication, feel free to
 explore the documentation and test the beta-version of MS-DAP in this
 GitHub repository meanwhile \!
 
+ 
+
 ## Overview
 
 ![MS-DAP overview](doc/images/msdap-fig1-overview.png)
 
 [Check this introduction to MS-DAP](doc/intro.md) for an overview of
-data visualizations (complete PDF reports are available at the bottom).
+data visualizations (example PDF reports are available at this link,
+bottom of the page).
 
 ## Quickstart
 
-Installation of the R package in brief, assuming R and RStudio have been
-installed (references for additional documentation @ next section)
+Installation of the R package in brief, assuming
+[R](https://cran.r-project.org),
+[RTools](https://cran.r-project.org/bin/windows/Rtools/history.html)
+(v3.5 for R 3.6, v4 for R 4.0 and up) and
+[RStudio](https://www.rstudio.com/products/rstudio/) have been installed
+(documentation references @ next section)
 
 ``` r
 install.packages(c("devtools", "tidyverse", "tinytex", "BiocManager"))
