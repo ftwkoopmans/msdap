@@ -362,13 +362,13 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     print(df[ , props_invalid, drop = F])
     append_log(paste0("invalid characters in sample metadata columns; ", paste(props_invalid, collapse = ", "), ". valid characters allowed are: alphanumeric, underscore, space (but no double spaces), dot, minus, (forward)slash, backslash, semicolon, hashtag, star"), type = "error")
   }
-  rows_invalid = grepl("[^0-9a-z_+ -]", df$group, ignore.case = T) | grepl(" {2,}", df$group)
+  rows_invalid = grepl("[^0-9a-z_+. -]", df$group, ignore.case = T) | grepl(" {2,}", df$group)
   if (any(rows_invalid)) {
-    append_log(paste0("invalid characters in sample metadata, column group, values; ", paste0(unique(df$group[rows_invalid]), collapse=", "), " -->> group column may only contain characters that are; alphanumeric, underscore, space (but no double spaces), plus and minus"), type = "error")
+    append_log(paste0("invalid characters in sample metadata, column group, values; ", paste0(unique(df$group[rows_invalid]), collapse=", "), " -->> group column may only contain characters that are; alphanumeric, underscore, space (but no double spaces), dot, plus and minus"), type = "error")
   }
-  rows_invalid = grepl("[^0-9a-z_+ -]", df$shortname, ignore.case = T) | grepl(" {2,}", df$shortname)
+  rows_invalid = grepl("[^0-9a-z_+. -]", df$shortname, ignore.case = T) | grepl(" {2,}", df$shortname)
   if (any(rows_invalid)) {
-    append_log(paste0("invalid characters in sample metadata, column shortname, values; ", paste0(unique(df$shortname[rows_invalid]), collapse=", "), " -->> Shortnames may only contain characters that are; alphanumeric, underscore, space (but no double spaces), plus and minus"), type = "error")
+    append_log(paste0("invalid characters in sample metadata, column shortname, values; ", paste0(unique(df$shortname[rows_invalid]), collapse=", "), " -->> Shortnames may only contain characters that are; alphanumeric, underscore, space (but no double spaces), dot, plus and minus"), type = "error")
   }
 
 

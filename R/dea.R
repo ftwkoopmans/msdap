@@ -120,18 +120,38 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     }
 
     ## determine which random variables can be added to this contrast
-    ranvars = NULL
-    for(v in dataset$dea_random_variables) {
+    ranvars = ranvars_matrix = NULL
+    for(v in unique(dataset$dea_random_variables)) {
       # v is a column name in dataset$samples (here we use the subset thereof for this contrast), x are the metadata values for respective column
       x = samples_for_contrast %>% pull(!!v)
-      xu = unique(x)
-      # is the 'random variable' not the same as the condition/contrast here? double-check here, criterium is very mild; at least 2 samples must have different categorical variable / annotation compared to condition
-      # May occur if user is testing many contrasts, one of which is a minor subset of the data (for which there are no differences in for instance the sample batch)
-      v_values_comparable_to_contrast = match(x, xu) + 1 # v is sorted by condition and its values are 1's and 2's, so easy to make comparable integer array for v
-      if(length(xu) > 1 && sum(samples_for_contrast$condition != v_values_comparable_to_contrast) > 1) {
+      xu = unique(x) # don't re-arrange/sort !
+      xi = match(x, xu)
+      # because `samples_for_contrast` table was sorted by condition upstream, and condition are either 1 or 2, we can compare the random variables `x` using match(x, unique(x))
+      # debug; print(cbind(samples_for_contrast$condition, match(x, unique(x)), x))
+      x_aligns_with_condition = xi == samples_for_contrast$condition
+
+      if(
+        # 1) drop ranvars that align with the condition
+        # is the 'random variable' not the same as the condition/contrast? criterium: at least 10% of all samples in contrast must differ (or 2)
+        # May occur if user is testing many contrasts, one of which is a minor subset of the data (for which there are no differences in for instance the sample batch)
+        length(xu) > 1 && sum(!x_aligns_with_condition) >= max(2, ceiling(nrow(samples_for_contrast) * .1)) &&
+        # 2) drop duplicate ranvars. test the indices `xi` against ranvars from previous iterations (apply function to each column in matrix, test if all elements overlap with `xi`)
+        # we must check within contrast and cannot completely check while specifying ranvars upsteam, e.g. perhaps 2 metadata properties overlap in a subset of samples that are tested in some contrast
+        (length(ranvars_matrix) == 0 || !any(apply(ranvars_matrix, 2, function(col) all(col==xi))))
+      ) {
         ranvars = c(ranvars, v)
+        ranvars_matrix = cbind(ranvars_matrix, xi)
       }
+
+      ## alternatively, test # differences per sample condition. proof-of-concept;
+      #diff_per_condition = 0
+      #for(cond in unique(samples_for_contrast$condition)) {
+      #  rows = samples_for_contrast$condition == cond
+      #  diff_per_condition = diff_per_condition + as.integer(n_distinct(x[rows]) > 1)
+      #}
     }
+
+
     if(length(dataset$dea_random_variables) > 0 && length(ranvars) != length(dataset$dea_random_variables)) {
       append_log(paste("random variables that are _not_ applicable for current contrast due to lack of unique values (compared to sample groups/condition): ", paste(setdiff(dataset$dea_random_variables, ranvars), collapse=", ")), type = "info")
     }

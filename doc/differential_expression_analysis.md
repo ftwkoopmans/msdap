@@ -90,16 +90,17 @@ dataset = filter_dataset(dataset,
                          filter_min_detect = 3,
                          norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
-#> progress: caching filter data took 1 seconds
+#> progress: caching filter data took 2 seconds
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> progress: peptide filtering and normalization took 2 seconds
 
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
 dataset = dea(dataset, algo_de = "ebayes", qval_signif = 0.05, fc_signif = NA)
 #> info: peptide to protein rollup strategy: maxlfq
-#> info: differential abundance analysis for contrast: A vs B
+#> info: differential expression analysis for contrast: A vs B
 #> info: using data from peptide filter: global data filter
-#> progress: peptide to protein rollup with MaxLFQ took 20 seconds
-#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.712
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.656
 #> progress: eBayes took 1 seconds
 
 # add the yeast/human protein classifications to DEA score tibble and filter to only keep human and yeast proteins
@@ -127,22 +128,20 @@ print(tib_plot %>%
         group_by(classification) %>% 
         summarise(`5% FDR` = sum(qvalue <= 0.05),
                   `5% FDR AND foldchange threshold` = sum(signif)))
-#> `summarise()` ungrouping output (override with `.groups` argument)
 #> # A tibble: 2 x 3
 #>   classification `5% FDR` `5% FDR AND foldchange threshold`
 #>   <chr>             <int>                             <int>
-#> 1 human               120                                10
-#> 2 yeast               630                               596
+#> 1 human               126                                16
+#> 2 yeast               629                               607
 
 # analogous for more stringent q-value cutoff at 1% FDR
 print(tib_plot %>% 
         group_by(classification) %>% 
         summarise(`1% FDR` = sum(qvalue <= 0.01),
                   `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
-#> `summarise()` ungrouping output (override with `.groups` argument)
 #> # A tibble: 2 x 3
 #>   classification `1% FDR` `1% FDR AND foldchange threshold`
 #>   <chr>             <int>                             <int>
-#> 1 human                42                                 6
-#> 2 yeast               600                               574
+#> 1 human                40                                10
+#> 2 yeast               599                               581
 ```

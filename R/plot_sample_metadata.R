@@ -45,7 +45,6 @@ sample_color_coding = function(samples) {
   # }
 
   ### color palette per property
-  # sample_colors = samples %>% select(sample_id, shortname)
   sample_properties = grep("^(sample_id$|sample_index$|shortname$|condition$|^key_|contrast:)", colnames(samples), value = T, ignore.case = T, invert = T)
 
   result = tibble()
@@ -83,10 +82,10 @@ sample_color_coding = function(samples) {
       # alternatively, use each palette as-is and remove the 1~2 brightest colors
       palette_colors = colorspace::sequential_hcl(10, palette = color_pals_continuous$name[palette_index], rev = FALSE, l = c(20, 80))
 
-      if(length(uval) == 1) {
-        # if there is just one unique value, use the last (darkest) value in this palette
-        sample_colors[,prop] = tail(palette_colors, 1)
-      } else {
+      # default; use the last (darkest) value in this palette
+      val_clr = tail(palette_colors, 1)
+
+      if(length(uval) > 1) {
         clr = palette_colors
         ## optionally, use value range from non-exclude samples to compute color breaks (eg; suppose 1 exclude samples has 0 detected peptides, colour scale goes from 0~20000 instead of 16k~20k)
         val_transformed = val
@@ -94,23 +93,47 @@ sample_color_coding = function(samples) {
         if(any(samples_rows_exclude) && sum(!samples_rows_exclude) > 2) {
           val_transformed[samples_rows_exclude] = NA
         }
+
         ## optionally, limit outliers/extremes
-        # val_transformed[!is.finite(val_transformed) | val_transformed == 0] = NA # remove zero's
-        val_transformed_range = quantile(val_transformed, probs = c(.01, .99), na.rm = T)
-        val_transformed[is.finite(val_transformed) & val_transformed < val_transformed_range[1]] = val_transformed_range[1]
-        val_transformed[is.finite(val_transformed) & val_transformed > val_transformed_range[2]] = val_transformed_range[2]
+        if(all(is.na(val_transformed))) {
+          # fallback: after exclude, all values are NA
+          val_transformed = val
+        } else {
+          # compute numeric range to use for color gradient
+          val_transformed_range = quantile(val_transformed, probs = c(.01, .99), na.rm = T)
+          # fallback: limiting outliers yields a single value (instead of a range)
+          if(val_transformed_range[1] == val_transformed_range[2]) {
+            val_transformed = val
+          } else {
+            val_transformed[is.finite(val_transformed) & val_transformed < val_transformed_range[1]] = val_transformed_range[1]
+            val_transformed[is.finite(val_transformed) & val_transformed > val_transformed_range[2]] = val_transformed_range[2]
+          }
+        }
+
         ## map values to colors
-        val_cut = as.numeric(ggplot2::cut_interval(val_transformed, length(clr)))
-        # values outside the quantile-limited range are NA in val_cut -->> if respective values are not NA and not "extreme values" (100% beyond min or max), set value to min/max color index
-        val_cut[is.na(val_cut) & is.finite(val) & val < val_transformed_range[1] & (val - val_transformed_range[1])/(val_transformed_range[2]-val_transformed_range[1]) > -1 ] = 1
-        val_cut[is.na(val_cut) & is.finite(val) & val > val_transformed_range[2] & (val - val_transformed_range[2])/(val_transformed_range[2]-val_transformed_range[1]) < 1] = max(val_cut, na.rm = T)
-        # from color index to color
-        val_clr = clr[val_cut]
-        val_clr[is.na(val_clr) | is.na(val)] = "#BBBBBB" # in continuous palette, we color-code NA values in grey. analogous to below
-        # debug; cbind(val, val_transformed, val_cut, val_clr)
-        # sample_colors[,prop] = clr[val_cut]
-        result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=FALSE, is_numeric=prop_is_numeric, is_logical=prop_is_boolean) %>% mutate(val=as.character(val)))
+        if(dplyr::n_distinct(na.omit(val_transformed)) > 1) {
+          val_cut = as.numeric(ggplot2::cut_interval(val_transformed, length(clr)))
+          # values outside the quantile-limited range are NA in val_cut -->> if respective values are not NA and not "extreme values" (100% beyond min or max), set value to min/max color index
+          val_cut[is.na(val_cut) & is.finite(val) & val < val_transformed_range[1] & (val - val_transformed_range[1])/(val_transformed_range[2]-val_transformed_range[1]) > -1 ] = 1
+          val_cut[is.na(val_cut) & is.finite(val) & val > val_transformed_range[2] & (val - val_transformed_range[2])/(val_transformed_range[2]-val_transformed_range[1]) < 1] = max(val_cut, na.rm = T)
+          # from color index to color
+          val_clr = clr[val_cut]
+          val_clr[is.na(val_clr) | is.na(val)] = "#BBBBBB" # in continuous palette, we color-code NA values in grey. analogous to below
+        } else {
+          # no unique values, do nothing so we fallback to default color downstream
+        }
       }
+
+      # if no color-gradient was computed (e.g. lack of unique values), set NA to grey and rest to default color
+      if(length(val_clr) == 1) {
+        val_clr = rep(val_clr, length(val))
+        val_clr[is.na(val)] = "#BBBBBB" # in continuous palette, we color-code NA values in grey. analogous to below
+      }
+
+      # append color codings to output table
+      result = bind_rows(result, tibble(sample_id=sample_id, prop=prop, val=val_orig, clr=val_clr, is_categorical=FALSE, is_numeric=prop_is_numeric, is_logical=prop_is_boolean) %>% mutate(val=as.character(val)) )
+      # debug; cbind(val, val_transformed, val_cut, val_clr)
+
     } else {
       # sort values before color coding. However, the "group" property should never be sorted (user may have set deliberate ordering upstream)
       if(prop != "group") {

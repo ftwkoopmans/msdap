@@ -48,13 +48,11 @@ subchunkify <- function(g, unique_chunk_id, fig_height=7, fig_width=5) {
     function() {g}
   ), collapse = '')
 
-  sub_chunk <- paste0("
-  `","``{r sub_chunk_", unique_chunk_id, ", echo=F, message=F, warning=F, fig.height=", fig_height, ", fig.width=", fig_width, "}",
+  sub_chunk <- paste0(" \n ```{r sub_chunk_", unique_chunk_id, ", echo=F, message=F, warning=F, fig.height=", fig_height, ", fig.width=", fig_width, "}",
                       "\n(",
                       g_deparsed
                       , ")()",
-                      "\n`","``
-  ")
+                      "\n ```\n ")
 
   cat(knitr::knit(text = knitr::knit_expand(text = sub_chunk), quiet = TRUE))
 }

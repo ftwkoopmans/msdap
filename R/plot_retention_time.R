@@ -151,8 +151,10 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   # note; using match for speed
   i = match(peptides$key_sample, samples$key_sample)
   peptides$exclude = samples$exclude[i]
-  peptides$group = samples$group[i]
-  ngroup = dplyr::n_distinct(samples$group)
+  # update; we now store group as a factor with levels in the same order as input sample table, so plot legends are sorted in 'standard order' as expected from sample metadata table
+  peptides$group = droplevels(factor(samples$group[i], levels = unique(samples$group))) #previously; peptides$group = samples$group[i]
+  ngroup = nlevels(samples$group) #previously; ngroup = dplyr::n_distinct(samples$group)
+
 
   p_all_rt_distributions = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, linetype = exclude)) +
     geom_line(stat="density", na.rm=T, alpha=0.3) +
@@ -164,7 +166,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
   p_all_rt_distributions_colour_groups = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, colour=group, linetype = exclude)) +
     geom_line(stat="density", na.rm=T) +
-    guides(linetype = FALSE) +
+    guides(linetype = "none") +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
     facet_grid(~"all samples, color-coded by group") +

@@ -1,22 +1,21 @@
 
 <!-- README.md is generated from README.Rmd using devtools::build_readme() -->
-
 <!-- ![MS-DAP logo](doc/logo/msdap_logo_small.png)  -->
 
 <img align="left" alt="MS-DAP logo" hspace="20" vspace="10" src="doc/logo/msdap_logo_small.png">
+ 
 
 The Mass Spectrometry Downstream Analysis Pipeline is an all-in-one tool
 for the interpretation of label-free proteomics datasets. Its main
 features are extensive quality control, integration of state-of-the-art
 algorithms for differential testing and intuitive visualization and
-reporting. A novel algorithm for data normalization between experimental
-conditions is also included.
+reporting.
+
+ 
 
 We are currently preparing a manuscript for publication, feel free to
 explore the documentation and test the beta-version of MS-DAP in this
-GitHub repository meanwhile \!
-
- 
+GitHub repository meanwhile !
 
 ## Overview
 
@@ -111,7 +110,7 @@ bioinformatics workflow.
 
 ![MS-DAP docker](doc/images/msdap_docker_cartoon.png)
 
-1)  Installing the dockerized version of MS-DAP is trivialized to first
+1.  Installing the dockerized version of MS-DAP is trivialized to first
     installing the Docker application and then pulling the MS-DAP
     container from the online Docker repository ( [as shown in this
     guide](doc/docker.md) ). Using containers guarantees the exact same
@@ -122,7 +121,7 @@ bioinformatics workflow.
     the respective container version (e.g. to repeat a previously
     published analysis).
 
-2)  Already working with R? [Click here for an installation
+2.  Already working with R? [Click here for an installation
     guide](doc/rpackage.md) to install the MS-DAP R package.
 
 ## Using MS-DAP
@@ -140,18 +139,20 @@ in the following vignettes, from a more detailed look at differential
 testing to integrating alternative algorithms for normalization or
 Differential Expression Analysis (DEA).
 
-  - [introduction to MS-DAP](doc/intro.md)
-  - [user guide](doc/userguide.md)
-  - [bioinformatics: differential expression analysis
+-   [introduction to MS-DAP](doc/intro.md)
+-   [user guide](doc/userguide.md)
+-   [bioinformatics: differential expression analysis
     (DEA)](doc/differential_expression_analysis.md)
-  - [bioinformatics: differential
+-   [bioinformatics: differential
     detection](doc/differential_detection.md)
-  - [bioinformatics: plugin custom normalization or
+-   [bioinformatics: plugin custom normalization or
     DEA](doc/custom_norm_dea.md)
 
 ## Roadmap
 
-Features planned for future releases:
-
-  - expand upstream software support
-  - labeled quantitative data; iTRAQ/TMT
+-   expand upstream software support (e.g. maintain compatibility
+    throughout future releases of upstream software such as MaxQuant,
+    FragPipe, DIA-NN, etc.)
+-   please contact us if you can share datasets that should work with
+    MS-DAP but don’t (e.g. some workflow with non-free software that we
+    don’t have access too such as ProteomeDiscoverer)

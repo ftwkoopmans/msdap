@@ -83,20 +83,24 @@ import_dataset_skyline = function(filename, acquisition_mode, confidence_thresho
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @param use_normalized_intensities use the abundance values as-is (recommended) or those normalized by DIA-NN
 #' @export
-import_dataset_diann = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, do_plot = TRUE) {
+import_dataset_diann = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, use_irt = TRUE, do_plot = TRUE) {
   reset_log()
   append_log("reading DIA-NN report...", type = "info")
+
+  rt_col = "iRT"
+  if(!use_irt) rt_col = "RT"
+
   ds = import_dataset_in_long_format(filename,
                                        attributes_required = list(sample_id = "File.Name",
                                                                   protein_id = "Protein.Group",
                                                                   sequence_modified = "Modified.Sequence",
                                                                   sequence_plain = "Stripped.Sequence",
                                                                   charge = "Precursor.Charge",
-                                                                  rt = "iRT",
+                                                                  rt = rt_col,
                                                                   # isdecoy = "",
                                                                   intensity = ifelse(use_normalized_intensities, "Precursor.Normalised", "Precursor.Quantity"),
                                                                   confidence = "Q.Value"),
-                                       # attributes_optional = list(cscore = "CScore"),
+                                       # attributes_optional = list(mz = ""),
                                        confidence_threshold = confidence_threshold,
                                      return_decoys = F,
                                      do_plot = do_plot)
@@ -143,6 +147,7 @@ import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use
                                                                   cscore = "EG.Cscore",
                                                                   confidence = "EG.Qvalue"),
                                        attributes_optional = list(spectral_library = "EG.Library",
+                                                                  mz = "FG.PrecMzCalibrated",
                                                                   intensity_norm = c("FG.NormalizedMS2PeakArea", "FG.NormalizedTotalPeakArea", "FG.MS2Quantity")),
                                        confidence_threshold = confidence_threshold,
                                      return_decoys = return_decoys,

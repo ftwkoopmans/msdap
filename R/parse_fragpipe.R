@@ -53,7 +53,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     mutate(intensity = log2(intensity),
            peptide_id = paste(sequence_modified, charge, sep="_"),
            id_sample_peptide = paste(sample_id, peptide_id),
-           isdecoy = FALSE, detect = FALSE, confidence = NA, rt = NA, is_mbr = FALSE)
+           isdecoy = FALSE, detect = FALSE, confidence = NA, rt = NA, mz=NA, is_mbr = FALSE)
   rm(DT)
 
 
@@ -72,7 +72,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     tib_mbr = as_tibble(data.table::fread(file_mbr)) %>%
       filter(is.finite(intensity) & intensity > 1) %>%
       arrange(desc(probability), desc(intensity)) %>%
-      select(rt = apex_rt, sequence_modified = modified_peptide, charge, sample_id = acceptor_run_name) %>%
+      select(mz, rt = apex_rt, sequence_modified = modified_peptide, charge, sample_id = acceptor_run_name) %>%
       distinct(sample_id, sequence_modified, charge, .keep_all = T) %>%
       mutate(id_sample_peptide = paste(sample_id, paste(sequence_modified, charge, sep="_")),
              rt = rt / 60) # convert RT to minutes
@@ -80,6 +80,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     # map back to main peptide table
     i = data.table::chmatch(tib_result$id_sample_peptide, tib_mbr$id_sample_peptide)
     tib_result$rt = tib_mbr$rt[i]
+    tib_result$mz = tib_mbr$mz[i]
     tib_result$is_mbr = !is.na(i)
   } else {
     append_log(sprintf('no match-between-runs data found (this file is missing: "%s"")', file_mbr), type = "info")
@@ -95,7 +96,8 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     headers = unlist(strsplit(readLines(filename, n = 1), "[\t,]+"))
     map_required = map_headers(headers, list(sample_id = "Spectrum File",
                                              sequence_plain = "Peptide",
-                                             sequence_modified = "Modified Peptide",
+                                             # sequence_modified = "", # by default, init this column as plain sequences because 'modified peptide' column is useless (see comments downstream),
+                                             mz = "Calibrated Observed M/Z",
                                              modifications = "Assigned Modifications",
                                              charge = "Charge",
                                              rt = "Retention",
@@ -109,11 +111,19 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     # example entry in input table; C:\DATA\fragpipe_test\interact-a05191.pep.xml
     DT[ , sample_id := gsub("(.*(\\\\|/)interact\\-)|(^interact\\-)|(\\.pep\\.xml$)", "", sample_id, ignore.case=F), by=sample_id]
 
+    # init modified sequence like plain sequence
+    DT[ , sequence_modified := sequence_plain]
+
+    # add key for plainseq+mods
+    DT[ , ismod := modifications != ""]
+    DT[ ismod==T , id_plainseq_modifications := .GRP, by=.(sequence_plain, modifications)]
+
     # report if there are any sample mis-matches
     sample_missing = setdiff(unique(DT$sample_id), tib_result$sample_id)
     if (length(sample_missing) > 0) {
       append_log(paste('These samples from PSM data table are not in main MSstats.csv table;', paste(sample_missing, collapse = ", ")), type = "warning")
     }
+
 
 
     ### repair modified sequences !
@@ -128,79 +138,54 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     #
     # print( unique(unlist(strsplit(DT$modifications, "[, ]+"))) )
 
-    tib_psm = as_tibble(DT) %>%
-      mutate(sequence_modified_backup = sequence_modified, # for debugging / code review
-             sequence_modified = sequence_plain, # start with plain sequence
-             modification_list = strsplit(toupper(modifications), "[, ]+"),
-             ### FragPipe output has "PeptideProphet Probability", which is 0~1 ranged score with 1 = 100% confident.
-             # In this R package we use confidence score = qvalue (or pvalue). So as a band-aid solution we use 1-probability to approximate
-             confidence = 1 - confidence,
-             # convert RT to minutes
-             rt = rt / 60,
-             detect = is.finite(confidence) & confidence <= confidence_threshold
-      )
+    # 1) unique set of peptide sequence + modifications (the set of strings to update).
+    # modified peptides will have multiple entries in psm.tsv (e.g. same peptide identified in multiple samples), so taking unique set is important for efficiency
+    modseq_update = as_tibble(DT) %>%
+      filter(ismod) %>% # skip unmodified
+      select(id_plainseq_modifications, sequence_plain, sequence_modified, modifications) %>%
+      distinct(sequence_plain, modifications, .keep_all = T)
 
-    ## convert to a list of changes to be applied to plain sequences
-    jobs = tibble(index = rep(1:nrow(tib_psm), lengths(tib_psm$modification_list)),
-                  modification = unlist(tib_psm$modification_list)) %>%
-      mutate(
-        modification = gsub("(", "[", gsub(")", "]", modification, fixed = T), fixed = T), # replace brackets
-        insert_string = gsub(".*(\\[.*)", "\\1", modification),
-        site = gsub("^(\\d+).*", "\\1", modification)
-      )
+    if(nrow(modseq_update) > 0) {
+      # 2) from a modification in FragPipe to a standardized instruction for updating the plain sequence such that it matches modified sequences in MSstats.csv
+      tib_modification_instructions = fragpipe_modification_to_instruction(unique(modseq_update$modifications))
+      # debug; tib_modification_instructions %>% filter(grepl("N-", input, fixed = T))
 
-    # n-term and c-term modifications have a different notation, set their string position to begin/end of string
-    rows = grepl("N-TERM", jobs$modification)
-    jobs$site[rows] = 0
-    jobs$insert_string[rows] = paste0("n", jobs$insert_string[rows])
-    rows = grepl("C-TERM", jobs$modification)
-    jobs$site[rows] = Inf
-    jobs$insert_string[rows] = paste0("c", jobs$insert_string[rows])
-    # as numerics
-    jobs$site = as.numeric(jobs$site)
-    # debug; print(jobs %>% distinct(modification, .keep_all=T), n=99)
-
-    # make sure the largest string index/position is modified first (thereby retaining relative string positions)
-    jobs = jobs %>% arrange(index, desc(site))
-
-    ## apply string mutations
-    # quite slow in R, non-optimized code but should be simple and robust. Optimize later when there are more users and test data available (to rule out edge-cases etc. for more efficient implementations)
-    for(i in 1:nrow(jobs)) { # i=1
-      # debug; tib_psm[jobs$index[i],]; jobs[i,]
-
-      s = tib_psm$sequence_modified[ jobs$index[i] ]
-      # modification all the way up front
-      if(jobs$site[i] == 0) {
-        s = paste0(jobs$insert_string[i], s)
-      } else {
-        # modification at the end
-        if(!is.finite(jobs$site[i])) {
-          s = paste0(s, jobs$insert_string[i])
-        } else {
-          # inject into sequence
-          s = paste0(substring(s, 1, jobs$site[i]), jobs$insert_string[i], substring(s, jobs$site[i]+1))
+      # 3) string manipulations; translate every sequence + set of N modifications to an ordered list of substrings, then join them all (e.g. collapse with paste)
+      for(i in 1:nrow(modseq_update)) { # i=grep(", N-", modseq_update$modifications, fixed=T)[1]
+        tib = tib_modification_instructions %>% filter(input == modseq_update$modifications[i])
+        stringi::stri_sub_replace(str=modseq_update$sequence_modified[i], from=tib$site+1, to=tib$site, value=tib$insert)
+        for(j in 1:nrow(tib)) {
+          if(is.na(tib$site[j])) {
+            modseq_update$sequence_modified[i] = paste0(modseq_update$sequence_modified[i], tib$insert[j])
+          } else {
+            modseq_update$sequence_modified[i] = stringi::stri_sub_replace(str=modseq_update$sequence_modified[i], from=tib$site[j]+1, to=tib$site[j], value=tib$insert[j])
+          }
         }
       }
 
-      tib_psm$sequence_modified[ jobs$index[i] ] = s
+      # 4) join with input table by `id_plainseq_modifications` key
+      DT$sequence_modified = modseq_update$sequence_modified[match(DT$id_plainseq_modifications, modseq_update$id_plainseq_modifications)] # have to map from DT because of n:1 mapping to unique modseq
+      DT[ is.na(sequence_modified) , sequence_modified := sequence_plain] # set plain sequence for rows without a 'modifications' entry
     }
 
-    ## map back to overall peptide tibble and transfer the observed retention time and identification confidence
-    tib_psm$id_sample_peptide = paste(tib_psm$sample_id, paste(tib_psm$sequence_modified, tib_psm$charge, sep="_"))
-    # i = index of an entry in current psm table @ overall peptide result table
-    i = data.table::chmatch(tib_psm$id_sample_peptide, tib_result$id_sample_peptide)
-    # don't overwrite values that we already pulled from the MBR table
-    i[tib_result$is_mbr[i]] = NA
+
+    # 5) map back to overall peptide tibble and transfer the observed retention time and identification confidence
+    DT[ , id_sample_peptide := paste(sample_id, paste(sequence_modified, charge, sep="_")) ]
+    i = data.table::chmatch(DT$id_sample_peptide, tib_result$id_sample_peptide)
     # remove unmapped entries
-    tib_psm = tib_psm[!is.na(i),]
+    DT = DT[!is.na(i)]
     i = na.omit(i)
     # transfer data
-    tib_result$rt[i] = tib_psm$rt
-    tib_result$confidence[i] = tib_psm$confidence
-    tib_result$detect[i] = tib_psm$detect
+    tib_result$mz[i] = DT$mz
+    tib_result$rt[i] = DT$rt / 60 # convert RT to minutes
+    # FragPipe output has "PeptideProphet Probability", which is 0~1 ranged score with 1 = 100% confident.
+    # In this R package we use confidence score = qvalue (or pvalue). So as a band-aid solution we use 1-probability to approximate
+    tib_result$confidence[i] = 1 - DT$confidence
   }
 
 
+  # define 'detect'
+  tib_result$detect = is.finite(tib_result$confidence) & tib_result$confidence <= confidence_threshold
 
   ###### 4) update protein identifiers, from protein table include the "Indistinguishable Proteins"
   tib_prot = parse_fragpipe_proteins(file_proteins)
@@ -226,6 +211,30 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 
   log_peptide_tibble_pep_prot_counts(tib_result)
   return(list(peptides=tibble_peptides_reorder(tib_result), proteins=empty_protein_tibble(tib_result), plots=list(), acquisition_mode = acquisition_mode))
+}
+
+
+
+fragpipe_modification_to_instruction = function(modifications) {
+  if(length(modifications) == 0) {
+    return(tibble())
+  }
+
+  tibble(input = modifications) %>%
+    mutate(mod = gsub("(", "[", gsub(")", "]", toupper(input), fixed = T), fixed = T), # replace brackets
+           modlist = stringr::str_split(mod, "[, ]+")) %>%
+    unnest(modlist) %>%
+    mutate(
+      # n-term and c-term modifications have a different notation, set their string position to begin/end of string
+      modlist = sub("N-TERM", "0n", modlist, fixed = T),
+      modlist = sub("C-TERM", "NAc", modlist, fixed = T),
+      # now we can split the modification into a string that should be inserted and some position
+      insert = sub("^(NA|\\d+)[A-Z]{0,1}([a-z]{0,1}\\[.*)$", "\\2", modlist),
+      site = sub("^(NA|\\d+)[A-Z]{0,1}([a-z]{0,1}\\[.*)$", "\\1", modlist),
+      site = suppressWarnings(as.numeric(site))
+    ) %>%
+    # make sure the largest string index/position is modified first (thereby retaining relative string positions)
+    arrange(desc(site))
 }
 
 

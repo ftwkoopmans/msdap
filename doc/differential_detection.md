@@ -86,7 +86,7 @@ procedures are available at the *differential detection* section of the
 ``` r
 # compute MS-DAP differential detect scores for all contrasts, only for proteins that were observed in at least 3 samples in either sample group/condition
 dataset = differential_detect(dataset, min_samples_observed = 3)
-#> progress: caching filter data took 1 seconds
+#> progress: caching filter data took 2 seconds
 #> info: differential detection analysis: min_samples_observed=3
 
 # add the yeast/human protein classifications to differential detect score tibble and filter to only keep human and yeast proteins

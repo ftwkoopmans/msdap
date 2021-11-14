@@ -8,6 +8,7 @@ import_dataset_diann(
   filename,
   confidence_threshold = 0.01,
   use_normalized_intensities = FALSE,
+  use_irt = TRUE,
   do_plot = TRUE
 )
 }

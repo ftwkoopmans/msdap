@@ -102,12 +102,16 @@ cache_filtering_data = function(dataset) {
   # CoV's are log-normal. we could relax penalizing 'outlier' CoVs by log transforming the CoVs before scaling 0~1
   #
   # alternatively, we could scale between 0.1~min(1, quantile(dt_cov$cov,0.99,na.rm=T)) for some added robustness. Eg; if a dataset has barely any variation, a peptides with ~5% variation is 'much worse' than one at 2% while at that point, difference in #detect might weigh more more. Haven't found any such problems in real data though
-  dt_cov$cov_scale_quantiles = scale_between_quantiles(dt_cov$cov, min_quantile = 0.01, max_quantile = 0.99)
-  dt_cov$key_group = as.integer(as.vector(dt_cov$key_group))
-  # join CoV's into peptide*group tibble
-  data.table::setkey(dt_cov, key_peptide, key_group)
-  data.table::setkey(dt_pep_group, key_peptide, key_group)
-  dt_pep_group = data.table::merge.data.table(dt_pep_group, dt_cov, all.x = T, sort = FALSE)
+  if("cov" %in% colnames(dt_cov)) {
+    dt_cov$cov_scale_quantiles = scale_between_quantiles(dt_cov$cov, min_quantile = 0.01, max_quantile = 0.99)
+    dt_cov$key_group = as.integer(as.vector(dt_cov$key_group))
+    # join CoV's into peptide*group tibble
+    data.table::setkey(dt_cov, key_peptide, key_group)
+    data.table::setkey(dt_pep_group, key_peptide, key_group)
+    dt_pep_group = data.table::merge.data.table(dt_pep_group, dt_cov, all.x = T, sort = FALSE)
+  } else {
+    dt_pep_group[, cov_scale_quantiles := NA ]
+  }
 
   ## peptide*group 'quality scores'
   # the 'exclude' samples are completely disregarded while computing this score

@@ -1,8 +1,8 @@
 
-  - [prepare the dataset of analysis](#prepare-the-dataset-of-analysis)
-  - [custom normalization function](#custom-normalization-function)
-  - [custom DEA function](#custom-dea-function)
-  - [let’s run MS-DAP \!](#lets-run-ms-dap)
+-   [prepare the dataset of analysis](#prepare-the-dataset-of-analysis)
+-   [custom normalization function](#custom-normalization-function)
+-   [custom DEA function](#custom-dea-function)
+-   [let’s run MS-DAP !](#lets-run-ms-dap-)
 
 This vignette demonstrates how you can plug custom functions into the
 MS-DAP pipeline.
@@ -52,29 +52,23 @@ code below implements quantile normalization.
 
 The hard requirements to make this work are:
 
-1)  your normalization function must have a unique name that does not
+1.  your normalization function must have a unique name that does not
     overlap with common R functions (bad name: ‘mean’). So pick names
-    ‘mynorm\_quantile’ or ‘my\_norm\_v1’
+    ‘mynorm_quantile’ or ‘my_norm_v1’
 
-2)  the function must have the following parameters: x\_as\_log2,
-    mask\_sample\_groups
+2.  the function must have the following parameters: x_as_log2,
+    mask_sample_groups
 
-<!-- end list -->
-
-  - x\_as\_log2 = log2 transformed peptide intensity data matrix, where
+-   x_as_log2 = log2 transformed peptide intensity data matrix, where
     each row is a peptide and each column a sample
-  - mask\_sample\_groups = array of characters that describes the sample
+-   mask_sample_groups = array of characters that describes the sample
     grouping (which columns belong to the same sample group). you must
     implement this argument when creating your function, but you may
     choose to not use this information while normalizing (as we do in
     the example below)
 
-<!-- end list -->
-
-3)  return data has to be of the *exact* same format as x\_as\_log2 (but
+3.  return data has to be of the *exact* same format as x_as_log2 (but
     with normalized abundance values)
-
-<!-- end list -->
 
 ``` r
 my_norm = function(x_as_log2, mask_sample_groups = NA, ...) {
@@ -124,26 +118,26 @@ t.test() on protein abundances.
 The first two requirements from the previous section apply here was
 well, but the list of required parameters here is;
 
-  - peptides; long-format tibble of peptide data. For most use-cases, we
+-   peptides; long-format tibble of peptide data. For most use-cases, we
     advise using either the peptide- or protein-level ExpressionSet
-  - samples; tibble with sample metadata, take note of the columns
-    ‘sample\_id’ and ‘condition’ so you can classify samples into
+-   samples; tibble with sample metadata, take note of the columns
+    ‘sample_id’ and ‘condition’ so you can classify samples into
     conditions while A/B testing
-  - eset\_peptides; ExpressionSet for peptides
-  - eset\_proteins; ExpressionSet for proteins (collapsed peptide-level
+-   eset_peptides; ExpressionSet for peptides
+-   eset_proteins; ExpressionSet for proteins (collapsed peptide-level
     data)
-  - input\_intensities\_are\_log2; boolean that tells you whether the
+-   input_intensities_are_log2; boolean that tells you whether the
     intensities are log2 transformed (they are by default, but could
     change in future, so implement a check like below)
-  - random\_variables; array of column names in the samples table
+-   random_variables; array of column names in the samples table
 
 The return data must be a tibble with these columns;
 
-  - protein\_id
-  - pvalue
-  - qvalue
-  - foldchange.log2
-  - algo\_de = name of your algorithm. must be a non-empty character
+-   protein_id
+-   pvalue
+-   qvalue
+-   foldchange.log2
+-   algo_de = name of your algorithm. must be a non-empty character
     string uniquely indicating the name/label of your method. DO NOT use
     names already used by other methods in this pipeline, like ‘ebayes’
 
@@ -190,10 +184,10 @@ my_dea_stats = function(peptides, samples, eset_peptides, eset_proteins, input_i
 }
 ```
 
-## let’s run MS-DAP \!
+## let’s run MS-DAP !
 
 To use a custom function, we just write the *name of the R function* as
-parameters. Do not confuse this with the ‘algo\_de’ name given in the
+parameters. Do not confuse this with the ‘algo_de’ name given in the
 result tibble of your dea function, that is merely the label used in
 output plots and tables. We remember the LFQbench dataset is a
 comparison of 2 conditions with 3 replicated measurements each, and
@@ -215,13 +209,17 @@ dataset = analysis_quickstart(dataset,
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> progress: peptide filtering and normalization took 2 seconds
 #> info: peptide to protein rollup strategy: maxlfq
-#> info: differential abundance analysis for contrast: A vs B
+#> info: differential expression analysis for contrast: A vs B
 #> info: using data from peptide filter: global data filter
-#> progress: peptide to protein rollup with MaxLFQ took 20 seconds
-#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.692
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.639
 #> progress: eBayes took 1 seconds
-#> Example custom DEA implementation, my_dea_stats(), yielded 714 hits at qvalue<=0.01
+#> Example custom DEA implementation, my_dea_stats(), yielded 720 hits at qvalue<=0.01
 #> info: differential detection analysis: min_samples_observed=3
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> info: output directory; C:/PHD/code/R/msdap/doc/
 ```
 
 Print the number of significant proteins
@@ -231,12 +229,11 @@ print(dataset$de_proteins %>%
         group_by(algo_de) %>% 
         summarise(`1% FDR` = sum(qvalue <= 0.01),
                   `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
-#> `summarise()` ungrouping output (override with `.groups` argument)
 #> # A tibble: 2 x 3
 #>   algo_de      `1% FDR` `1% FDR AND foldchange threshold`
 #>   <chr>           <int>                             <int>
-#> 1 ebayes           1046                              1002
-#> 2 my_dea_stats      714                               694
+#> 1 ebayes           1045                              1002
+#> 2 my_dea_stats      720                               702
 ```
 
 A simple Venn diagram of proteins at 1% FDR for each method shows our

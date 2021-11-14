@@ -326,6 +326,8 @@ MS-DAP import function: `msdap::import_dataset_spectronaut()`
 
 
 ## Peaks
+_Support is experimental, additional user testing and test datasets are most welcome. Our lab doesn't have a Peaks licences, so if you have a suitable label-free test dataset to contribute please contact us_.
+
 After performing label-free quantification, make sure to disable **all** filtering and export the features.
 
 Do note that this data table does not contain the confidence scores for each peptide in each sample, thus we cannot discriminate between peptides 'identified and quantified' versus 'only quantified' (match-between-runs) downstream. Consequently, in datasets imported from Peaks all peptides are considered 'identified & quantified'.
@@ -336,7 +338,7 @@ MS-DAP import function: `msdap::import_dataset_peaks()`
 
 
 ## OpenMS
-_Support is experimental, we are currently extending the OpenMS workflows supported by MS-DAP. Additional support and test datasets are most welcome_.
+_Support is experimental, we are currently extending the OpenMS workflows supported by MS-DAP. Additional user testing and test datasets are most welcome_.
 
 For now, label-free DDA data processed by OpenMS are only compatible with MS-DAP if a workflow was used analogous to the tutorial by Hannes Rost  @  https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
 
@@ -364,7 +366,7 @@ MS-DAP import function: `msdap::import_dataset_openms_mztab()`
 
 
 ## ProteomeDiscoverer
-_Support is experimental, we have tested some PD workflows. Additional support and test datasets are most welcome. Our lab doesn't have PD licences, so if you have suitable label-free test dataset to contribute please contact us_.
+_Support is experimental, we have tested some PD workflows. Additional user testing and test datasets are most welcome. Our lab doesn't have a PD licence, so if you have suitable label-free test dataset to contribute please contact us_.
 
 Input data must contain Percolator PEP scores for each PSM, so after the search engine node (eg; Sequest HT) make sure to connect the Percolator node.
 
@@ -384,4 +386,3 @@ Optionally, tweak label-free data analysis settings to explore effects on MS-DAP
 MS-DAP was tested with the results of the above workflow applied to the PXD007683 dataset.
 
 MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`
-
