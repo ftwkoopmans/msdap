@@ -390,7 +390,7 @@ peptide abundance values should be prepared that;
 
 For convenience, you may import our report template (tested with
 Spectronaut 13):
-<a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/doc/misc/MS-DAP Format.rs">download
+<a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/master/doc/misc/MS-DAP%20Format.rs">download
 link</a>
 
 The column names in Spectronaut reports have changed between versions,
