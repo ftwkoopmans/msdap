@@ -7,6 +7,7 @@
 #' @param output_dir output directory where all output files are stored, must be an existing directory
 #' @param norm_algorithm normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
 #' @param pca_sample_labels see plot_sample_pca() function for params
+#' @param var_explained_sample_metadata NULL to disable (default), NA for auto, or a character array of sample metadata column names. see analysis_quickstart() function for additional details
 #'
 #' @import knitr
 #' @importFrom rmarkdown render
@@ -15,7 +16,7 @@
 #' @importFrom stringr str_wrap
 #' @importFrom devtools session_info
 #' @export
-generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_sample_labels = "auto") {
+generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_sample_labels = "auto", var_explained_sample_metadata = NULL) {
 
   start_time = Sys.time()
   append_log("creating PDF report...", type = "progress")
@@ -74,6 +75,12 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
     ggplot_cscore_histograms = dataset$plots$ggplot_cscore_histograms
   }
 
+  ### variance explained
+  p_varexplained = NULL
+  if(length(var_explained_sample_metadata) > 0) {
+    p_varexplained = plot_variance_explained(dataset, var_explained_sample_metadata)
+  }
+
   ### contrasts
   append_log("report: constructing plots specific for each contrast", type = "progress")
   l_contrast = list()
@@ -90,7 +97,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
       }
 
       # optionally, provide thresholds for foldchange and qvalue so the volcano plot draws respective lines
-      l_contrast[[contr]] = list(p_volcano_contrast = plot_volcano(stats_de = stats_contr, log2foldchange_threshold = ifelse(stats_contr$signif_threshold_log2fc[1]==0, NA, stats_contr$signif_threshold_log2fc[1]), qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle),
+      l_contrast[[contr]] = list(p_volcano_contrast = lapply(plot_volcano(stats_de = stats_contr, log2foldchange_threshold = stats_contr$signif_threshold_log2fc[1], qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle), "[[", "ggplot"),
                                  p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = algo_de), mtitle=contr),
                                  p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = algo_de), mtitle=contr))
     }

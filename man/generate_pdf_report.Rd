@@ -8,7 +8,8 @@ generate_pdf_report(
   dataset,
   output_dir,
   norm_algorithm = "vwmb",
-  pca_sample_labels = "auto"
+  pca_sample_labels = "auto",
+  var_explained_sample_metadata = NULL
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ generate_pdf_report(
 \item{norm_algorithm}{normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively}
 
 \item{pca_sample_labels}{see plot_sample_pca() function for params}
+
+\item{var_explained_sample_metadata}{NULL to disable (default), NA for auto, or a character array of sample metadata column names. see analysis_quickstart() function for additional details}
 }
 \description{
 Normally used as part of the analysis_quickstart() function, refer to its implementation for example code.

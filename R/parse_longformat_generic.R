@@ -405,9 +405,8 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   DT[ , charge := replace_na(suppressWarnings(as.integer(charge)), 0), by=charge]
 
   # remove leading and trailing annotations from modified sequence, such as underscores or charge states. regex; start with non-character or opening bracking (modification), and analogous for trailing
-  DT[ , sequence_modified := gsub("^_|_[^A-Z]*$", "", sequence_modified), by=sequence_modified]
-  # DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", sequence_modified, perl=T), by=sequence_modified] # universal, but a very slow regex
-  # test input for regex; gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", c("aa", "aa_", "_aa", "_(b)aa(c)_", "(b)aa(c)..", "_[b]aa[c]_", "2.[b]aa[c]", "_[c(unimod:1)]aaa"), perl=T)
+  DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", sequence_modified, perl = TRUE), by=sequence_modified]
+  # test input for regex;    gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", c("ABC", "_ABC", "_(n)ABC", "[n]ABC", "ABC.", "ABC.3", "ABCn3", "aa", "aa_", "_aa", "_(b)aa(c)_", "(b)aa(c)..", "_[b]aa[c]_", "2.[b]aa[c]", "_[c(unimod:1)]aaa"), perl = TRUE)
 
   # if no plain sequence is available in input table, extract it from the modified sequence by removing everything between brackets. either [] or ()
   # note that above we validated sequence_modified is never empty. so if there the provided sequence_plain has any empty values, default back to a manipulation of modified sequences

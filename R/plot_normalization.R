@@ -246,7 +246,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
   # scatterplot
   p_loo_cov = ggplot(tib_plot, aes(x=`median CoV`, y=group, colour=group, shape=ifelse(exclude, "0", "16"))) +
     geom_jitter(height = 0.1, width = 0, alpha = 1) +
-    ggrepel::geom_text_repel(data = tib_plot %>% filter(order_score<=2), aes(x=`median CoV`, y=group, colour=group, label=shortname), vjust = .9, hjust = .1, size = 2, show.legend = FALSE) +
+    ggrepel::geom_text_repel(data = tib_plot %>% filter(order_score<=2), aes(x=`median CoV`, y=group, colour=group, label=shortname), vjust = .9, hjust = .1, size = 2, max.overlaps = Inf, show.legend = FALSE) +
     scale_shape_manual(values = c("0" = 0, "16" = 16)) +
     guides(shape="none", colour = guide_legend(title = NULL, byrow = T)) +
     # explicitly name all color scale properties to enforce the label order

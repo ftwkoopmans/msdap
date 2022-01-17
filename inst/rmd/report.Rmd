@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: 1.0  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: 'version: 1.0.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
 output:
   pdf_document:
     toc: true
@@ -333,6 +333,22 @@ if(isplot_cov_protein) {
   suppressWarnings(print(p_cov_protein$violin))
 }
 ``` 
+
+
+
+```{r echo=F, message=F, warning=F, results='asis'}
+if(length(p_varexplained) > 0) {
+  cat("\n\\newpage \n## variance explained \n\n")
+  cat('To investigate sources of biological and technical variation in the dataset, this analysis applies the "variancePartition" R package (Hoffman GE, Schadt EE, 2016, PMID:27884101) which uses a linear mixed model to quantify variation in abundance attributable to (user provided) sample metadata. \n \n')
+  cat('Although this method was originally designed for gene expression data, it may also provide insights in proteomic data (we here apply this method to the protein-level data matrix). ')
+  cat('If additional sample metadata was provided, such as experiment batch, gel, etc., this analysis can be used to assess their relative impact on the dataset. Subsequentially, this can be used to figure out which sources of (technical) variation should be prioritized when optimizing experiment protocols (i.e. this analysis will reveal worst offenders). \n \n')
+  cat('The properties in the plot are sorted by median variance explained (large to small), with residuals shown last. \n \n')
+
+  suppressWarnings(print(p_varexplained$p_ve_violin))
+  cat("\n\n")
+  rmarkdown_xtable_custom(p_varexplained$tbl_ve)
+}
+```
 
 
 

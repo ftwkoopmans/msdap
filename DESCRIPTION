@@ -3,7 +3,7 @@ Package: msdap
 Title: Mass Spectrometry Downstream Analysis Pipeline
 Description: Mass Spectrometry Downstream Analysis Pipeline.
 URL: https://github.com/ftwkoopmans/msdap
-Version: 1.0
+Version: 1.0.1
 Authors@R: 
     person(given = "Frank",
            family = "Koopmans",
@@ -63,6 +63,9 @@ Imports:
     vsn (>= 3.50),
     DEqMS (>= 1.4),
     diann (>= 1.0.1),
+    missForest (>= 1.4),
+    BiocParallel (>= 1.20),
+    variancePartition (>= 1.16),
     testthat (>= 2.1)
 Remotes: 
     bioc::release/Biobase,
@@ -71,6 +74,8 @@ Remotes:
     bioc::release/vsn,
     bioc::release/DEqMS,
     bioc::release/pcaMethods,
+    bioc::release/BiocParallel,
+    bioc::release/variancePartition,
     github::zimmerlab/MS-EmpiRe,
     github::vdemichev/diann-rpackage
 BiocViews:

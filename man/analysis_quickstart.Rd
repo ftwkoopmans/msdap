@@ -20,6 +20,7 @@ analysis_quickstart(
   dea_log2foldchange_threshold = 0,
   diffdetect_min_samples_observed = 3,
   pca_sample_labels = "auto",
+  var_explained_sample_metadata = NULL,
   output_abundance_tables = TRUE,
   output_qc_report = TRUE,
   output_dir,
@@ -57,6 +58,8 @@ analysis_quickstart(
 \item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
 
 \item{pca_sample_labels}{whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let the code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)}
+
+\item{var_explained_sample_metadata}{optionally, enable variance-explained analysis. This is slow, even for small datasets, and even moreso as the number of experiment metadata grows (so to save time in routine analyses, this is disabled by default). Set to NULL to disable (default), NA to automatically infer column names from dataset@samples to be used, or provide an array of column names from dataset@samples to be used}
 
 \item{output_abundance_tables}{whether to write protein-level data matrices to file. options: FALSE, TRUE}
 

@@ -355,9 +355,12 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
     append_log("duplicated sample names in the 'shortname' column are not allowed (unless your samples were fractionated, in which case you should provide a column named 'fraction')", type = "error")
   }
 
+  # replace repeated whitespace with single
+  df = df %>% mutate_if(is.character, function(x) gsub("\\s+", " ", x))
+
   # enforce valid characters in metadata
   df_check = df[, setdiff(colnames(df), "sample_id")]
-  props_invalid = colnames(df_check)[apply(df_check, 2, function(x) any(grepl("[^0-9a-z_+. /;:#*-]", x, ignore.case = T) | grepl(" {2,}", x)))] # apply regex to each column, check if any row matches; allow alphanumeric, underscore, space, minus, slash, dot
+  props_invalid = colnames(df_check)[apply(df_check, 2, function(x) any(!is.na(x) & is.character(x) & grepl("[^0-9a-z_+. /;:#?*-]", x, ignore.case = T) ) )] # apply regex to each column, check if any row matches; allow alphanumeric, underscore, space, minus, slash, dot
   if (length(props_invalid) > 0) {
     print(df[ , props_invalid, drop = F])
     append_log(paste0("invalid characters in sample metadata columns; ", paste(props_invalid, collapse = ", "), ". valid characters allowed are: alphanumeric, underscore, space (but no double spaces), dot, minus, (forward)slash, backslash, semicolon, hashtag, star"), type = "error")
@@ -572,4 +575,16 @@ peptide_and_protein_counts_per_sample = function(peptides, samples, isdia) {
   }
 
   return(samples)
+}
+
+
+
+#' Get column names that represent sample metadata provided by the user
+#'
+#' excludes all MS-DAP standard columns, like sample_id and shortname but also
+#' computed metadata like peptide or protein counts
+#'
+#' @param samples e.g. dataset$samples
+user_provided_metadata = function(samples) {
+  grep("^(sample_index|sample_id|shortname|exclude|contrast:.*|key_[a-z]+|((detected|quantified|all)_(peptides|proteins)))$", colnames(samples), value = T, invert = T, ignore.case = T)
 }

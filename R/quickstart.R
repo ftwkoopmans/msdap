@@ -106,6 +106,7 @@ NULL
 #' @param dea_log2foldchange_threshold threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
 #' @param diffdetect_min_samples_observed for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B
 #' @param pca_sample_labels whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let the code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)
+#' @param var_explained_sample_metadata optionally, enable variance-explained analysis. This is slow, even for small datasets, and even moreso as the number of experiment metadata grows (so to save time in routine analyses, this is disabled by default). Set to NULL to disable (default), NA to automatically infer column names from dataset@samples to be used, or provide an array of column names from dataset@samples to be used
 #' @param output_dir output directory where all output files should be stored. If not an existing directory, it will be created
 #' @param output_within_timestamped_subdirectory optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there. options: FALSE, TRUE
 #' @param output_abundance_tables whether to write protein-level data matrices to file. options: FALSE, TRUE
@@ -134,6 +135,7 @@ analysis_quickstart = function(dataset,
                                diffdetect_min_samples_observed = 3,
                                # plot options
                                pca_sample_labels = "auto",
+                               var_explained_sample_metadata = NULL,
                                # output data
                                output_abundance_tables = TRUE,
                                output_qc_report = TRUE,
@@ -264,7 +266,7 @@ analysis_quickstart = function(dataset,
 
   # QC report
   if(output_qc_report) {
-    generate_pdf_report(dataset, output_dir = output_dir, pca_sample_labels = pca_sample_labels)
+    generate_pdf_report(dataset, output_dir = output_dir, pca_sample_labels = pca_sample_labels, var_explained_sample_metadata = var_explained_sample_metadata)
   }
 
   append_log(paste("output directory;", output_dir), type = "info")
