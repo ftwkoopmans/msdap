@@ -5,10 +5,12 @@
 \title{compute the mode of all sample/column pairs
 column pairs that have less than 10 values in common are skipped (result value left at default 0)}
 \usage{
-pairwise_modes(x)
+pairwise_modes(x, min_overlap = 10)
 }
 \arguments{
 \item{x}{log-transformed data matrix, where columns are samples and rows are features}
+
+\item{min_overlap}{minimum number of rows that have a finite foldchange for any given combination of columns (otherwise, mode foldchange is not computed)}
 }
 \value{
 a matrix of ncol*ncol pairwise foldchange-modes

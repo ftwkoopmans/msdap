@@ -38,7 +38,9 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
                              pep = "PEP",
                              charge = "Charge",
                              mz = "m/z")
-  attributes_optional = list(contaminant = c("contaminant", "Potential contaminant"))
+  attributes_optional = list(contaminant = c("contaminant", "Potential contaminant"),
+                             score_target = "Score",
+                             score_mbr = "Match score")
 
   headers = unlist(strsplit(readLines(file_evidence, n = 1), "\t"))
   map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
@@ -78,6 +80,15 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
   tibble_evidence$intensity = log2(tibble_evidence$intensity)
   tibble_evidence$intensity[!is.na(tibble_evidence$intensity) & tibble_evidence$intensity < 0] = 0
   tibble_evidence$protein_id = pep2prot$protein_id[match(tibble_evidence$sequence_plain, pep2prot$sequence_plain)]
+  # import raw confidence scores
+  if(all(c("score_target", "score_mbr") %in% colnames(tibble_evidence)) && any(is.finite(tibble_evidence$score_target))) {
+    tibble_evidence = tibble_evidence %>% mutate(confidence_score = score_target)
+    rows = is.finite(tibble_evidence$score_mbr)
+    if(any(rows)) {
+      tibble_evidence$confidence_score[rows] = tibble_evidence$score_mbr[rows]
+    }
+    tibble_evidence$confidence_score[!is.finite(tibble_evidence$confidence_score)] = NA
+  }
 
   if("isdecoy" %in% colnames(tibble_evidence)) {
     tibble_evidence$isdecoy = tibble_evidence$isdecoy %in% TRUE
@@ -88,6 +99,9 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
   # prep result tibble
   tib_result = tibble_evidence %>%
     select(peptide_id, protein_id, sample_id = raw_file, sequence_plain, sequence_modified, charge, mz, intensity, confidence = pep, isdecoy, rt = calibrated_rt, detect)
+  if("confidence_score" %in% colnames(tibble_evidence)) {
+    tib_result = tib_result %>% mutate(confidence_score = tibble_evidence$confidence_score)
+  }
 
   # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
   if(collapse_peptide_by == "") {

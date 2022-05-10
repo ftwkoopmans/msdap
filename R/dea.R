@@ -86,7 +86,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
   # for computational efficiency, check whether we need protein-level data in any of the statistical models (eg; even is MaxLFQ is used as the rollup strategy, we don't want to wait for that if we are only doing msqrob)
   need_protein_rollup = any(! algo_de %in% c("msqrob","msempire"))
   # if(need_protein_rollup) {
-    append_log(paste("peptide to protein rollup strategy:", algo_rollup), type = "info")
+  append_log(paste("peptide to protein rollup strategy:", algo_rollup), type = "info")
   # }
 
   # remove preexisting results
@@ -163,7 +163,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     ## convert our long-format peptide table to a peptide- and protein-level ExpressionSet
     # subset peptide tibble for current contrast
     peptides_for_contrast = dataset$peptides %>%
-      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity)) %>%
+      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity), any_of("confidence")) %>%
       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
     # peptide ExpressionSet
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
@@ -247,13 +247,14 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
         # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
         if(!alg_matched) {
           alg_fun = match.fun(alg)
-          alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars, dataset_name=dataset$name)
           # validation checks on expected output, to facilitate debugging/feedback for custom implementations
           if(!is_tibble(alg_result) || nrow(alg_result) == 0 || !all(c("protein_id", "pvalue", "qvalue", "foldchange.log2", "algo_de") %in% colnames(alg_result))) {
             append_log(sprintf("provided custom function for differential expression analysis '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|algo_de", alg), type = "error")
           }
           alg_result_name = unique(alg_result$algo_de)
-          if(length(alg_result_name) != 1 || !is.character(alg_result_name) || nchar(alg_result_name) < 2 || alg_result_name %in% c("ebayes", "msempire", "msqrob", "msqrobsum", "combined")) {
+          # add this criterion if method can only generate 1 result (i.e. without, 1 call can generate DEA output for my_algo_param1, my_algo_param2, etc.); length(alg_result_name) != 1 ||
+          if(!is.character(alg_result_name) || nchar(alg_result_name) < 2 || alg_result_name %in% c("ebayes", "msempire", "msqrob", "msqrobsum", "combined")) {
             append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in algo_de column (must be a single non-empty character string uniquely indicating the name/label of your method. cannot be either of ebayes|msempire|msqrob|msqrobsum|combined)", alg), type = "error")
           }
           if(!all(!is.na(alg_result$protein_id) & alg_result$protein_id %in% peptides_for_contrast$protein_id)) {
@@ -310,75 +311,33 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
 #' @param max_permutations maximum number of unique configurations used for the permuted datasets
 #' @importFrom Biobase pData exprs
 #' @importFrom matrixStats rowMeans2
-#' @importFrom arrangements combinations
 dea_protein_background_foldchange_limits = function(eset, probs = 0.95, max_permutations = 100) {
+  stopifnot(probs > 0.6 & probs < 1)
+  stopifnot(max_permutations > 10 & max_permutations < 10000)
   pd = Biobase::pData(eset)
   x = Biobase::exprs(eset)
 
-  samples_cond1 = pd$sample_id[pd$condition == 1] # letters[1:3]
-  samples_cond2 = pd$sample_id[pd$condition == 2] # LETTERS[1:4]
+  ## extract sample group indentities
+  # ignore samples where condition not equals 1 or 2
+  samples_cond1 = pd$sample_id[pd$condition == 1]
+  samples_cond2 = pd$sample_id[pd$condition == 2]
+  #
+  samples_cond12 = c(samples_cond1, samples_cond2)
+  N1 = length(samples_cond1)
+  N2 = length(samples_cond2)
 
-  set.seed(1234)
-
-
-  ## number of samples to swap around
-  # if both groups are equal size, we can get by with floor(m/2) which is slightly more efficient. eg; 2 groups of 3 samples -->> swapping 1 sample from group A to B is the same as swapping 2 samples
-  m = min(length(samples_cond1), length(samples_cond2))
-  if(length(samples_cond1) == length(samples_cond2)) {
-    n_swap = floor(m / 2)
-  } else {
-    n_swap = ceiling(m / 2)
-  }
-
-
-  ## use the arrangements package for efficiently calculating a *random subset* of all permutations
-  # rationale: generating all combinations is not feasible for some datasets (eg; group of 50+ samples)
-  # rationale: taking first N combinations would bias the subset of selected samples towards the first few (as the output of combination is in lexicographical order)
-  ncomb_1 = arrangements::ncombinations(x = length(samples_cond1), k = n_swap, bigz = T)
-  ncomb_2 = arrangements::ncombinations(x = length(samples_cond2), k = n_swap, bigz = T)
-
-  # if 'raw' type, there were so many combinations that the number returned by ncombinations is a big-int
-  if(typeof(ncomb_1) == "raw") {
-    ncomb_1 = max_permutations
-  } else {
-    ncomb_1 = min(max_permutations, ncomb_1)
-  }
-  if(typeof(ncomb_2) == "raw") {
-    ncomb_2 = max_permutations
-  } else {
-    ncomb_2 = min(max_permutations, ncomb_2)
-  }
-
-  # select a random number of k-sample subsets
-  samples_swap_cond1 = arrangements::combinations(x = seq_along(samples_cond1), k = n_swap, nsample = ncomb_1, layout = "list")
-  samples_swap_cond2 = arrangements::combinations(x = seq_along(samples_cond2), k = n_swap, nsample = ncomb_2, layout = "list")
-
-
-  ## comb = combination of indices in samples_swap_cond*
-  # if there are many unique combinations in each condition, we do not have to recycle any subsets thereby maximizing the coverage of samples used in permutation analysis
-  if(length(samples_swap_cond1) >= max_permutations && length(samples_swap_cond2) >= max_permutations) {
-    comb = data.frame(i1 = 1:max_permutations, i2 = 1:max_permutations)
-  } else {
-    # to reach the desired number of permutations, combine subsets between conditions (prevent combinatorial explosion at expand.grid() )
-    comb = expand.grid(i1 = 1:min(length(samples_swap_cond1), floor(max_permutations / m)), i2 = 1:min(length(samples_swap_cond2), floor(max_permutations / m)))
-
-    # check if expand.grid() yielded too many combinations
-    if(nrow(comb) > max_permutations) {
-      comb = comb[sample(1:nrow(comb), max_permutations), ]
-    }
-  }
-
+  ## yields a matrix of between-group permuted indices
+  index_permuted = permute_ab(c(rep(1L, N1), rep(2L, N2)), nmax = max_permutations)
 
   ## compute foldchange distributions from permuted sample labels
   # allocate memory for all foldchanges
-  fc_matrix = matrix(0.0, nrow=nrow(x), ncol=nrow(comb))
-  # iterate label swaps
-  for(i in 1:nrow(comb)) { #i=1
-    # 'permuted' sample identities for each condition + remaining samples
-    j = comb[i,]
-    sample_id_cond1 = c(samples_cond2[samples_swap_cond2[[j$i2]]], setdiff(samples_cond1, samples_cond1[samples_swap_cond1[[j$i1]]]))
-    sample_id_cond2 = c(samples_cond1[samples_swap_cond1[[j$i1]]], setdiff(samples_cond2, samples_cond2[samples_swap_cond2[[j$i2]]]))
-    # print(i); print(sample_id_cond1); print(sample_id_cond2)
+  fc_matrix = matrix(0.0, nrow=nrow(x), ncol=nrow(index_permuted))
+  for(i in 1:nrow(index_permuted)) { #i=1
+    # extract permuted sample IDs
+    samples_permuted = samples_cond12[index_permuted[i,]] # all sample IDs, re-indexed accoring to current row in permutation matrix
+    sample_id_cond1 = head(samples_permuted, N1)          # first N1 samples are from group 1
+    sample_id_cond2 = tail(samples_permuted, N2)          # last N2 samples are from group 2
+    # print(sprintf("%d  A:%s  B:%s", i, paste(sample_id_cond1, collapse=","), paste(sample_id_cond2, collapse=",")))
 
     # foldchange by simply taking mean value in each group
     x1 = matrixStats::rowMeans2(x[,colnames(x) %in% sample_id_cond1, drop=F], na.rm = T)
@@ -388,6 +347,69 @@ dea_protein_background_foldchange_limits = function(eset, probs = 0.95, max_perm
 
   # we should not infer a-symmetric foldchange thresholds from the permutation data, so take the largest absolute value
   return(max(abs(quantile(fc_matrix, probs = c(1-probs, probs), na.rm = T))))
+}
+
+
+
+#' basic between-group permutation implementation
+#'
+#' minimal code & dependency-free. Not computationally efficient, but this is negligible for our use-cases
+#'
+#' permute_ab(as.integer(c(1,1,1, 2,2,2))) # most basic
+#' permute_ab(as.integer(c(1,1,1,1, 2,2,2,2,2))) # uneven groups
+#'
+#' @param x integer vector of {1,2} group IDs, at least two of each
+#' @param nmax maximum number of permuted sets
+#' @return integer matrix where rows are permutations and columns are indices in input x
+permute_ab = function(x, nmax = 100) {
+  # input must be an array of only values 1 and 2, each must occur at least twice
+  stopifnot(is.integer(x))
+  stopifnot(x %in% 1:2)
+  stopifnot(1:2 %in% x)
+  stopifnot(table(x) > 1)
+  stopifnot(is.numeric(nmax) & nmax > 0)
+
+  nmax = floor(nmax) # if numeric/float, ensure this is an int
+
+  # set random seed for reproducibility
+  set.seed(1234)
+  # determine group membership of each element of x
+  index1 = which(x == 1)
+  index2 = which(x == 2)
+
+  ### number of elements to swap around
+  # if both groups are equal size, we can get by with floor(m/2) which is slightly more efficient.
+  # eg; both entry 1 and 2 have 3 observations -->> swapping 1 elements from group A to B is the same as swapping 2
+  m = min(length(index1), length(index2))
+  if(length(index1) == length(index2)) {
+    n_swap = floor(m / 2)
+  } else {
+    n_swap = ceiling(m / 2)
+  }
+
+  ### naive sampling of permuted sets, overkill for very small permutations but works for any group/set sizes
+  # (e.g. both groups have size=3, permutations are limited and we could just get exact solution)
+  Niter = nmax * 10
+  sets = matrix(0L, nrow=Niter, ncol=2*n_swap) # integer matrix, first half of the columns are sample indexes from group1
+  for(i in 1:Niter) {
+    # sorting is important, within-group permutations are not considered 'unique sets' in this context
+    sets[i,] = c(sort(sample(index1, n_swap)), sort(sample(index2, n_swap)))
+  }
+  # take first N non-duplicated rows
+  sets = sets[head(which(!duplicated(sets)), nmax), ]
+  # debug; table(duplicated(sets)); sets[order(sets[,1],sets[,2],sets[,3],sets[,4]),]
+
+  ### translate to permutations of x
+  y = matrix(seq_along(x), nrow=nrow(sets), ncol=length(x), byrow=T)
+  for(i in 1:nrow(y)) { # debug; head(y); head(sets); i=1;j=1
+    for(j in 1:n_swap) {
+      # swap index from group A to group B, and vice versa
+      y[i,sets[i,j]] = sets[i,j+n_swap]
+      y[i,sets[i,j+n_swap]] = sets[i,j]
+    }
+  }
+
+  return(y)
 }
 
 

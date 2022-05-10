@@ -64,7 +64,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
   plotlist = list()
   ugrp = unique(samples$group)
   for (g in ugrp) { # g = ugrp[1]
-    g_key = samples$key_group[match(g, samples$group)]
+    # g_key = samples$key_group[match(g, samples$group)]
     skey = samples %>% filter(group == g) %>% pull(key_sample)
     # cannot make within-group foldchange plots for groups with less than 2 samples
     if(length(skey) < 2) {
@@ -82,40 +82,119 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
                               normalized = intensity_qc_basic - mean(intensity_qc_basic, na.rm=T)),
                           by=key_peptide]
 
-    #
-    tib_plot = as_tibble(data.table::melt.data.table(DT_diff_to_mean, id.vars = c("key_peptide", "key_sample"), variable.name = "normalized", value.name = "intensity")) %>%
-      left_join(samples %>% select(key_sample, shortname, exclude), by = "key_sample")
-
-    tib_plot$exclude = factor(tib_plot$exclude, levels = c(FALSE, TRUE))
-    tib_plot$group = g
+    # convert data we efficiently gathered with data.table into a long-format tibble
+    tib_plot = as_tibble(data.table::melt.data.table(DT_diff_to_mean, id.vars = c("key_peptide", "key_sample"), variable.name = "normalization_status", value.name = "logratio")) %>%
+      # join sample metadata (shortname and exclude)
+      left_join(samples %>% select(key_sample, shortname, exclude), by = "key_sample") %>%
+      # convert 'exclude' into a factor with fixed levels
+      mutate(exclude = factor(exclude, levels = c(FALSE, TRUE)),
+             group = g) # we already have group variable so we can simply assign it here, don't need to collect in the above left-join (although that would be fine as well, performance difference is moot in this use-case)
 
     # plot limits
     g_fc_xlim = c(-1, 1) * max(abs(quantile(DT_diff_to_mean$input, probs = c(.005, .995), na.rm = T)))
 
-    p = ggplot(tib_plot, aes(x = intensity, labels = shortname, colour = shortname, linetype = exclude)) +
-      geom_vline(xintercept = 0, size = 1, colour = "darkgrey") + # , linetype = 2
-      geom_line(stat = "density", size = 1, alpha=0.8, show.legend = T, na.rm=T) +
+    ### v2; updated/extended plots (monochrome + highlight topN outliers + density bw="SJ")
+
+    # color-code for highlighted samples
+    # number of colors in this array dictates the topN samples to be highlighted
+    # color code array, from relatively 'best' to 'worst' sample
+    clr_ref = tibble(
+      clr = c("#B2DF8A", "#33A02C", "#A6CEE3", "#1F78B4", "#FA9FB5", "#D86FEF", "#6A3D9A", "#FDBF6F", "#FF7F00", "#E31A1C"),
+      # if only N colors are in the palette, which should we use?
+      prio = c(5, 3, 6, 2, 9, 4, 8, 10, 1, 7)) %>%
+      # the ordering of colors; from 'worst' to 'best' sample
+      mutate(order = rev(dplyr::row_number()))
+    #debug; scales::show_col(clr_ref$clr); scales::show_col(clr_ref %>% filter(prio <= 4) %>% pull(clr)); scales::show_col(clr_ref %>% filter(prio <= 6) %>% pull(clr)); scales::show_col(clr_ref %>% filter(prio <= 8) %>% pull(clr))
+    clr_default = "#888888"
+
+    # base color-codes on an outlier metric: standard deviation of normalized intensities
+    tib_sample_score = tib_plot %>%
+      filter(normalization_status == "normalized") %>%
+      group_by(shortname) %>%
+      summarise(sd = sd(logratio[logratio > quantile(logratio, probs=0.005) & logratio < quantile(logratio, probs=0.995)]), .groups = "drop") %>%
+      # summarise(sd = sd(logratio), .groups = "drop") %>%
+      # sort such that 'worst' samples are at the bottom
+      arrange(sd) %>%
+      # flag bottom N samples
+      mutate(has_color = dplyr::row_number()  >  n() - nrow(clr_ref),
+             color = clr_default)
+
+    # assign color to samples that need to be color-coded
+    # note that this code works in tandem with above 'has_color' definition; the number of flagged samples is always <= number of available colors in clr_ref
+    ncolor = sum(tib_sample_score$has_color)
+    tib_sample_score$color[tib_sample_score$has_color] = clr_ref %>% filter(prio <= ncolor) %>% pull(clr)
+
+    # enforce sorting of samples in the plot by setting factor levels
+    tib_plot = tib_plot %>%
+      left_join(tib_sample_score, by = "shortname") %>%
+      mutate(shortname = factor(shortname, levels = tib_sample_score$shortname))
+
+
+    # monochrome plot without legend
+    p_mono = ggplot(tib_plot, aes(x = logratio, labels = shortname, linetype = exclude)) +
+      geom_vline(xintercept = 0, size = 1, colour = "darkgrey") +
+      geom_line(stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 0.33, size = .75) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
-      facet_wrap(.~group + normalized) +
+      facet_wrap(.~group + normalization_status) +
       xlim(g_fc_xlim) +
       labs(x = "log2 fold-change compared to group mean", colour = "sample", linetype = "exclude sample") +
-      guides(linetype = "none", colour = guide_legend(title = element_blank())) +
+      theme_bw() +
+      theme(legend.position = "none")
+
+
+    # color-code the topN 'worst' samples and show these in the legend
+    p_highlight = ggplot(tib_plot, aes(x = logratio, labels = shortname, colour = shortname, linetype = exclude)) +
+      geom_vline(xintercept = 0, size = 1, colour = "darkgrey") +
+      # first, plot the non-outlier samples (color black, strong transparency)
+      geom_line(data = tib_plot %>% filter(has_color == F), stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 0.33, size = 0.75) +
+      # next, draw the highlighted samples (aka. worst sd()) on top. Note that these were sorted upstream to ensure the 'worst' sample is drawn on top. (color-coded lines, no transparency)
+      geom_line(data = tib_plot %>% filter(has_color == T), stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 1, size = 1) +
+      scale_colour_manual(values = array(tib_sample_score$color, dimnames = list(tib_sample_score$shortname)),
+                          # the sample labels to be shown in the legend = highlighted samples from summary statistic tibble, in reverse order (so the 'worst' sample comes first)
+                          breaks = tib_sample_score %>% filter(has_color==T) %>% pull(shortname) %>% rev() ) +
+      scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
+      facet_wrap(.~group + normalization_status) +
+      xlim(g_fc_xlim) +
+      labs(x = "log2 fold-change compared to group mean", colour = "sample", linetype = "exclude sample") +
+      guides(linetype = "none", colour = guide_legend(title = element_blank(), ncol = 2, byrow = F)) +
       theme_bw() +
       theme(legend.position = "bottom",
-            legend.text = element_text(size = ifelse(length(skey) < 4, 10, ifelse(length(skey) < 6, 8, 6)) ),
-            legend.title = element_text(size=10))
+            legend.text = element_text(size = 7))
 
-    ## split legend into separate plot if more than N entries
-    if(dplyr::n_distinct(tib_plot$shortname) > 12) {
-      p_split = ggplot_split_legend(p)
-      plotlist[[g]] = p_split$plot
-      plotlist[[paste0(g, "_legend")]] = p_split$legend # + guides(colour = guide_legend(ncol = 2))
-    } else {
-      plotlist[[g]] = p
-    }
+    # split legend from the plot, such that both plots have the same dimensions
+    p_split = ggplot_split_legend(p_highlight)
+
+    plotlist[[g]] = list(
+      mono = p_mono,
+      highlight = p_split$plot,
+      legend = p_split$legend
+    )
 
 
+    ### v1
+    # p = ggplot(tib_plot, aes(x = logratio, labels = shortname, colour = shortname, linetype = exclude)) +
+    #   geom_vline(xintercept = 0, size = 1, colour = "darkgrey") + # , linetype = 2
+    #   geom_line(stat = "density", size = 1, alpha=0.8, show.legend = T, na.rm=T) +
+    #   scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
+    #   facet_wrap(.~group + normalization_status) +
+    #   xlim(g_fc_xlim) +
+    #   labs(x = "log2 fold-change compared to group mean", colour = "sample", linetype = "exclude sample") +
+    #   guides(linetype = "none", colour = guide_legend(title = element_blank())) +
+    #   theme_bw() +
+    #   theme(legend.position = "bottom",
+    #         legend.text = element_text(size = ifelse(length(skey) < 4, 10, ifelse(length(skey) < 6, 8, 6)) ),
+    #         legend.title = element_text(size=10))
+    #
+    # ## split legend into separate plot if more than N entries
+    # if(dplyr::n_distinct(tib_plot$shortname) > 12) {
+    #   p_split = ggplot_split_legend(p)
+    #   plotlist[[g]] = p_split$plot
+    #   plotlist[[paste0(g, "_legend")]] = p_split$legend # + guides(colour = guide_legend(ncol = 2))
+    # } else {
+    #   plotlist[[g]] = p
+    # }
   }
+
   return(plotlist)
 }
 

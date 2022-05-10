@@ -266,6 +266,7 @@ analysis_quickstart = function(dataset,
 
   # QC report
   if(output_qc_report) {
+    # TODO: if we want to consistently apply same normalization to generic QC report functions ('intensity_qc_basic') as specified by user for pre-DEA normalization, then pass this parameter on to generate_pdf_report(); norm_algorithm = norm_algorithm
     generate_pdf_report(dataset, output_dir = output_dir, pca_sample_labels = pca_sample_labels, var_explained_sample_metadata = var_explained_sample_metadata)
   }
 

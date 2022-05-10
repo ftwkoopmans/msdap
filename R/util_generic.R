@@ -1,3 +1,14 @@
+
+#' return msdap package version as a string
+#'
+#' simple wrapper around utils::packageVersion()
+#' @export
+msdap_version = function() {
+  as.character(packageVersion("msdap"))
+}
+
+
+
 # https://stackoverflow.com/questions/36338629/escaping-special-latex-characters-in-r
 escapeLatexSpecials <- function(x) {
   x <- gsub("\\", "$\\backslash$", x, fixed = T)
@@ -261,11 +272,14 @@ as_matrix_except_first_column = function(x) {
 
 
 
-#' placeholder title
-#' @param mat todo
-#' @param value_name todo
-#' @param column_name todo
-#' @param row_name todo
+#' wrapper function around tidyverse's gather to convert a matrix to long-format tibble
+#'
+#' NA values are removed from output
+#'
+#' @param mat a matrix
+#' @param value_name target column name for the values
+#' @param column_name target column name for the row names
+#' @param row_name target column name for the column names
 matrix_to_long = function(mat, value_name = "value", column_name = "sample", row_name = "sequence") {
   x = as_tibble(mat)
   x$rownms = rownames(mat)

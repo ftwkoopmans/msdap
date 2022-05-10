@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: 'version: 1.0.1  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/'
+subtitle: "version: `r msdap::msdap_version()`  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/"
 output:
   pdf_document:
     toc: true
@@ -210,16 +210,26 @@ for(p in p_rt$rt_by_sample) {
 The reproducibility of replicate measurements is expressed in three different analyses. First, the difference between peptide intensities in each sample are compared to the mean value among all replicates (foldchange distributions). Next, the Coefficient of Variation (CoV) is used as a metric for reproducibility to explore how much the CoV within a sample group can be improved by removing a single sample (eg; if CoV strongly improved after removing sample s, it could be regarded as an outlier). Finally, the CoV within each sample group is visualized as a boxplot and a violin plot, figures commonly seen in proteomics literature and useful for comparing across experiments (of similar protocol).
 
 ### within-group foldchange distributions
-The foldchange of all peptides in a sample is compared to their respective mean value over all samples in the group. This visualizes how strongly each sample deviates from other samples in the same group which helps identify outlier samples. The same data was used as detailed in the "retention time" section above. Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
+The foldchange of all peptides in a sample is compared to their respective mean value over all samples in the group. This visualizes how strongly each sample deviates from other samples in the same group which helps identify outlier samples. The same data was used as detailed in the "retention time" section above.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+For each sample group, two plots are shown: 1) a basic monochrome plot and 2) a variant that color-codes the top10 'worst' samples based on the standard deviation of their respective distributions. The legend is sorted in column-first descending order (sample with highest sd in column 1 row 1, sample with second highest sd in column 1 row 2, etc.). If there are 10 or fewer samples, all are color-coded. 
+
+The 'input' panel is based on the peptide intensities as-is (i.e. the user-provided input data from upstream software), the 'normalized' panel shows the exact same samples and peptides after normalization (as specified by user). Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
+
+\newpage
+
+```{r echo=F, message=F, warning=F, results='asis'}
+# returns a list (names are the sample groups), each contains 3 ggplot objects; mono, highlight, legend
 p_group_mean_foldchange = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
-```
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.width=7, fig.height=4.5}
-for(p in p_group_mean_foldchange) {
-  suppressWarnings(print(p))
-  cat('\n\n')
+i = 0 # counter for unique chunk IDs
+for(plotlist in p_group_mean_foldchange) {
+  # inject dynamic markdown code so we can specify a different height for each figure (i.e. same for both plots, less for the legend)
+  subchunkify(suppressWarnings(print(plotlist$mono)), unique_chunk_id = paste0("p_group_mean_foldchange__mono_", i), fig_height = 3.5, fig_width = 7)
+  subchunkify(suppressWarnings(print(plotlist$highlight)), unique_chunk_id = paste0("p_group_mean_foldchange__highlight_", i), fig_height = 3.5, fig_width = 7)
+  subchunkify(suppressWarnings(print(plotlist$legend)), unique_chunk_id = paste0("p_group_mean_foldchange__legend_", i), fig_height = 2, fig_width = 7)
+  cat('\n\n') 
+  i = i + 1
 }
 ``` 
 

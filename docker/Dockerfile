@@ -27,10 +27,10 @@ RUN R -e "devtools::install_github('zimmerlab/MS-EmpiRe', upgrade = 'never')"
 RUN R -e "devtools::install_github('vdemichev/diann-rpackage', upgrade = 'never')"
 
 # install msdap R package
-###RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.1', upgrade = 'never')"
+###RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.2', upgrade = 'never')"
 RUN mkdir /msdap
-COPY temp/msdap_1.0.1.tar.gz /msdap/
-RUN R -e "devtools::install_local('/msdap/msdap_1.0.1.tar.gz', upgrade = 'never')"
+COPY temp/msdap_1.0.2.tar.gz /msdap/
+RUN R -e "devtools::install_local('/msdap/msdap_1.0.2.tar.gz', upgrade = 'never')"
 
 # make sure the rstudio user can install and upgrade packages
 RUN chown -R rstudio:rstudio /usr/local/lib/R/library

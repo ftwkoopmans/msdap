@@ -16,7 +16,7 @@ plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, s
   if(!sample_label_property %in% c("auto", "shortname", "index", "index_asis")) {
     append_log(paste("invalid value for parameter 'sample_label_property':", sample_label_property), type = "error")
   }
-  if(!c("sample_index", "sample_id", "shortname") %in% colnames(samples)) {
+  if(!all(c("sample_index", "sample_id", "shortname") %in% colnames(samples))) {
     append_log(paste(paste(c("sample_index", "sample_id", "shortname"), collapse = ", "), "are required column in the samples table"), type = "error")
   }
 

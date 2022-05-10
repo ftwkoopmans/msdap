@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{matrix_to_long}
 \alias{matrix_to_long}
-\title{placeholder title}
+\title{wrapper function around tidyverse's gather to convert a matrix to long-format tibble}
 \usage{
 matrix_to_long(
   mat,
@@ -12,14 +12,14 @@ matrix_to_long(
 )
 }
 \arguments{
-\item{mat}{todo}
+\item{mat}{a matrix}
 
-\item{value_name}{todo}
+\item{value_name}{target column name for the values}
 
-\item{column_name}{todo}
+\item{column_name}{target column name for the row names}
 
-\item{row_name}{todo}
+\item{row_name}{target column name for the column names}
 }
 \description{
-placeholder title
+NA values are removed from output
 }

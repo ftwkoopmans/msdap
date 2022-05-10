@@ -313,12 +313,20 @@ aggregate_tibble_by_datatables = function(peptides, prop_peptide = "sequence_pla
   ## !!! careful, potentially re-ordering the data.table below so index lookup i is no longer valid from here on
   rm(i)
   if("confidence" %in% colnames(x)) {
-    # confidence ascending -> first
+    # confidence ascending -> take first value
     data.table::setorder(x, confidence, na.last = T)
     y$confidence = x$confidence[match(y$DTkeyindex, x$DTkeyindex)]
   } else {
     y$confidence = NA
   }
+
+  # analogous
+  if("confidence_score" %in% colnames(x)) {
+    # confidence_score descending -> take first value
+    data.table::setorder(x, -confidence_score, na.last = T) # note the - prefix for descending
+    y$confidence_score = x$confidence_score[match(y$DTkeyindex, x$DTkeyindex)]
+  } # not a "standard field" so don't have to append NA column if missing
+
 
   # stopifnot(anyDuplicated(y$DTkeyindex) == 0)
   # stopifnot(anyDuplicated(y[,c("sequence_modified","sample_id")]) == 0)

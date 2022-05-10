@@ -154,8 +154,9 @@ normalize_vwmb = function(x, groups=NA, metric_within="var", metric_between="mod
 #' compute the mode of all sample/column pairs
 #' column pairs that have less than 10 values in common are skipped (result value left at default 0)
 #' @param x log-transformed data matrix, where columns are samples and rows are features
+#' @param min_overlap minimum number of rows that have a finite foldchange for any given combination of columns (otherwise, mode foldchange is not computed)
 #' @return a matrix of ncol*ncol pairwise foldchange-modes
-pairwise_modes = function(x) {
+pairwise_modes = function(x, min_overlap = 10) {
   m = matrix(0, ncol(x), ncol(x), dimnames = list(colnames(x), colnames(x)))
   for (i in 1:ncol(x)) { # i=1;j=2
     for (j in 1:ncol(x)) {
@@ -163,8 +164,8 @@ pairwise_modes = function(x) {
         # foldchanges from column i to j
         fc = x[, i] - x[, j]
         fc = fc[is.finite(fc)]
-        # don't do anything if less than 10 data points
-        if(length(fc) >= 10) {
+        # don't do anything if less than N data points
+        if(length(fc) >= min_overlap) {
           # find the mode of all (finite) log foldchanges
           m[i, j] = get_mode(fc)
           # from j to i is the opposite
@@ -182,6 +183,9 @@ pairwise_modes = function(x) {
 #' @param x numeric array
 #' @return mode of x
 get_mode = function(x) {
+  if(length(x) == 0) return(NA)
+  if(length(x) == 1) return(x)
+
   density_estimate = density(x, na.rm=T)
   # which.max() returns first 'max' value (thus always 1 return value). eg; which.max(c(1,1,2,2,1))
   return(density_estimate$x[which.max(density_estimate$y)])
@@ -205,11 +209,12 @@ adjust_modes = function(m, s) {
 
 #' minimize the foldchange-mode between all columns
 #' @param x log-transformed numeric matrix
+#' @param min_overlap minimum number of rows that have a finite foldchange for any given combination of columns (otherwise, mode foldchange is not computed)
 #' @return scaling factor for each column in x
 #' @importFrom matrixStats rowSums2
-norm_scales_fcmode = function(x) {
+norm_scales_fcmode = function(x, min_overlap = 10) {
   ### compute the foldchange-mode between each pair of columns
-  fcm = pairwise_modes(x)
+  fcm = pairwise_modes(x, min_overlap = min_overlap)
 
   ### apply MLE to scale all samples such that overall, the foldchange-mode between any pair of samples is minimal
   # helper function for MLE

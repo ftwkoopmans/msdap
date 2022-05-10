@@ -99,8 +99,9 @@ import_dataset_diann = function(filename, confidence_threshold = 0.01, use_norma
                                                                   rt = rt_col,
                                                                   # isdecoy = "",
                                                                   intensity = ifelse(use_normalized_intensities, "Precursor.Normalised", "Precursor.Quantity"),
-                                                                  confidence = "Q.Value"),
-                                       # attributes_optional = list(mz = ""),
+                                                                  confidence = "Q.Value",
+                                                                  confidence_score = "Evidence"),
+                                       # attributes_optional = list(confidence_score = "Evidence"),
                                        confidence_threshold = confidence_threshold,
                                      return_decoys = F,
                                      do_plot = do_plot)
@@ -152,6 +153,8 @@ import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use
                                        confidence_threshold = confidence_threshold,
                                      return_decoys = return_decoys,
                                      do_plot = do_plot)
+
+  ds$peptides = ds$peptides %>% mutate(confidence_score = cscore)
 
   if(use_normalized_intensities) {
     # if user request normalized intensties from Spectronaut report, make sure this column was successfully parsed and contains a numeric value for at least 75% of target peptides (arbitrary, but should be a robust check if data is present or not)
