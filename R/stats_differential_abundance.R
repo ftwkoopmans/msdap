@@ -174,8 +174,13 @@ de_ebayes_fit = function(x, random_variables) {
   if(is.matrix(random_variables)) {
     random_variables = data.frame(random_variables, stringsAsFactors = F)
   }
-  if(length(rownames(random_variables)) == ncol(x) && !all(rownames(random_variables) == as.character(1:nrow(random_variables))) && rownames(random_variables) != colnames(x)) {
-    append_log("input matrix x and random_variables seem misaligned; column names of x versus rownames of variables do not match", type = "error")
+
+  # if the supplied matrix/data.frame of random variables has any rownames, these must align with colnames of x
+  if(length(rownames(random_variables)) == ncol(x) && !(
+    all( rownames(random_variables) == as.character(1:nrow(random_variables)) ) ||
+    all( rownames(random_variables) == colnames(x) )
+  )) {
+      append_log("input matrix x and random_variables seem misaligned; column names of x versus rownames of variables do not match", type = "error")
   }
 
   if(is.vector(random_variables) || is.array(random_variables)) {
