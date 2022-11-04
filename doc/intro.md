@@ -76,11 +76,7 @@ innovations.
 
 ## Features
 
-<figure>
-<img src="images/msdap-overview.png" style="width:50.0%"
-alt="MS-DAP workflow" />
-<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
-</figure>
+![MS-DAP workflow](images/msdap-overview.png)
 
 MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 

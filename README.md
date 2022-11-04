@@ -27,11 +27,7 @@ after publication
 
 ## Overview
 
-<figure>
-<img src="doc/images/msdap-overview.png" style="width:50.0%"
-alt="MS-DAP workflow" />
-<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
-</figure>
+![MS-DAP workflow](doc/images/msdap-overview.png)
 
 [This introduction to MS-DAP](doc/intro.md) provides a complete overview
 of main features and example data visualizations.
