@@ -347,7 +347,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
     dec_char = "." # initial guess
     # select two numeric columns from the data table that are guaranteed to be present, then read the first N lines of only those columns
     df_test_numeric = read_textfile_compressed(filename, nrow = 1000, skip_empty_rows = F, as_table = T, header = F, skip = 1, select = as.numeric(map_required[c("rt", "intensity")]), stringsAsFactors = F, dec = dec_char, data.table = F)
-    df_test_numeric__fail = sapply(df_test_numeric, class, simplify = T) != "numeric"
+    df_test_numeric__fail = ! sapply(df_test_numeric, class, simplify = T) %in% c("numeric", "integer")
     # if any column was parsed as non-numeric with current separation char -->> try to parse with alternative separation character downstream
     if(any(df_test_numeric__fail)) {
       append_log("The input data table does not seem to use '.' for decimal notation. Trying to parse file with ',' as decimal specification instead...", type = "warning")
@@ -364,7 +364,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
     # only read columns of interest to speed up file parsing
     # don't parse first row as header and then skip it to avoid issues with tables that have mismatched headers (e.g. MetaMorpheus files that have extra trailing tab on header row)
-    DT = read_textfile_compressed(filename, skip_empty_rows = F, as_table = T, select = as.integer(col_indices_unique), header = F, skip = 1, stringsAsFactors = F, data.table = T)
+    DT = read_textfile_compressed(filename, skip_empty_rows = F, as_table = T, select = as.integer(col_indices_unique), header = F, skip = 1, stringsAsFactors = F, dec = dec_char, data.table = T)
     colnames(DT) = names(col_indices_unique) # overwrite column names from file with the desired names from column specification
 
     # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
