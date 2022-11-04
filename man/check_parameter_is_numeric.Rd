@@ -2,17 +2,17 @@
 % Please edit documentation in R/util_generic.R
 \name{check_parameter_is_numeric}
 \alias{check_parameter_is_numeric}
-\title{placeholder title}
+\title{generic input validation; all provided arguments should be numeric (not array)}
 \usage{
-check_parameter_is_numeric(..., minval = NA, maxval = NA)
+check_parameter_is_numeric(..., minval_ = NA, maxval_ = NA)
 }
 \arguments{
-\item{...}{todo}
+\item{...}{arbitrary set of parameters}
 
-\item{minval}{todo}
+\item{minval_}{optionally, a finite number indicating the minimum value for each parameter}
 
-\item{maxval}{todo}
+\item{maxval_}{optionally, a finite number indicating the maximum value for each parameter}
 }
 \description{
-placeholder title
+generic input validation; all provided arguments should be numeric (not array)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_files.R
 \name{remove_file_extension_from_path}
 \alias{remove_file_extension_from_path}
-\title{purposely naive approach to keep things simple for our internal usecases; strip a . followed by 0-5 letters from end of the string}
+\title{remove a single file extension from a path or filename}
 \usage{
 remove_file_extension_from_path(f)
 }
@@ -10,5 +10,5 @@ remove_file_extension_from_path(f)
 \item{f}{f can either be a filename or a full path, and optionally carry a file extension. eg; remove_file_extension_from_path("file.txt"); remove_file_extension_from_path("C:/temp/file")}
 }
 \description{
-purposely naive approach to keep things simple for our internal usecases; strip a . followed by 0-5 letters from end of the string
+purposely naive approach to keep things simple for our internal usecases; strip a . followed by 0-5 characters from end of the string
 }

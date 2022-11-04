@@ -22,9 +22,11 @@ import_dataset_fragpipe_ionquant(
 }
 \description{
 To generate output files that we here require in MS-DAP, configure FragPipe as follows:
-- assign Experiment IDs in the workflow tab (you may simply set these all to 1)
-- enable IonQuant ("Quant (MS1)" tab, as of FragPipe v15)
-- optionally, enable match-between-runs
+\itemize{
+\item assign Experiment IDs in the workflow tab (you may simply set these all to 1)
+\item enable IonQuant ("Quant (MS1)" tab, as of FragPipe v15)
+\item optionally, enable match-between-runs
+}
 }
 \details{
 This function will merge data from various FragPipe output files to construct a MS-DAP dataset

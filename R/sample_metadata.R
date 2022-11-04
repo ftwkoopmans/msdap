@@ -12,7 +12,7 @@ import_sample_metadata = function(dataset, filename) {
   # reset cache
   dataset = invalidate_cache(dataset)
 
-  dataset$samples = sample_metadata_from_file(sample_id = unique(dataset$peptides$sample_id), filename=filename)
+  dataset$samples = sample_metadata_from_file(sample_id = unique(dataset$peptides$sample_id), filename = filename)
   # add peptide and protein counts to samples tibble, so downstream code includes this in output tables and report figures relating to sample metadata
   dataset$samples = peptide_and_protein_counts_per_sample(dataset$peptides, dataset$samples, is_dia_dataset(dataset))
   return(dataset)
@@ -24,7 +24,7 @@ import_sample_metadata = function(dataset, filename) {
 #'
 #' @param dataset your dataset
 #' @param sample_property_regex a named list of regular expressions to extract sample properties. name=sample property, value = array of length two with the regex and the replace string (first 2 arguments of sub())
-#' @param sample_exclude_regex regex to select samples that should be flagged as 'exclude'
+#' @param sample_exclude_regex optionally, regex to select samples that should be flagged as 'exclude'
 #' @param group_order optionally, you can provide a preferred ordering of the sample groups as a character array
 #' @param group_regex_array optionally, a regex that specifically extracts sample groups and leaves non-matches in an 'unassigned' group
 #'
@@ -140,12 +140,15 @@ write_template_for_sample_metadata = function(dataset, filename, overwrite = FAL
 
 
 
-#' placeholder title
-#' @param sample_id todo
-#' @param sample_property_regex todo
-#' @param sample_exclude_regex todo
-#' @param group_order todo
-#' @param group_regex_array todo
+#' extract metadata from sample names using regular expressions
+#'
+#' note; user-facing function is sample_metadata_custom()
+#'
+#' @param sample_id character array representing sample IDs
+#' @param sample_property_regex a named list of regular expressions to extract sample properties. name=sample property, value = array of length two with the regex and the replace string (first 2 arguments of sub())
+#' @param sample_exclude_regex optionally, regex to select samples that should be flagged as 'exclude'
+#' @param group_order optionally, you can provide a preferred ordering of the sample groups as a character array
+#' @param group_regex_array optionally, a regex that specifically extracts sample groups and leaves non-matches in an 'unassigned' group
 sample_metadata_from_filenames = function(sample_id, sample_property_regex = list(), sample_exclude_regex = "", group_order = NA, group_regex_array = NA) {
   # input validation; either sample_property_regex or group_regex_array
   if(length(sample_property_regex) == 0 || !is.list(sample_property_regex)) {
@@ -198,10 +201,13 @@ sample_metadata_from_filenames = function(sample_id, sample_property_regex = lis
 
 
 
-#' placeholder title
-#' @param sample_id todo
-#' @param filename todo
-#' @param group_order todo
+#' read sample metadata table from file and match it against provided sample IDs
+#'
+#' note; user-facing function is import_sample_metadata()
+#'
+#' @param sample_id character array representing sample IDs
+#' @param filename full file path of the input file (eg; C:/temp/template_experiment1.xlsx)
+#' @param group_order optionally, you can provide a preferred ordering of the sample groups as a character array
 #'
 #' @importFrom data.table fread
 #' @importFrom openxlsx read.xlsx
@@ -216,17 +222,50 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
     append_log(paste("Sample metadata should either be a csv/tsv file, or an Excel table stored as xlsx:", filename), type = "error")
   }
 
-  # read from disk
+  ### read from disk
   if(is_type_xlsx) {
     df = openxlsx::read.xlsx(filename, sheet=1, sep.names="_", detectDates=T)
   } else {
     df = as.data.frame(data.table::fread(filename))
   }
+  if (!is.data.frame(df) || nrow(df) == 0) {
+    append_log("provided sample metadata file was empty", type = "error")
+  }
   if (! "sample_id" %in% colnames(df)) {
     append_log("sample_id is a required attribute for sample metadata", type = "error")
   }
 
-  # input table should only contain samples matching this dataset
+  ### before thorough downstream checking, basic QC check for code in this function; character and not NA
+  tmp = as.character(df$sample_id)
+  tmp[is.na(df$sample_id)] = ""
+  df$sample_id = tmp
+
+  # check dupes for non-empty  (e.g. deal with trailing empty rows etc. in downstream code/functions)
+  df_sid_dupe = df$sample_id != "" & duplicated(df$sample_id)
+  if(any(df_sid_dupe)) {
+    append_log(paste0("sample metadata table must not contain any duplicates in sample_id column. Duplicated entries;\n", paste(unique(df$sample_id[df_sid_dupe]), collapse="\n")), type = "error")
+  }
+
+
+  ### increase cross-compatibility so users don't have to edit samples.xlsx
+  # maybe the table we read from file contains file extensions that we stripped out in (newer versions of) MS-DAP
+  # so e.g. "sample1.wiff" in `df$sample_id` is present in `sample_id` parameter as "sample1"
+  # solution: update `df` for elements that do not match currently, and have exactly 1 match after regex
+  regex_strip_msrawfile = "(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4)$)"
+  df_sid_strip = gsub(regex_strip_msrawfile, "", df$sample_id, ignore.case = T)
+  sample_id__matched = sample_id %in% df$sample_id
+  for(i in which(df$sample_id != "")) {
+    if(!any(df$sample_id[i] == sample_id)) { # df element i is unmatched
+      index_in_param = which(sample_id == df_sid_strip[i]) # try i's stripped filename
+      if(length(index_in_param) == 1 && !sample_id__matched[index_in_param]) { # exactly 1 match, and that element was not matched already
+        df$sample_id[i] = df_sid_strip[i] # update user's metadata table from file, replacing the sample_id with stripped variant
+        sample_id__matched[index_in_param] = TRUE # flag as matched
+      }
+    }
+  }
+
+
+  ### input table should only contain samples matching this dataset
   samples_missing = setdiff(sample_id, df[,"sample_id"])
   samples_extra = setdiff(df[,"sample_id"], sample_id)
   if (length(samples_missing) > 0) {
@@ -248,16 +287,17 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
 
 
 
-#' placeholder title
-#' @param df todo
-#' @param sample_exclude_regex todo
-#' @param group_order todo
+#' sample metadata formatting and validation
+#'
+#' @param df data.frame with sample metadata
+#' @param sample_exclude_regex optionally, regex to select samples that should be flagged as 'exclude'
+#' @param group_order optionally, you can provide a preferred ordering of the sample groups as a character array
 #'
 #' @importFrom gtools mixedorder
 #' @importFrom stringr str_squish
 #' @importFrom tibble rowid_to_column
 sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_order = NA) {
-  if (!is.data.frame(df) || length(df) == 0) {
+  if (!is.data.frame(df) || nrow(df) == 0) {
     append_log("sample metadata must be a non-empty dataframe", type = "error")
   }
 
@@ -425,20 +465,27 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
 }
 
 
+
 compose_contrast_name = function(a, b) {
   paste("contrast:", paste(unique(a), collapse = ","), "vs", paste(unique(b), collapse = ","))
 }
+
+
 
 decompose_contrast_name = function(x) {
   x = sub("^contrast: *", "", x)
   lapply(strsplit(x, split = " *vs *"), strsplit, split = " *, *")
 }
 
+
+
 #' Setup contrasts for downstream Differential Expression Analysis
 #'
-#' @param dataset your dataset, make sure you've already imported sample metadata (so each sample is assigned to a sample group)
+#' Note that a MS-DAP contrast for "A vs B" will return foldchanges for B/A in downstream output tables and data visualizations. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group.
+#'
+#' @param dataset your dataset. Make sure you've already imported sample metadata (so each sample is assigned to a sample group)
 #' @param contrast_list a list that captures all contrasts that you want to compare. Check the examples for details.
-#' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info.
+#' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info (start at `dea_algorithms()` )
 #'
 #' @examples
 #' # a simple wild-type knockout study with only 2 groups, WT and KO
@@ -526,10 +573,12 @@ setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
       append_log(paste("all groups in a contrast must be part of your dataset,", lbl), type = "error")
     }
 
+    # conditions are stored as integers
+    # 1 = group A, 2 = group B, 0 = samples from other groups or those flagged as 'exclude'
     mask = as.integer(tib$group %in% groups_a)
-    mask[tib$group %in% groups_b] = 2
+    mask[tib$group %in% groups_b] = 2L
     if ("exclude" %in% colnames(tib)) {
-      mask[tib$exclude %in% TRUE] = 0
+      mask[tib$exclude %in% TRUE] = 0L
     }
     tib[, lbl] = as.integer(mask)
 
@@ -550,9 +599,10 @@ setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
 
 
 #' add peptide and protein counts to samples tibble, so downstream code includes this in output tables and report figures relating to sample metadata
-#' @param peptides todo
-#' @param samples todo
-#' @param isdia todo
+#'
+#' @param peptides peptide tibble in long format
+#' @param samples samples tibble in wide format
+#' @param isdia boolean indicating this is a DIA dataset (DDA otherwise). Use is_dia_dataset(dataset) to obtain this from data
 peptide_and_protein_counts_per_sample = function(peptides, samples, isdia) {
   peptide_counts = peptides %>%
     group_by(sample_id) %>%

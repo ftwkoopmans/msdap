@@ -29,7 +29,7 @@ logger.default = function(x, type = "info") {
 
 
 
-#' clear the log
+#' clear the log by resetting global log_ variable
 #'
 #' @export
 reset_log = function() {
@@ -53,7 +53,7 @@ log_type_to_color = function(type, format="hex") {
 
 
 
-#' This function is called throughout the pipeline to append messages to the logfile
+#' This function is called throughout the pipeline to append messages to the log
 #'
 #' @param s your message as a character string
 #' @param type the type of message. supported color-coding through logger.default: progress, info, warning, error. For the latter, an R error is thrown after logging!
@@ -94,4 +94,29 @@ append_log = function(s, type = "info", start_time=NULL) { # s="test"
 #' @param type the type of message, typically "progress". See further append_log()
 append_log_timestamp = function(s, start_time, type = "progress") {
   append_log(s, type, start_time)
+}
+
+
+
+#' Append error object to log
+#'
+#' prints message and call trace if these exist, otherwise dump the entire error object
+#'
+#' @param err error type object (e.g. from tryCatch function)
+#' @param type the type of message, typically "progress". See further append_log()
+append_log_error = function(err, type = "error") {
+  if(length(err) > 0) {
+    if(length(err$message) == 1 && nchar(err$message) > 3) {
+      # if there is a message attached, try to neatly print the user-facing message followed by the erronous call
+      if(length(err$call) > 0) { # report more details on where the error occurred
+        # note that if type="error", code halts after first append_log call so all output/log should go into 1 call
+        append_log(paste0(err$message, "\n", stringr::str_trim(capture.output(str(err$call, nchar.max = 1000))) ), type = type)
+      } else { # no call trace available
+        append_log(err$message, type = type)
+      }
+    } else {
+      # if there was no warning attached, just dump the entire object to console
+      append_log(stringr::str_trim(capture.output(str(err, nchar.max = 1000))), type = type)
+    }
+  }
 }

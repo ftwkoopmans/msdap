@@ -2,10 +2,32 @@
 % Please edit documentation in R/util_normalization.R
 \name{normalization_algorithms}
 \alias{normalization_algorithms}
-\title{the set of available normalization algorithms}
+\title{returns all normalization algorithms integrated with MS-DAP}
 \usage{
 normalization_algorithms()
 }
 \description{
-the set of available normalization algorithms
+median: scale each sample such that median abundance values are the same for all samples in the dataset.
+
+loess: Loess normalization as implemented in the limma R package (PMID:25605792) \url{https://bioconductor.org/packages/release/bioc/html/limma.html}. code: \code{limma::normalizeCyclicLoess(log2_data, iterations = 10, method = "fast")}. Normalize the columns of a matrix, cyclicly applying loess normalization to normalize each columns against the average over all columns.
+
+vsn: Variance Stabilizing Normalization (VSN) as implemented in the vsn R package (PMID:12169536) \url{https://bioconductor.org/packages/release/bioc/html/vsn.html}. code: \code{vsn::justvsn()}. From bioconductor: "The model incorporates data calibration step (a.k.a. normalization), a model for the dependence of the variance on the mean intensity and a variance stabilizing data transformation. Differences between transformed intensities are analogous to 'normalized log-ratios'".
+
+rlr: Robust Linear Regression normalization, as implemented in the MSqRob package (PMID:26566788) \url{https://github.com/statOmics/msqrob}. For each sample s, perform a robust linear regression of all values (peptide intensities) against overall median values (e.g. median value of each peptide over all samples) to obtain the normalization factor for sample s.
+
+msempire: log-foldchange mode normalization, as implemented in the msEmpiRe package (PMID:31235637) \url{https://github.com/zimmerlab/MS-EmpiRe}. Instead of computing all pairwise sample scaling factors (i.e. foldchange distributions between all pairs of samples within a sample group), MS-EmpiRe uses single linkage clustering to normalize to subsets of 'most similar' samples and iteratively expands until all within-group samples are covered.
+
+vwmb: Variation Within, Mode Between (VWMB) normalization. In brief, this minimizes the median peptide variation within each sample group, then scales between all pairwise sample groups such that the log-foldchange mode is zero.
+The normalization algorithm consists of two consecutive steps:
+\enumerate{
+\item samples are scaled within each group such that the median of variation estimates for all rows is minimized
+\item summarize all samples per group by respective row mean values (from \code{row*sample} to a \code{row*group} matrix). Then rescale at the sample-group-level to minimize the mode log-foldchange between all groups
+See further MS-DAP function \code{\link{normalize_vwmb}}.
+}
+
+mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of VWMB. Normalize (/scale) samples within each sample group such that their pairwise log-foldchange modes are zero, then scales between groups such that the log-foldchange mode is zero (i.e. the between-group part is the same as VWMB). If the dataset has (unknown) covariates and a sufficient number of replicates, this might be beneficial because covariate-specific effects are not averaged out as they might be with \code{VWMB}. See further MS-DAP function \code{\link{normalize_vwmb}}.
+
+modebetween: only the "Mode Between" part of VWMB described earlier, does not affect scaling between (replicate) samples within the same sample group.
+
+modebetween_protein  (also referred to as "MBprot", e.g. in the MS-DAP manuscript and some documentation): only the "Mode Between" part of VWMB described earlier, but the scaling factors are computed at protein-level !!  When this normalization function is used, the \code{\link{normalize_modebetween_protein}} function will first rollup the peptide data matrix to protein-level, then compute between-sample-group scaling factors and finally apply those to the input peptide-level data matrix to compute the normalized peptide data.
 }

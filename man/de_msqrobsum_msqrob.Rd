@@ -24,5 +24,10 @@ de_msqrobsum_msqrob(
 \item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms}
 }
 \description{
-Wrapper function for msqrob, using the implementation from the msqrobsum package
+note that this is the final version of this algorithm provided by its authors, and is no longer maintained; https://github.com/statOmics/msqrob
+only difference with the GitHub version is that code included here has minor adaptions to situationally improve multithreading (i.e. speeds up computation a bit, on some systems)
+}
+\details{
+ref; PMID:26566788 PMID:32321741
+ref; https://github.com/statOmics/msqrob
 }

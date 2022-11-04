@@ -18,13 +18,19 @@ plot_peptide_data(
 \arguments{
 \item{dataset}{todo}
 
+\item{select_all_proteins}{todo}
+
+\item{select_diffdetect_candidates}{todo}
+
+\item{select_dea_signif}{todo}
+
+\item{filter_protein_ids}{todo}
+
 \item{output_dir}{todo}
 
 \item{show_unused_datapoints}{todo}
 
 \item{norm_algorithm}{todo}
-
-\item{filter_protein_id}{todo}
 }
 \description{
 plot peptide-level data

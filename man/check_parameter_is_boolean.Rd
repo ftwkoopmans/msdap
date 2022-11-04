@@ -2,13 +2,13 @@
 % Please edit documentation in R/util_generic.R
 \name{check_parameter_is_boolean}
 \alias{check_parameter_is_boolean}
-\title{placeholder title}
+\title{generic input validation; all provided arguments should be boolean/logical (not array)}
 \usage{
 check_parameter_is_boolean(...)
 }
 \arguments{
-\item{...}{todo}
+\item{...}{arbitrary set of parameters}
 }
 \description{
-placeholder title
+generic input validation; all provided arguments should be boolean/logical (not array)
 }

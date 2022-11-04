@@ -12,6 +12,7 @@
 #' @param acquisition_mode the type of experiment, should be a string. options: "dda" or "dia"
 #' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
 #' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
+#' @importFrom stringi stri_sub_replace
 #' @export
 import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified") {
   reset_log()
@@ -19,16 +20,26 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 
   stopifnot(acquisition_mode %in% c("dda","dia"))
   # input validation; locate expected input files
-  file_msstats = paste0(path, "/MSstats.csv")
-  file_mbr = paste0(path, "/mbr_ion.tsv") # optional
-  file_proteins = paste0(path, "/combined_protein.tsv")
+  file_msstats = path_exists(path, "MSstats.csv", try_compressed = TRUE)
+  file_mbr = path_exists(path, "mbr_ion.tsv", try_compressed = TRUE, silent = T) # optional
+  file_proteins = path_exists(path, "combined_protein.tsv", try_compressed = TRUE)
+  # check for nested files, regex analogous to path_exists()
   files_psm = dir(path, pattern = "^psm.tsv$", recursive = T, ignore.case = T, full.names = T)
+  files_psm_compress1 = dir(path, pattern = "^psm.tsv.(zip|gz|bz2|xz|7z|zst|lz4)$", recursive = T, ignore.case = T, full.names = T)
+  files_psm_compress2 = dir(path, pattern = "^psm.(zip|gz|bz2|xz|7z|zst|lz4)$", recursive = T, ignore.case = T, full.names = T)
+  # de-duplicate using the path (so we don't have to deal with extensions in this de-dupe check)
+  files_psm_dir = dirname(files_psm)
+  files_psm_compress1_dir = dirname(files_psm_compress1)
+  files_psm_compress2_dir = dirname(files_psm_compress2)
+  files_psm = c(files_psm, files_psm_compress1[! files_psm_compress1_dir %in% files_psm_dir])
+  files_psm = c(files_psm, files_psm_compress2[! files_psm_compress2_dir %in% files_psm_dir])
 
-  if (!file.exists(file_msstats)) {
-    append_log(sprintf('Cannot find file "%s" at provided path "%s".\nPerhaps you forgot to enter experiment info in the FragPipe "Workflow" tab? That would prevent generation of MSstats.csv (as tested in FragPipe v15)', basename(file_msstats), path), type = "error")
+  # finally we can check if we found all required files
+  if (file_msstats == "") {
+    append_log(sprintf('Cannot find file "MSstats.csv" at provided path "%s".\nPerhaps you forgot to enter experiment info in the FragPipe "Workflow" tab? That would prevent generation of MSstats.csv (as tested in FragPipe v15)', path), type = "error")
   }
-  if (!file.exists(file_proteins)) {
-    append_log(sprintf('Cannot find file "%s" at provided path "%s"', basename(file_proteins), path), type = "error")
+  if (file_proteins == "") {
+    append_log(sprintf('Cannot find file "combined_protein.tsv" at provided path "%s"', path), type = "error")
   }
   if (length(files_psm) == 0) {
     append_log(sprintf('no "psm.tsv" files found at provided path "%s"', path), type = "error")
@@ -36,7 +47,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 
 
   ###### 1) process MSstats table into a MS-DAP formatted peptide table
-  DT = data.table::fread(file_msstats)
+  DT = read_textfile_compressed(file_msstats, as_table = T)
   colnames(DT) = tolower(colnames(DT))
   # input validation
   col_missing = setdiff(c("proteinname","peptidesequence","precursorcharge","run","intensity"), colnames(DT))
@@ -62,14 +73,14 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
   if(file.exists(file_mbr)) {
     append_log(paste("Extract peptide retention time and identification confidence from:", file_mbr), type = "info")
     # input validation
-    headers = unlist(strsplit(readLines(file_mbr, n = 1), "[\t,]+"))
+    headers = unlist(strsplit( read_textfile_compressed(file_mbr, as_table = F, nrow = 1), "[\t,]+"))
     col_missing = setdiff(c("probability","intensity","apex_rt","modified_peptide","charge","acceptor_run_name"), headers)
     if (length(col_missing) > 0) {
       append_log(paste('Expected column names in mbr_ion.tsv table: probability, intensity, apex_rt, modified_peptide, charge, acceptor_run_name.\nmissing:', paste(col_missing, collapse = ", ")), type = "error")
     }
 
     # just to double-check and be robust to future changes, select per sample*peptide the unique entry with highest confidence (currently these entries are unique so the `distinct` call is not strictly needed, but safety first and cba about minor performance loss)
-    tib_mbr = as_tibble(data.table::fread(file_mbr)) %>%
+    tib_mbr = as_tibble(read_textfile_compressed(file_mbr, as_table = T, data.table = F)) %>%
       filter(is.finite(intensity) & intensity > 1) %>%
       arrange(desc(probability), desc(intensity)) %>%
       select(mz, rt = apex_rt, sequence_modified = modified_peptide, charge, sample_id = acceptor_run_name) %>%
@@ -93,19 +104,18 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     append_log(paste("Extract peptide retention time and identification confidence from:", filename), type = "info")
 
     # efficiently read peptide table, simplified from generic code @ import_dataset_in_long_format()
-    headers = unlist(strsplit(readLines(filename, n = 1), "[\t,]+"))
-    map_required = map_headers(headers, list(sample_id = "Spectrum File",
-                                             sequence_plain = "Peptide",
-                                             # sequence_modified = "", # by default, init this column as plain sequences because 'modified peptide' column is useless (see comments downstream),
-                                             mz = "Calibrated Observed M/Z",
-                                             modifications = "Assigned Modifications",
-                                             charge = "Charge",
-                                             rt = "Retention",
-                                             confidence = "PeptideProphet Probability"),
-                               error_on_missing = T, allow_multiple = F)
+    attributes_required = list(sample_id = "Spectrum File",
+                               sequence_plain = "Peptide",
+                               # sequence_modified = "", # by default, init this column as plain sequences because 'modified peptide' column is useless (see comments downstream),
+                               mz = "Calibrated Observed M/Z",
+                               modifications = "Assigned Modifications",
+                               charge = "Charge",
+                               rt = "Retention",
+                               confidence = "PeptideProphet Probability")
 
-    DT = data.table::fread(filename, select = as.integer(map_required), check.names = T, stringsAsFactors = F)
-    colnames(DT) = names(map_required)
+    # basically this reads the CSV/TSV table from file and maps column names to expected names.
+    # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+    DT = read_table_by_header_spec(filename, attributes_required, as_tibble_type = F)
 
     ### specifically for fragpipe; strip full path + "interact-" + ".pep.xml" extension
     # example entry in input table; C:\DATA\fragpipe_test\interact-a05191.pep.xml
@@ -362,7 +372,7 @@ import_dataset_fragpipe_psm_file = function(filename, acquisition_mode, confiden
 #'
 #' @param file_proteins full file path
 parse_fragpipe_proteins = function(file_proteins) {
-  tib_prot = as_tibble(data.table::fread(file_proteins))
+  tib_prot = as_tibble(read_textfile_compressed(file_proteins, as_table = T))
   # input validation
   col_missing = setdiff(c("Protein","Protein ID","Indistinguishable Proteins"), colnames(tib_prot))
   if (length(col_missing) > 0) {

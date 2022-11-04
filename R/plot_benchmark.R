@@ -16,7 +16,7 @@ plot_roc = function(tib, mtitle="", universe="all", plot_coords = FALSE) {
   }
 
   oldpar = par(mfrow = c(2, 2))
-  ualg = mixedsort(unique(tib %>% pull(algo_de)))
+  ualg = mixedsort(unique(tib %>% pull(dea_algorithm)))
   # enforce sorting; if only plotting DE algorithms, first show protein-level models then peptide-level models. otherwise, just string sort
   if(all(ualg %in% c("ebayes", "msqrobsum", "msempire", "msqrob"))) {
     ualg = ualg[order(match(ualg, c("ebayes", "msqrobsum", "msempire", "msqrob")))]
@@ -64,13 +64,13 @@ plot_roc = function(tib, mtitle="", universe="all", plot_coords = FALSE) {
         alg = ualg[index_alg]
         if(universe == "signif") {
           tib_valid_protein_id = tib %>%
-            filter(algo_de == alg & qvalue <= qval_cutoff & abs(foldchange.log2) >= log2(min_fc)) %>%
+            filter(dea_algorithm == alg & qvalue <= qval_cutoff & abs(foldchange.log2) >= log2(min_fc)) %>%
             select(protein_id, predictor) %>%
             distinct(protein_id, .keep_all = T)
         }
 
         x = tib %>%
-          filter(algo_de == alg & protein_id %in% tib_valid_protein_id$protein_id & abs(foldchange.log2) >= log2(min_fc)) %>%
+          filter(dea_algorithm == alg & protein_id %in% tib_valid_protein_id$protein_id & abs(foldchange.log2) >= log2(min_fc)) %>%
           select(protein_id, pvalue, predictor, qvalue)
         # suppose that some of the proteins of interest are not in results from current method, we add them with a poor score
         if (any(!tib_valid_protein_id$protein_id %in% x$protein_id)) {
@@ -140,7 +140,7 @@ plot_benchmark_volcano = function(tib, mtitle="", color_discrete = TRUE) {
     p = p + geom_point(alpha = 0.5)
   }
   p = p +
-    facet_wrap( ~ algo_de, ncol = 2, scales = "free_y") +
+    facet_wrap( ~ dea_algorithm, ncol = 2, scales = "free_y") +
     xlim(xlim_symmetric) +
     labs(x = "log2 foldchange (far extremes not shown)", y = "-log10 FDR adjusted p-value", title = mtitle) +
     theme_bw() +
@@ -170,7 +170,7 @@ plot_true_false_positive_counts = function(tib, mtitle = "") {
     bins = seq(0.001, 0.05, by=0.001)
 
     x = tib %>%
-      select(protein_id, qvalue, predictor, algo_de, foldchange.log2) %>%
+      select(protein_id, qvalue, predictor, dea_algorithm, foldchange.log2) %>%
       filter(qvalue <= max(bins) & abs(foldchange.log2) >= log2(min_fc))
 
     x$bin = 1
@@ -180,22 +180,22 @@ plot_true_false_positive_counts = function(tib, mtitle = "") {
     }
 
     x2 = tibble()
-    for(alg in unique(x$algo_de)) {
+    for(alg in unique(x$dea_algorithm)) {
       for(pred in unique(x$predictor)) {
         for(b in seq_along(bins)) {
-          tib_subset = x %>% filter(algo_de==alg & predictor == pred & bin <= b)
-          x2 = bind_rows(x2, tibble(algo_de=alg, predictor=pred, bin=b, cs = nrow(tib_subset)))
+          tib_subset = x %>% filter(dea_algorithm==alg & predictor == pred & bin <= b)
+          x2 = bind_rows(x2, tibble(dea_algorithm=alg, predictor=pred, bin=b, cs = nrow(tib_subset)))
         }
       }
     }
     # dplyr summary would skip the bins that are the same
-    # x2 = x %>% count(algo_de, predictor, bin) %>% group_by(algo_de, predictor) %>% mutate(cs = cumsum(n)) %>% ungroup()
+    # x2 = x %>% count(dea_algorithm, predictor, bin) %>% group_by(dea_algorithm, predictor) %>% mutate(cs = cumsum(n)) %>% ungroup()
 
 
     x2$predictor = factor(x2$predictor, levels=c("foreground", "background"))
     x2$bin_qval = bins[x2$bin]
 
-    p = ggplot(x2, aes(x=bin_qval, y=cs, fill = algo_de, colour = algo_de)) +
+    p = ggplot(x2, aes(x=bin_qval, y=cs, fill = dea_algorithm, colour = dea_algorithm)) +
       # geom_step(size=1.5) + facet_wrap(~predictor) +
       geom_step(aes(linetype=predictor)) + #size=1.5
       # scale_x_continuous(breaks = (0:10 + .5)/100, labels = (0:10)/100, minor_breaks = NULL) +
@@ -205,12 +205,12 @@ plot_true_false_positive_counts = function(tib, mtitle = "") {
 
     # FPR = fraction of cumsum; sum(background) / sum(foreground+background)
     x_fdr = x2 %>%
-      group_by(algo_de, bin, bin_qval) %>%
+      group_by(dea_algorithm, bin, bin_qval) %>%
       add_tally(name = "n_total", wt = cs) %>%
       filter(predictor == "background") %>%
       summarise(fpr = cs / n_total * 100)
 
-    p = ggplot(x_fdr, aes(x=bin_qval, y=fpr, fill = algo_de, colour = algo_de)) +
+    p = ggplot(x_fdr, aes(x=bin_qval, y=fpr, fill = dea_algorithm, colour = dea_algorithm)) +
       geom_step() + # size=1.5
       # scale_x_continuous(breaks = (0:10 + .5)/100, labels = (0:10)/100, minor_breaks = NULL) +
       labs(title=lbl, x = "Q-value threshold (bin)", y="False Positive Rate for proteins at some confidence threshold (%)") +

@@ -2,7 +2,7 @@
 % Please edit documentation in R/stats_differential_abundance.R
 \name{de_ebayes}
 \alias{de_ebayes}
-\title{apply limma's ebayes() function to a protein-level ExpressionSet}
+\title{apply limma::eBayes() function to a protein-level ExpressionSet}
 \usage{
 de_ebayes(
   eset_proteins,
@@ -11,12 +11,13 @@ de_ebayes(
 )
 }
 \arguments{
-\item{eset_proteins}{protein-level dataset stores as a Biobase ExpressionSet}
+\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet}
 
 \item{input_intensities_are_log2}{boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)}
 
 \item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream}
 }
 \description{
-apply limma's ebayes() function to a protein-level ExpressionSet
+ref; PMID:25605792
+ref; https://bioconductor.org/packages/release/bioc/html/limma.html
 }

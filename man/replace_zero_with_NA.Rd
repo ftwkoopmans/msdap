@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{replace_zero_with_NA}
 \alias{replace_zero_with_NA}
-\title{fast replacement in a data.frame
+\title{fast replacement in a data.frame; zero values to NA
 https://stackoverflow.com/a/57092321}
 \usage{
 replace_zero_with_NA(df)
@@ -11,6 +11,6 @@ replace_zero_with_NA(df)
 \item{df}{data.frame to replace values in}
 }
 \description{
-fast replacement in a data.frame
+fast replacement in a data.frame; zero values to NA
 https://stackoverflow.com/a/57092321
 }

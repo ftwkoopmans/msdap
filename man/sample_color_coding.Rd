@@ -7,7 +7,7 @@
 sample_color_coding(samples)
 }
 \arguments{
-\item{samples}{todo}
+\item{samples}{sample metadata table, typically; dataset$samples}
 }
 \description{
 generate color-coding for all sample metadata

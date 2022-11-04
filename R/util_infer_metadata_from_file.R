@@ -1,6 +1,8 @@
 
 #' Guess experiment data from a set of filenames
 #'
+#' main function, remaining functions are internal / utility
+#'
 #' Assuming input files are somewhat well formatted,
 #' we here try to detect sample groups and other metadata to populate metadata table for user's convenience
 #'
@@ -9,6 +11,7 @@
 #' example; wt_1, wt_2, ko_1, ko_2, ...
 #' example; control_day1_1, control_day1_2, cond1_day1_1, cond1_day2_2, cond1_day2_3, ...
 #'
+#' @param x array of filenames
 #' @importFrom stringr str_count str_split_fixed
 metadata_matrix_from_filenames = function(x) {
   x = tolower(x)
@@ -49,6 +52,7 @@ metadata_matrix_from_filenames = function(x) {
 
 #' Count how often commonly used separation characters occur in an array of strings
 #'
+#' @param x array of strings
 #' @importFrom stringr str_count
 count_sep_char = function(x) {
   tibble(char_regex=c("_", " ", ";", "#", "-", "\\.", ",", "\\|")) %>%
@@ -59,7 +63,10 @@ count_sep_char = function(x) {
 
 
 
-# main split function
+#' recursively split within all columns of a matrix
+#'
+#' @param x character matrix
+#' @param alt_sep_chars array of separation characters
 split_recursively = function(x, alt_sep_chars) {
   if(!is.matrix(x)) {
     return(x)
@@ -87,7 +94,11 @@ split_recursively = function(x, alt_sep_chars) {
 
 
 
-# detect case of forgotten separation character. examples; wt1, wt2  ,  1plus, 1min, 2plus, 2min
+#' detect case of forgotten separation character
+#'
+#' examples; wt1, wt2  ,  1plus, 1min, 2plus, 2min
+#'
+#' @param x array of characters
 split_char_num = function(x) {
   split_generic(x,
                 list(c("([0-9])([a-z])", "\\1@\\2"),
@@ -97,7 +108,10 @@ split_char_num = function(x) {
 
 
 
-# detect case of forgotten separation character. examples; wt.1, wt.2
+#' detect case of forgotten separation character, alternative chars
+#'
+#' @param x array of characters
+#' @param sep_chars array of separation characters
 split_alt_sep_char = function(x, sep_chars) {
   if(length(sep_chars) > 0) {
     return(split_generic(x, regex_list = list(c(paste0("([0-9a-z])(", paste(sep_chars, collapse="|"),")([0-9a-z])"), paste0("\\1@\\3") )), sep_char = "@"))
@@ -108,6 +122,9 @@ split_alt_sep_char = function(x, sep_chars) {
 
 
 
+#' score which classification works best when e.g. guesstimating which columns to split
+#'
+#' @param x character array or matrix
 score_classification_counts = function(x) {
   myclass = function(val) {
     cls = rep("char", length(val))
@@ -137,8 +154,11 @@ score_classification_counts = function(x) {
 
 
 
-#' split_generic
+#' generic detection of metadata splitting
 #'
+#' @param x array of strings
+#' @param regex_list list of regular expressions to try
+#' @param sep_char separation character for str_split
 #' @importFrom stringr str_count str_split_fixed
 split_generic = function(x, regex_list, sep_char = "@") {
   # insert split char between number and digit
@@ -171,8 +191,10 @@ split_generic = function(x, regex_list, sep_char = "@") {
 
 
 
-# try to align matrix columns
-# eg; inconsistent use of separation characters leads to misalignment. neuron_glia_1, something_1 -->> should have been neuron-glia_1
+#' try to align matrix columns
+#' eg; inconsistent use of separation characters leads to misalignment. neuron_glia_1, something_1 -->> should have been neuron-glia_1
+#'
+#' @param x character matrix
 shift_empty = function(x) {
   if(!any(colSums(x=="") != 0)) return(x)
   # optionally, restrict to matrix with exactly 1 column that has empties
@@ -222,19 +244,20 @@ shift_empty = function(x) {
 
 
 
-# Recognize dates formatted as 8 consecutive integers and rewrite them as "-" delimited
-#
-# If input array of strings are all encoding exactly 8 integers,
-#   test if each represents a valid dates. If so, add separation chars.
-#
-# Implementation is intentionally simplified, only needs to catch most obvious cases (so ignore potential dates denoted as 6 numbers, etc.)
-# Hardcoded "oldest year" is 1990, serves our use-case and adds robustness (we use this function in a scenario where any set of numbers can be supplied, but experiment samples are note likely 20+ years old)
-# For ambiguous dates, e.g. 20102010 (20-10-2010 or 2010-20-10), prioritize year YYYYxxzz over xxzzYYYY
-#
-# examples;
-# reformat_date(x = c("20200220", "20200221"))
-# reformat_date(x = c("20202002", "20202102"))
-# reformat_date(x = c("11012002", "11022002"))
+#' Recognize dates formatted as 8 consecutive integers and rewrite them as "-" delimited
+#'
+#' If input array of strings are all encoding exactly 8 integers,
+#'   test if each represents a valid dates. If so, add separation chars.
+#'
+#' Implementation is intentionally simplified, only needs to catch most obvious cases (so ignore potential dates denoted as 6 numbers, etc.)
+#' Hardcoded "oldest year" is 1990, serves our use-case and adds robustness (we use this function in a scenario where any set of numbers can be supplied, but experiment samples are note likely 20+ years old)
+#' For ambiguous dates, e.g. 20102010 (20-10-2010 or 2010-20-10), prioritize year YYYYxxzz over xxzzYYYY
+#'
+#' examples;
+#' reformat_date(x = c("20200220", "20200221"))
+#' reformat_date(x = c("20202002", "20202102"))
+#' reformat_date(x = c("11012002", "11022002"))
+#' @param x array of strings representing dates, see examples
 reformat_date = function(x) {
   testYMD = function(y,md1,md2) {
     y = as.integer(y)

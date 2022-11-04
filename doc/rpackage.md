@@ -15,9 +15,17 @@ software dependencies on your computer. If you are looking for the
 **Ubuntu** (for Ubuntu 18.04 or older, see further
 <https://github.com/ropensci/pdftools> ):
 
+Linux installations require pandoc to be installed (guide at
+<https://pandoc.org/installing.html> ). Other requirements can be
+installed by;
+
     sudo apt-get install git libnetcdf-dev netcdf-bin libpoppler-cpp-dev
 
 **Fedora**
+
+Linux installations require pandoc to be installed (guide at
+<https://pandoc.org/installing.html> ). Other requirements can be
+installed by;
 
     sudo dnf install git netcdf-devel netcdf poppler-cpp-devel
 
@@ -32,28 +40,37 @@ software dependencies on your computer. If you are looking for the
 MS-DAP to create PDF reports, if you have any trouble installing please
 check these resources:
 
-  - <https://github.com/ropensci/pdftools>
-  - <https://github.com/politza/pdf-tools>
+-   <https://github.com/ropensci/pdftools>
+-   <https://github.com/politza/pdf-tools>
+
+*pandoc;* If you run into issues on Linux or macOS that relate to
+tex/latex/Rmd files/markdown, either during installation of the MS-DAP R
+package or when creating a QC report with
+`msdap::analysis_quickstart()`, then try to (re)install pandoc (guide at
+<https://pandoc.org/installing.html> ).
 
 ## installing R (if you have not already)
 
-  - R version 4 is supported; 4.0.3 or newer is recommended.
-  - R version 3 is supported; 3.6.3 is recommended.
+-   R version 4 is recommended. MS-DAP was tested with the recently
+    released R version 4.2 (as well as older versions 4.0 and 4.1)
+-   R version 3 is still supported, but we recommend using R version
+    3.6.3 (last R 3.\* version, released February 2020) for users who
+    stick with R version 3
 
 **Windows**
 
 If you do not have R installed yet, go to
 <https://cloud.r-project.org/bin/windows/>
 
-  - download and install “base” R
-  - download and install “Rtools”
+-   download and install “base” R
+-   download and install “Rtools”
 
 For reference, users that want to stick with R version 3 should grab R
 from here:
 
-  - base R 3.6.3 @
+-   base R 3.6.3 @
     <https://cloud.r-project.org/bin/windows/base/old/3.6.3/>
-  - Rtools35 @
+-   Rtools35 @
     <https://cran.r-project.org/bin/windows/Rtools/history.html>
 
 **Ubuntu**
@@ -87,8 +104,6 @@ Notes on windows;
     stating *“The code execution cannot proceed because luatex.dll …”*
     can be safely dismissed.
 
-<!-- end list -->
-
 ``` r
 ### 1) setup required R packages
 install.packages(c("devtools", "tidyverse", "tinytex", "BiocManager"))
@@ -109,17 +124,25 @@ library(msdap)
 # If you get any warnings, no problem; you only need to be on the lookout for errors
 ```
 
-**troubleshooting**
+## general troubleshooting
 
-  - if you encounter “installation path not writable” errors the user
+-   If you encounter “installation path not writable” errors the user
     running R (/RStudio) may not have write access to the directory
     where the R packages are stored. Use the R command `.libPaths()` to
     print those locations.
-      - For windows users, the most robust workaround is to start a
+
+    -   For windows users, the most robust workaround is to start a
         command prompt as administrator (start \> type `cmd` \>
         right-click `run as administrator`), open a commandline R
-        session (eg; on the cmd prompt, type `"C:\Program
-        Files\R\R-3.6.3\bin\R.exe"`) and retry your package
+        session (eg; on the cmd prompt, type
+        `"C:\Program Files\R\R-3.6.3\bin\R.exe"`) and retry your package
         installation.
-  - Further documentation for TinyTex is available at
-    <https://yihui.org/tinytex/>
+
+-   Further documentation for TinyTex, in case you run into problems
+    when installing it, is available at <https://yihui.org/tinytex/>
+
+-   On systems with many CPU cores that run into errors related to
+    “socketConnection” or “PSOCK” when running `analysis_quickstart()`
+    for analyses that include MSqRob/MSqRobSum; try to set parameter
+    `multiprocessing_maxcores=8` to limit the amount of parallel threads
+    initiated by MS-DAP.

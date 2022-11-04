@@ -2,13 +2,13 @@
 % Please edit documentation in R/dataset.R
 \name{empty_protein_tibble}
 \alias{empty_protein_tibble}
-\title{placeholder title}
+\title{placeholder long-format proteins tibble with minimum set of columns (protein_d, fasta_headers, gene_symbols_or_id) for some given peptides tibble}
 \usage{
 empty_protein_tibble(peptides)
 }
 \arguments{
-\item{peptides}{todo}
+\item{peptides}{peptide tibble in long format}
 }
 \description{
-placeholder title
+placeholder long-format proteins tibble with minimum set of columns (protein_d, fasta_headers, gene_symbols_or_id) for some given peptides tibble
 }

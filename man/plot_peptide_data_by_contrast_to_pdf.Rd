@@ -9,7 +9,8 @@ plot_peptide_data_by_contrast_to_pdf(
   filter_protein_id,
   output_dir,
   show_unused_datapoints = FALSE,
-  norm_algorithm = NA
+  norm_algorithm = NA,
+  rollup_algorithm = "maxlfq"
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ plot_peptide_data_by_contrast_to_pdf(
 \item{show_unused_datapoints}{todo}
 
 \item{norm_algorithm}{todo}
+
+\item{rollup_algorithm}{todo}
 }
 \description{
 plot peptide-level data

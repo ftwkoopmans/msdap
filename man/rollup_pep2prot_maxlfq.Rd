@@ -14,7 +14,7 @@ rollup_pep2prot_maxlfq(
 \arguments{
 \item{tib}{peptide tibble in long-format. missing values should be set NA, not zero. required columns: peptide_id, protein_id, sample_id, intensity}
 
-\item{intensity_is_log2}{boolean indicating log2 scaling}
+\item{intensity_is_log2}{boolean indicating if input peptide intensities are log2 scaled}
 
 \item{implementation}{implementation to use. available options: "iq", "diann"}
 

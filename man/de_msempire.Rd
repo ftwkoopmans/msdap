@@ -2,7 +2,7 @@
 % Please edit documentation in R/stats_differential_abundance.R
 \name{de_msempire}
 \alias{de_msempire}
-\title{Wrapper function for msEmpiRe::de.ana()}
+\title{MS-EmpiRe implementation, a wrapper function for msEmpiRe::de.ana()}
 \usage{
 de_msempire(eset, input_intensities_are_log2 = F)
 }
@@ -12,8 +12,13 @@ de_msempire(eset, input_intensities_are_log2 = F)
 \item{input_intensities_are_log2}{whether the provided intensities are already log2 transformed}
 }
 \description{
-input data should NOT be log2 transformed (if it is, we revert this prior to passing data to MS-EmpiRe)
+ref; PMID:31235637
+ref; https://github.com/zimmerlab/MS-EmpiRe
 }
 \details{
+input data should NOT be log2 transformed (if it is, make sure to set parameter \code{input_intensities_are_log2} so we can revert this prior to passing data to MS-EmpiRe)
+
+note; MS-EmpiRe crashes when all proteins have the same number of peptides (eg; filtering topn=1 or topn=3 and minpep=3)
+
 TODO: proper standarderror computation
 }

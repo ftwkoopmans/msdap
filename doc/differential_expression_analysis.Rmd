@@ -27,7 +27,7 @@ note: in the code blocks shown below (grey areas), the lines that start with `#>
 
 ## load dataset
 
-1. load the Skyline output of the LFQbench study (this file is bundled with the MS-DAP package, you don't have to download anything).
+1. load the Skyline output of the LFQbench study (PMID:27701404 ~ this file is bundled with the MS-DAP package, you don't have to download anything).
 
 2. extract the respective group/condition of each sample by matching a regular expression against the filenames. This is just to demonstrate a more advanced utility function that may come in handy for bioinformatic analyses. In typical MS-DAP workflows, the sample metadata would be loaded from file (a csv or Excel table), as demonstrated in the [user guide](userguide.md).
 
@@ -62,17 +62,20 @@ print(table(dataset$proteins$classification))
 
 ## differential expression analyses
 
-Below code demonstrates how to apply only the MS-DAP functions for feature selection & normalization and DEA. Afterwards, we select only human and yeast proteins from the DEA results in preparation of the next analysis step. Note that the `analysis_quickstart()` function covers all typical MS-DAP use-cases.
+Below code demonstrates how to apply only the MS-DAP functions for feature selection & normalization and DEA. Afterwards, we select only human and yeast proteins from the DEA results in preparation of the next analysis step. Note that the `analysis_quickstart()` function covers most typical MS-DAP use-cases and provides lots of additional functionality, this vignette shows how to specifically apply only filtering and DEA by directly calling respective MS-DAP functions.
 
 ```{r}
-# feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm)
+# feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm, followed by between-group normalization at protein-level)
 dataset = filter_dataset(dataset,
                          filter_min_detect = 3,
                          norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
 
+# if you want to run the "msqrob" DEA algorithm instead of "ebayes" (and not use the analysis_quickstart() convenience function), you should first initialize multiprocessing by uncommending the following line;
+# cl = initialize_multiprocessing(n_thread = 4)
+
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
-dataset = dea(dataset, algo_de = "ebayes", qval_signif = 0.05, fc_signif = NA)
+dataset = dea(dataset, dea_algorithm = "ebayes", qval_signif = 0.05, fc_signif = NA)
 
 # add the yeast/human protein classifications to DEA score tibble and filter to only keep human and yeast proteins
 tib_plot = left_join(dataset$de_proteins, dataset$proteins, by="protein_id") %>%
@@ -89,13 +92,13 @@ The foldchange threshold was estimated by a bootstrapping procedure implemented 
 ```{r}
 # 5% FDR  versus  5% FDR and foldchange threshold (taken together in column 'signif')
 print(tib_plot %>% 
-        group_by(classification) %>% 
+        group_by(classification, dea_algorithm) %>% 
         summarise(`5% FDR` = sum(qvalue <= 0.05),
                   `5% FDR AND foldchange threshold` = sum(signif)))
 
 # analogous for more stringent q-value cutoff at 1% FDR
 print(tib_plot %>% 
-        group_by(classification) %>% 
+        group_by(classification, dea_algorithm) %>% 
         summarise(`1% FDR` = sum(qvalue <= 0.01),
                   `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
 ```

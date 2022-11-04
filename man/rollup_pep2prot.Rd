@@ -7,19 +7,19 @@
 rollup_pep2prot(
   tib,
   intensity_is_log2 = TRUE,
-  algo_rollup,
+  rollup_algorithm,
   return_as_matrix = FALSE
 )
 }
 \arguments{
 \item{tib}{peptide tibble in long-format. missing values should be set NA, not zero. required columns: peptide_id, protein_id, sample_id, intensity}
 
-\item{intensity_is_log2}{boolean indicating log2 scaling}
+\item{intensity_is_log2}{boolean indicating if input peptide intensities are log2 scaled}
 
-\item{algo_rollup}{type of rollup to perform. options: maxlfq or maxlfq_iq for MaxLFQ rollup using iq package, maxlfq_diann for MaxLFQ rollup using diann package. Any other value performs rollup by peptide summation.}
+\item{rollup_algorithm}{algorithm for combining peptides to proteins. Options: 'maxlfq', 'sum', 'tukey_median'. The former applies the MaxLFQ algorithm, the second employs the 'classic' strategy of summing all peptides per protein (non-log values), the latter uses Tukey's median polish algorithm. Alternatively, one can specify "maxlfq_diann" to use the DIA-NN R package's implementation for MaxLFQ instead of the faster implementation from the iq R package (default when using 'maxlfq')}
 
 \item{return_as_matrix}{instead of long-format tibble, return a protein*sample matrix (missing values set to NA)}
 }
 \description{
-wrapper function for peptide-to-protein rollup
+converts a table with peptide-level abundance values to protein-level data by combining data from respective peptides per protein (per sample).
 }

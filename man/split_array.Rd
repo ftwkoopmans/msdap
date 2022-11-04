@@ -7,9 +7,9 @@
 split_array(x, chunk_size)
 }
 \arguments{
-\item{x}{todo}
+\item{x}{array to be chunked}
 
-\item{chunk_size}{todo}
+\item{chunk_size}{integer, maximum chunk size}
 }
 \description{
 split array into a list of N-sized chunks

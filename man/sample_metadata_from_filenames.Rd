@@ -2,7 +2,7 @@
 % Please edit documentation in R/sample_metadata.R
 \name{sample_metadata_from_filenames}
 \alias{sample_metadata_from_filenames}
-\title{placeholder title}
+\title{extract metadata from sample names using regular expressions}
 \usage{
 sample_metadata_from_filenames(
   sample_id,
@@ -13,16 +13,16 @@ sample_metadata_from_filenames(
 )
 }
 \arguments{
-\item{sample_id}{todo}
+\item{sample_id}{character array representing sample IDs}
 
-\item{sample_property_regex}{todo}
+\item{sample_property_regex}{a named list of regular expressions to extract sample properties. name=sample property, value = array of length two with the regex and the replace string (first 2 arguments of sub())}
 
-\item{sample_exclude_regex}{todo}
+\item{sample_exclude_regex}{optionally, regex to select samples that should be flagged as 'exclude'}
 
-\item{group_order}{todo}
+\item{group_order}{optionally, you can provide a preferred ordering of the sample groups as a character array}
 
-\item{group_regex_array}{todo}
+\item{group_regex_array}{optionally, a regex that specifically extracts sample groups and leaves non-matches in an 'unassigned' group}
 }
 \description{
-placeholder title
+note; user-facing function is sample_metadata_custom()
 }

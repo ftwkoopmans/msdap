@@ -2,7 +2,7 @@
 % Please edit documentation in R/normalize_vwmb.R
 \name{normalize_vwmb}
 \alias{normalize_vwmb}
-\title{VWMB: normalize a numerical matrix by Variation Within and Mode Between}
+\title{Normalize a numerical matrix by the Variation Within, Mode Between (VWMB) algorithm}
 \usage{
 normalize_vwmb(
   x,
@@ -13,13 +13,13 @@ normalize_vwmb(
 )
 }
 \arguments{
-\item{x}{numerical data matrix to normalize, should be transformed by logarithm}
+\item{x}{numerical data matrix to normalize, should be log transformed}
 
-\item{groups}{array describing the grouping of the columns in x. set NA for no groups}
+\item{groups}{array describing the grouping of the columns in x (sample groups). Or alternatively set to NA to indicate there are no groups}
 
 \item{metric_within}{how should replicate samples within a group be normalized? valid arguments: "var" reduce overall variation (default). "mode" reduce overall foldchange mode. pass empty string to disable}
 
-\item{metric_between}{analogous to the metric_within parameter, how to normalize between groups? allowed parameters are "var" and "mode" (default)}
+\item{metric_between}{analogous to the metric_within parameter, how to normalize between groups? allowed parameters are "var" and "mode" (default). To disable, set groups=NA}
 
 \item{include_attributes}{optionally, return some additional metrics as attributes of x. The "scaling" attribute describes the increase/decrease of each sample}
 }
@@ -27,5 +27,22 @@ normalize_vwmb(
 normalized matrix x
 }
 \description{
-note; if you want to treat replicate samples that are flagged as 'exclude' upstream differently, set groups=paste(samples$group, samples$exclude) to put them in separate groups
+The normalization algorithm consists of two consecutive steps:
+\enumerate{
+\item samples are scaled within each group to minimize the overall \code{metric_within} among replicates
+\item summarize all samples per group by respective row mean values (from \code{row*sample} to a \code{row*group} matrix). Then rescale at the sample-group-level to minimize the overall \code{metric_between}
+}
+
+The metric "var" will minimize the median of all variation-per-row.
+The metric "mode" will minimize the modes of log-foldchange distribution between pairwise samples or groups (when set as \code{metric_within} and \code{metric_between} respectfully).
+
+Default setting is Variation Within, Mode Between (VWMB); \code{metric_within="var"} and \code{metric_between="mode"} will normalize such that median of variation-per-row is minimized per sample group, and subsequentially the log-foldchange distributions between all pairwise groups are minimized.
+
+Alternatively, one can also apply mode normalization within-group (Mode Within, Mode Between. MWMB) by setting \code{metric_within="mode"}. If the dataset has (unknown) covariates and a sufficient number of replicates, this might be beneficial because covariate-specific effects are not averaged out as they might be with \code{metric_within="var"}.
+
+To ignore groups and simply apply mode-between to all samples (not recommended!); \code{normalize_vwmb(x, groups=NA, metric_within="mode")}.
+
+To ignore groups and simply normalize all samples by reducing overall variation (not recommended!); \code{normalize_vwmb(x, groups=NA, metric_within="var")}.
+
+note; if you want to treat replicate samples that are flagged as 'exclude' upstream differently while still including them in the data matrix, you could set parameter \code{groups=paste(samples$group, samples$exclude)} to put them in separate groups.
 }

@@ -7,9 +7,9 @@
 pdf_combine_chunks(input, output)
 }
 \arguments{
-\item{input}{todo}
+\item{input}{array of paths to PDF files}
 
-\item{output}{todo}
+\item{output}{path to desired output PDF file}
 }
 \description{
 the function pdf_combine() from pdftools/qpdf package has issues (on windows) when combining hundreds of plots. error: "Too many open files"

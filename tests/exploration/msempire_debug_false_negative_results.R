@@ -41,11 +41,11 @@
 # protset = suppressWarnings(suppressMessages(combineFeatures(MSnbase::as.MSnSet.ExpressionSet(eset_tmp), fun = "sum", groupBy = fData(eset)$protein_id))) # fun = ifelse(protein_rollup_robust, "robust", "sum")
 # x = log2(exprs(protset))
 # x[!is.finite(x)] = NA
-# mask_sample_groups = pData(protset)$condition
-# # mask_sample_groups = match(mask_sample_groups, unique(mask_sample_groups)) - 1
+# group_by_cols = pData(protset)$condition
+# # group_by_cols = match(group_by_cols, unique(group_by_cols)) - 1
 #
 # # ref implementation: contr_design = model.matrix(~ rep(0:1, c(length(contr_cols_a), length(contr_cols_b))))
-# fit = suppressWarnings(eBayes(lmFit(x, model.matrix(~mask_sample_groups))))
+# fit = suppressWarnings(eBayes(lmFit(x, model.matrix(~group_by_cols))))
 # # !! sort.by="none" keeps the output table aligned with input matrix
 # result = suppressMessages(topTable(fit, number = nrow(x), adjust.method = "fdr", sort.by = "none", confint = TRUE))
 #

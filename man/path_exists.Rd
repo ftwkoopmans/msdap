@@ -2,15 +2,19 @@
 % Please edit documentation in R/util_files.R
 \name{path_exists}
 \alias{path_exists}
-\title{check if a path exists}
+\title{Combine path and filename, then check if filename exists. Optionally, checks for present of compressed variant of this filename}
 \usage{
-path_exists(path, file)
+path_exists(path, file = NULL, try_compressed = FALSE, silent = FALSE)
 }
 \arguments{
-\item{path}{a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix}
+\item{path}{a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix. Can also provide full path here and leave 'file' param as NULL}
 
-\item{file}{filename within this directory}
+\item{file}{filename within the 'path'}
+
+\item{try_compressed}{if the requested filename is not available, try again with added file extensions known for compression (default: FALSE). See \code{read_textfile_compressed()} function docs for supported extensions}
+
+\item{silent}{on error, return an empty string instead of throwing an error (default: FALSE)}
 }
 \description{
-check if a path exists
+Combine path and filename, then check if filename exists. Optionally, checks for present of compressed variant of this filename
 }

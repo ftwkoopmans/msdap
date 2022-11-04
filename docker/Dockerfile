@@ -1,7 +1,8 @@
-# Docker container based on R 3.6.3 - note that some packages have moved to R 4.x since and have broken dependency links for R 3.6.x so we here hardcode package installation order and Bioconductor version accordingly
-FROM rocker/verse:3.6.3
+FROM rocker/verse:4.2.1
 LABEL MAINTAINER="github.com/ftwkoopmans/msdap"
 
+
+### system dependencies
 # libpoppler is a pdftools requirement
 # libnetcdf is required downstream by R package ncdf4, which is an upstream dependency
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -9,34 +10,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   netcdf-bin \
   libpoppler-cpp-dev
 
-# install missing tinytex packages
-RUN /opt/TinyTeX/bin/*/tlmgr install ifxetex ifluatex oberdiek graphics graphics-cfg graphics-def
 
-# hardcoded install of CRAN dependencies; bugfix for failure to perform dependency checks/installs @ Bioconductor Msnbase  &  due to caching in `docker build` this saves a lot of time when updating the MS-DAP package (since dependencies are all cached after this line)
-RUN R -e "install.packages(c('devtools', 'tidyverse', 'data.table', 'arrangements', 'bit64', 'crayon', 'DBI', 'doParallel', 'forcats', 'foreach', 'formatR', 'ggpubr', 'ggrepel', 'patchwork', 'gtools', 'knitr', 'xtable', 'lme4', 'MASS', 'Matrix', 'matrixStats', 'nloptr', 'openxlsx', 'pdftools', 'pROC', 'purrr', 'colorspace', 'readr', 'rmarkdown', 'RSQLite', 'scales', 'stringr', 'styler', 'tinytex', 'viridis', 'testthat', 'iq', 'missForest'), repos = 'https://cloud.r-project.org')"
+### R dependencies; hardcode installation of main dependencies not in base image yet 
+### so we can reuse intermediate images in future updates where only MS-DAP will change
 
-# bugfix; directly link to proper R 3.6.3 version of this package. If we add MALDIquant to above install.packages() there is an error; package ‘MALDIquant’ is not available (for R version 3.6.3)
-RUN R -e "install.packages('https://cran.r-project.org/src/contrib/Archive/MALDIquant/MALDIquant_1.19.3.tar.gz')"
+# tinytex packages (tinytex is already installed)
+RUN R -e "tinytex::tlmgr_install(c('ifxetex', 'ifluatex', 'oberdiek', 'graphics', 'graphics-cfg', 'graphics-def', 'amsmath', 'latex-amsmath-dev', 'euenc', 'fontspec', 'tipa', 'unicode-math', 'xunicode', 'ltxcmds', 'kvsetkeys', 'etoolbox', 'xcolor', 'geometry', 'fancyvrb', 'framed', 'bigintcalc', 'bitset', 'etexcmds', 'gettitlestring', 'hycolor', 'hyperref', 'intcalc', 'kvdefinekeys', 'letltxmacro', 'pdfescape', 'refcount', 'rerunfilecheck', 'stringenc', 'uniquecounter', 'zapfding'))"
 
-# explicitly use BiocManager for Bioconductor dependencies
-# (at the time of testing, seems more robust than relying on devtools to install our Bioconductor dependencies  @  ProtGenerics/MSnbase)
-RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'pcaMethods', 'DEqMS', 'BiocParallel', 'variancePartition'), update=F, ask=F, version = '3.10')"
+# CRAN R packages we need that aren't in this rocker/verse
+RUN R -e "install.packages(c('archive', 'styler', 'formatR', 'pdftools', 'matrixStats', 'lme4', 'nloptr', 'pROC', 'iq', 'doParallel', 'foreach', 'missForest', 'ggpubr', 'ggrepel', 'patchwork', 'openxlsx'), repos = 'https://cloud.r-project.org')"
 
-# dependencies from github
+# BioConductor R packages
+RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'pcaMethods', 'DEqMS', 'BiocParallel', 'variancePartition'), update=F, ask=F)"
+
+# GitHub R packages
 RUN R -e "devtools::install_github('zimmerlab/MS-EmpiRe', upgrade = 'never')"
 RUN R -e "devtools::install_github('vdemichev/diann-rpackage', upgrade = 'never')"
 
-# install msdap R package
-###RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.2', upgrade = 'never')"
-RUN mkdir /msdap
-COPY temp/msdap_1.0.2.tar.gz /msdap/
-RUN R -e "devtools::install_local('/msdap/msdap_1.0.2.tar.gz', upgrade = 'never')"
 
+### MS-DAP
+# from local devtools::build() file
+RUN mkdir /msdap
+COPY temp/msdap_1.0.3.tar.gz /msdap/
+RUN R -e "devtools::install_local('/msdap/msdap_1.0.3.tar.gz', upgrade = 'never')"
+# alternatively, install from github; RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.3', upgrade = 'never')"
+
+
+### finish setting up
 # make sure the rstudio user can install and upgrade packages
 RUN chown -R rstudio:rstudio /usr/local/lib/R/library
 RUN chown -R rstudio:rstudio /usr/local/lib/R/site-library
 
-# optionally, install example data
+# install example data
 COPY temp/exampledata /exampledata/
 RUN chown -R rstudio:rstudio /exampledata/*
 
@@ -46,4 +51,3 @@ RUN mkdir -m 777 /data
 # change default working directory for RStudio server to /data
 RUN echo "session-default-working-dir=/data" >> /etc/rstudio/rsession.conf
 RUN echo "session-default-new-project-dir=/data" >> /etc/rstudio/rsession.conf
-

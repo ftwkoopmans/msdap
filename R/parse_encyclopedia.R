@@ -8,7 +8,7 @@
 #' @param file_quant_report the EncyclopeDIA 'Quant Report' .elib file
 #' @param path_elib_rawfiles optional. the directory that contains the EncyclopeDIA .elib files matching each sample (mzML/dia input file to EncyclopeDIA)
 #' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
-#' @param return_decoys logical indicating whether to return decoy peptides. <not available for EncyclopeDIA at this point>
+#' @param return_decoys logical indicating whether to return decoy peptides. It doesn't work for current EncyclopeDIA datasets as these do not seem to contain decoys.
 #' @importFrom RSQLite SQLite
 #' @importFrom DBI dbIsValid dbExistsTable dbConnect dbListTables dbGetQuery dbDisconnect
 #' @importFrom data.table as.data.table
@@ -19,11 +19,8 @@ import_dataset_encyclopedia = function(file_quant_report, path_elib_rawfiles = N
 
   # input validation
   check_parameter_is_string(file_quant_report)
-  if (!file.exists(file_quant_report)) {
-    append_log(paste("Cannot find EncyclopeDIA 'Quant Report' .elib file at", file_quant_report), type = "error")
-  }
-
-
+  # will check for presence of file as well as .gz/.zip extension if file doesn't exist, will throw error if both do not exist
+  file_quant_report = path_exists(file_quant_report, try_compressed = FALSE)
 
   ### extract individual peptide*sample confidence scores from .elib files matching every input sample
   peptide_confidence = peptide_confidence_unique_sample_id = NULL

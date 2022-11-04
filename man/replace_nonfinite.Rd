@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{replace_nonfinite}
 \alias{replace_nonfinite}
-\title{fast replacement in a vector}
+\title{fast replacement in a vector; nonfinite to target value}
 \usage{
 replace_nonfinite(x, val = NA)
 }
@@ -12,5 +12,5 @@ replace_nonfinite(x, val = NA)
 \item{val}{the value to replace with}
 }
 \description{
-fast replacement in a vector
+fast replacement in a vector; nonfinite to target value
 }

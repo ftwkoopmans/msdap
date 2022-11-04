@@ -2,12 +2,15 @@
 #' plot peptide-level data
 #'
 #' @param dataset todo
-#' @param filter_protein_id todo
+#' @param select_all_proteins todo
+#' @param select_diffdetect_candidates todo
+#' @param select_dea_signif todo
+#' @param filter_protein_ids todo
 #' @param output_dir todo
 #' @param show_unused_datapoints todo
 #' @param norm_algorithm todo
 #' @export
-plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, filter_protein_ids = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm=NA) {
+plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, filter_protein_ids = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm = NA) {
   pid = NULL
 
   ## if requested to plot all proteins, just take the unique set from peptide tibble and don't bother with other selection parameters
@@ -51,11 +54,12 @@ plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffde
 #' @param output_dir todo
 #' @param show_unused_datapoints todo
 #' @param norm_algorithm todo
+#' @param rollup_algorithm todo
 #' @importFrom tidyr everything
 #' @importFrom stringr str_trunc
 #' @importFrom foreach foreach
 #' @importFrom parallel stopCluster clusterExport
-plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, output_dir, show_unused_datapoints = FALSE, norm_algorithm=NA) {
+plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, output_dir, show_unused_datapoints = FALSE, norm_algorithm=NA, rollup_algorithm = "maxlfq") {
   filter_protein_id = unique(na.omit(filter_protein_id))
   if(length(filter_protein_id) == 0) {
     append_log("no valid protein identifiers were provided", type = "error")
@@ -113,7 +117,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     # call utility function to do the heavy lifting, for all unique columns required downstream that are not "intensity"
     ucol = setdiff(unique(ucontr_col_intensity), "intensity")
     if(length(ucol) > 0) {
-      peptides = reintroduce_filtered_intensities(dataset$peptides, norm_algorithm=norm_algorithm, columns_intensity=ucol)
+      peptides = reintroduce_filtered_intensities(dataset, norm_algorithm=norm_algorithm, rollup_algorithm = rollup_algorithm, columns_intensity=ucol)
     }
   }
 
@@ -176,9 +180,9 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
 
       # pretty-print
       de_proteins_contr = de_proteins_contr %>%
-        arrange(algo_de) %>%
+        arrange(dea_algorithm) %>%
         # pretty-print format for downstream visualization
-        select(protein_id, algorithm = algo_de, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
+        select(protein_id, algorithm = dea_algorithm, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
         mutate(foldchange = sprintf("%.2f", foldchange),
                pvalue = sprintf("%.2g", pvalue),
                qvalue = sprintf("%.2g", qvalue),
@@ -352,13 +356,17 @@ for proteins with many peptides, legends are shown on a separate page for legibi
 # For each column with filtered & normalized peptide intensities in the long-format peptides tibble,
 # reintroduce the intensity values for those peptides that were removed while filtering.
 # These intensity values are taken from the complete unfiltered dataset with normalization applied.
-reintroduce_filtered_intensities = function(peptides, norm_algorithm, columns_intensity) {
-  stopifnot(columns_intensity %in% colnames(peptides))
+reintroduce_filtered_intensities = function(dataset, norm_algorithm, rollup_algorithm, columns_intensity) {
+  stopifnot(columns_intensity %in% colnames(dataset$peptides))
+
+  peptides = dataset$peptides
+  x_complete = peptides$intensity
 
   # apply normalization algorithm to complete data matrix
-  x_complete = peptides$intensity
   if(any(norm_algorithm != "")) {
-    x_complete = normalize_intensities(data.table::setDT(peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity)), norm_algorithm = norm_algorithm)
+    dataset_norm = normalize_peptide_intensity_column(dataset, col_intensity = "intensity", norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm)
+    x_complete = dataset_norm$peptides$intensity
+    # x_complete = normalize_intensities(data.table::setDT(peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity)), norm_algorithm = norm_algorithm)
   }
 
   for(col in columns_intensity) {
@@ -441,7 +449,7 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
     scale_x_discrete(drop = FALSE) +
     scale_fill_manual(values = array(tib_upep$color, dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, name="peptide", aesthetics = c("colour", "fill")) +
     scale_shape_manual(values = array(rep(c(21, 22, 24, 25), length.out = nrow(tib_upep)), dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, drop = FALSE, name="peptide") +
-    guides(alpha = F, fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
+    guides(alpha = "none", fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
     labs(x = "", y = "log2 intensity", fill = "", colour = "", shape = "", title = plot_title) + # set same label/name for all properties of 'sequence_id' to rename the respective legend title
     theme_bw() +
     theme(
@@ -502,7 +510,7 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #   # peptides; sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!col_contr_intensity
 #   # proteins; protein_id, fasta_headers
 #   # samples; sample_id, shortname, group, condition = !!col_contr
-#   # de_proteins; "pvalue" "qvalue" "signif" "foldchange.log2" "protein_id" "algo_de" "contrast"
+#   # de_proteins; "pvalue" "qvalue" "signif" "foldchange.log2" "protein_id" "dea_algorithm" "contrast"
 #
 #   if(!is_tibble(de_proteins) || nrow(de_proteins) == 0) {
 #     append_log("no differential expression analysis results, not plotting peptide-level data", type = "warning")
@@ -549,10 +557,10 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #                 output = sprintf("%s/all_significant_proteins - %s.pdf", output_dir, lbl))
 #
 #     # list of significant proteins per DE algorithm (already sorted by pvalue)
-#     ualg = unique(tib_contrast_stats$algo_de)
+#     ualg = unique(tib_contrast_stats$dea_algorithm)
 #     if(plot_each_statistical_approach && length(ualg) > 1) {
 #       for(alg in ualg) {
-#         alg_protein_id = tib_contrast_stats %>% filter(algo_de == alg & signif) %>% pull(protein_id)
+#         alg_protein_id = tib_contrast_stats %>% filter(dea_algorithm == alg & signif) %>% pull(protein_id)
 #         if(length(alg_protein_id) > 0) {
 #           pdf_combine_chunks(input = tib_protein_pdf_files %>% filter(protein_id %in% alg_protein_id) %>% pull(pdf_filename),
 #                              output = sprintf("%s/%s_significant - %s.pdf", output_dir, alg, lbl))
@@ -562,8 +570,8 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #
 #     # unique hits in msempire vs msqrob, and vice versa
 #     if(plot_comparison_msqrob_msempire && all(c("msempire", "msqrob") %in% ualg)) {
-#       msempire_protein_id = tib_contrast_stats %>% filter(algo_de == "msempire" & signif) %>% pull(protein_id)
-#       msqrob_protein_id = tib_contrast_stats %>% filter(algo_de == "msqrob" & signif) %>% pull(protein_id)
+#       msempire_protein_id = tib_contrast_stats %>% filter(dea_algorithm == "msempire" & signif) %>% pull(protein_id)
+#       msqrob_protein_id = tib_contrast_stats %>% filter(dea_algorithm == "msqrob" & signif) %>% pull(protein_id)
 #       msempire_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msempire_protein_id, msqrob_protein_id)) %>% pull(pdf_filename)
 #       msqrob_pdf = tib_protein_pdf_files %>% filter(protein_id %in% setdiff(msqrob_protein_id, msempire_protein_id)) %>% pull(pdf_filename)
 #       if(length(msempire_pdf) > 0) {
@@ -644,7 +652,7 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #   # stats in pretty-print format
 #   stats_de_prettyprint = stats_de %>%
 #     filter(protein_id %in% protein_ids) %>%
-#     select(protein_id, algorithm = algo_de, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
+#     select(protein_id, algorithm = dea_algorithm, foldchange = foldchange.log2, pvalue, qvalue, signif) %>%
 #     mutate(foldchange = sprintf("%.2f", 2^foldchange),
 #            pvalue = sprintf("%.2g", pvalue),
 #            qvalue = sprintf("%.2g", qvalue) )
@@ -711,8 +719,8 @@ ggplot_peptide_abundances = function(tib_peptides, tib_samples, tib_stats, plot_
 #     scale_fill_manual(values = array(tib_upep$color, dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, name="peptide", aesthetics = c("colour", "fill")) +
 #     scale_shape_manual(values = array(rep(c(22:25), length.out = length(upepid)), dimnames=list(tib_upep$peptide_id)), labels = tib_upep$label, drop = FALSE, name="peptide") +
 #     scale_alpha_manual(values = c("TRUE" = .8, "FALSE" = 0), name = "detected?", drop = FALSE) +
-#     # alpha=F  disables alpha legend to save space
-#     guides(alpha = F, fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
+#     # alpha="none"  disables alpha legend to save space
+#     guides(alpha = "none", fill = guide_legend(ncol = 2), colour = guide_legend(ncol = 2), shape = guide_legend(ncol = 2)) +
 #     labs(x = "", y = "log10 intensity", fill = "", colour = "", shape = "", title = plot_title) + # set same label/name for all properties of 'sequence_id' to rename the respective legend title
 #     theme_bw() +
 #     theme(

@@ -1,36 +1,28 @@
 
-### rudimentatry testing: validate that we properly deal with a lack of overlap between samples or groups
-# xx = rnorm(20)
-# x = cbind(c(xx, rep(NA, length(xx))),
-#           c(xx+1, rep(NA, length(xx))),
-#           c(rep(NA, length(xx)), xx+3),
-#           c(rep(NA, length(xx)), xx+4))
-#
-# # plot data as-is
-# pheatmap::pheatmap(x, na_col = "grey", cluster_cols = F, cluster_rows = F)
-#
-# # normalize within replicates and between groups (no overlap between groups)
-# y = normalize_vwmb(x, groups = c(1,1,2,2))
-# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
-#
-# # normalize by 'reducing overall variation', while some samples have zero overlap
-# y = normalize_vwmb(x, groups = NA)
-# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
-#
-# # define groups such that there is zero overlap between replicates. results in a warning
-# y = normalize_vwmb(x, groups = c(1,2,1,2))
-# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
-###
-
-
-#' VWMB: normalize a numerical matrix by Variation Within and Mode Between
+#' Normalize a numerical matrix by the Variation Within, Mode Between (VWMB) algorithm
 #'
-#' note; if you want to treat replicate samples that are flagged as 'exclude' upstream differently, set groups=paste(samples$group, samples$exclude) to put them in separate groups
+#' @description
+#' The normalization algorithm consists of two consecutive steps:
+#' 1) samples are scaled within each group to minimize the overall `metric_within` among replicates
+#' 2) summarize all samples per group by respective row mean values (from `row*sample` to a `row*group` matrix). Then rescale at the sample-group-level to minimize the overall `metric_between`
 #'
-#' @param x numerical data matrix to normalize, should be transformed by logarithm
-#' @param groups array describing the grouping of the columns in x. set NA for no groups
+#' The metric "var" will minimize the median of all variation-per-row.
+#' The metric "mode" will minimize the modes of log-foldchange distribution between pairwise samples or groups (when set as `metric_within` and `metric_between` respectfully).
+#'
+#' Default setting is Variation Within, Mode Between (VWMB); `metric_within="var"` and `metric_between="mode"` will normalize such that median of variation-per-row is minimized per sample group, and subsequentially the log-foldchange distributions between all pairwise groups are minimized.
+#'
+#' Alternatively, one can also apply mode normalization within-group (Mode Within, Mode Between. MWMB) by setting `metric_within="mode"`. If the dataset has (unknown) covariates and a sufficient number of replicates, this might be beneficial because covariate-specific effects are not averaged out as they might be with `metric_within="var"`.
+#'
+#' To ignore groups and simply apply mode-between to all samples (not recommended!); `normalize_vwmb(x, groups=NA, metric_within="mode")`.
+#'
+#' To ignore groups and simply normalize all samples by reducing overall variation (not recommended!); `normalize_vwmb(x, groups=NA, metric_within="var")`.
+#'
+#' note; if you want to treat replicate samples that are flagged as 'exclude' upstream differently while still including them in the data matrix, you could set parameter `groups=paste(samples$group, samples$exclude)` to put them in separate groups.
+#'
+#' @param x numerical data matrix to normalize, should be log transformed
+#' @param groups array describing the grouping of the columns in x (sample groups). Or alternatively set to NA to indicate there are no groups
 #' @param metric_within how should replicate samples within a group be normalized? valid arguments: "var" reduce overall variation (default). "mode" reduce overall foldchange mode. pass empty string to disable
-#' @param metric_between analogous to the metric_within parameter, how to normalize between groups? allowed parameters are "var" and "mode" (default)
+#' @param metric_between analogous to the metric_within parameter, how to normalize between groups? allowed parameters are "var" and "mode" (default). To disable, set groups=NA
 #' @param include_attributes optionally, return some additional metrics as attributes of x. The "scaling" attribute describes the increase/decrease of each sample
 #' @return normalized matrix x
 #' @importFrom matrixStats colMedians rowSums2 rowMeans2
@@ -151,6 +143,50 @@ normalize_vwmb = function(x, groups=NA, metric_within="var", metric_between="mod
 
 
 
+#' Given some peptide-level matrix, normalize samples using foldchange mode-between at protein-level
+#'
+#' @param x numerical data matrix with log2 peptide abundances
+#' @param groups array describing the grouping of the columns in x
+#' @param proteins array describing the grouping of the rows in x
+#' @param rollup_algorithm algorithm for combining peptides to protein-level data, on which in subsequent steps the normalization/scaling factors will be computed. Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
+#' @return normalized matrix x
+#' @export
+normalize_modebetween_protein = function(x, proteins, groups, rollup_algorithm = "maxlfq") {
+  ## input validation
+  stopifnot(is.matrix(x) && typeof(x) == "double" && ncol(x) > 1 && nrow(x) > 1)
+  stopifnot(length(proteins) == nrow(x) && all(!is.na(proteins)) && (all(is.character(proteins) & proteins != "") || all(is.integer(proteins))) )
+  stopifnot(length(groups) == ncol(x) && all(!is.na(groups)) && (all(is.character(groups) & groups != "") || all(is.integer(groups))) )
+  # rollup_algorithm parameter is validated in rollup function
+
+  ## rollup
+  # from peptide matrix to long-format tibble
+  tib = as_tibble(x) %>%
+    add_column(peptide_id = 1:nrow(x),
+               protein_id = proteins) %>%
+    tidyr::pivot_longer(cols = c(-protein_id, -peptide_id), names_to = "sample_id", values_to = "intensity") %>%
+    filter(is.finite(intensity) & intensity > 0)
+  # rollup
+  mat_protein = rollup_pep2prot(tib, intensity_is_log2 = TRUE, rollup_algorithm = rollup_algorithm, return_as_matrix = TRUE)
+
+  ## importantly, enforce consistent column order to preserve alignment with sample-to-group assignments
+  stopifnot(ncol(x) == ncol(mat_protein) && all(colnames(x) %in% colnames(mat_protein)))
+  # use match() instead of direct key/string-based indexing because some samples may have names like 1,2,3,4
+  # (eg; if key_sample is used for column names instead of sample_id, as we do in filter_dataset() )
+  mat_protein = mat_protein[,match(colnames(x), colnames(mat_protein)),drop=F]
+
+  ## apply VWMB function to obtain mode-between scaling factors
+  mat_protein = normalize_vwmb(mat_protein, groups = groups, metric_within = "", metric_between = "mode", include_attributes = TRUE) # disable within-group normalization
+  scale_per_sample = attr(mat_protein, "scaling")
+
+  # apply scaling factors, determined through normalization on protein-level, to peptide-level (simple loop is more efficient than transpose+scale+transpose)
+  for(j in seq_along(scale_per_sample)) {
+    x[,j] = x[,j] - scale_per_sample[j]
+  }
+  return(x)
+}
+
+
+
 #' compute the mode of all sample/column pairs
 #' column pairs that have less than 10 values in common are skipped (result value left at default 0)
 #' @param x log-transformed data matrix, where columns are samples and rows are features
@@ -256,3 +292,28 @@ norm_scales_var = function(x) {
   # TODO: optionally, we could print some some metrics on the chosen scaling (how many MLE iterations, overall score before/after)
   return(s_mle$par)
 }
+
+
+
+### rudimentatry testing: validate that we properly deal with a lack of overlap between samples or groups
+# xx = rnorm(20)
+# x = cbind(c(xx, rep(NA, length(xx))),
+#           c(xx+1, rep(NA, length(xx))),
+#           c(rep(NA, length(xx)), xx+3),
+#           c(rep(NA, length(xx)), xx+4))
+#
+# # plot data as-is
+# pheatmap::pheatmap(x, na_col = "grey", cluster_cols = F, cluster_rows = F)
+#
+# # normalize within replicates and between groups (no overlap between groups)
+# y = normalize_vwmb(x, groups = c(1,1,2,2))
+# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
+#
+# # normalize by 'reducing overall variation', while some samples have zero overlap
+# y = normalize_vwmb(x, groups = NA)
+# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
+#
+# # define groups such that there is zero overlap between replicates. results in a warning
+# y = normalize_vwmb(x, groups = c(1,2,1,2))
+# pheatmap::pheatmap(y, na_col = "grey", cluster_cols = F, cluster_rows = F)
+###

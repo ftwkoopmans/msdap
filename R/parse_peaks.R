@@ -3,7 +3,6 @@
 #' @param filename a features.csv file exported by Peaks
 #' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
 #'
-#' @importFrom data.table fread
 #' @importFrom tidyr pivot_longer
 #' @export
 import_dataset_peaks = function(filename, collapse_peptide_by = "sequence_modified") {
@@ -16,26 +15,24 @@ import_dataset_peaks = function(filename, collapse_peptide_by = "sequence_modifi
 
   # first, check if input file exists
   check_parameter_is_string(filename)
-  if (!file.exists(filename)) {
-    append_log(paste("input file does not exist:", filename), type = "error")
-  }
+  # will check for presence of file as well as .gz/.zip extension if file doesn't exist, will throw error if both do not exist
+  filename = path_exists(filename, NULL, try_compressed = TRUE)
 
-
-  regex_rt = "[ .]rt[ .]mean$"
-  regex_intensity = "[ .](normalized[ .]){0,1}area$"
-
-  headers = tolower(unlist(strsplit(readLines(filename, n = 1), "\t|,")))
 
   # validate the input is peaks (recycle generic function which includes robust matching and error messages)
   attributes_required = list(sequence_modified = "Peptide",
                              protein_id = "Accession",
                              charge = "z")
-  map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
 
+  # read first line from file; read 1 line into data.frame without colnames with first row having all values, then convert to character array
+  # this leverages data.table to infer what character was used to delimit columns
+  headers = as.character( read_textfile_compressed(filename, as_table = T, nrow = 1, header = F, data.table = F) )
   # guestimate the sample names from column headers
+  regex_rt = "[ .]rt[ .]mean$"
+  regex_intensity = "[ .](normalized[ .]){0,1}area$"
   map_sample_rt = grep(regex_rt, headers, ignore.case = T)
   sample_id = gsub(regex_rt, "", headers[map_sample_rt])
-  cols_int = which(gsub(regex_intensity, "", headers) %in% sample_id)
+  cols_int = which(gsub(regex_intensity, "", headers, ignore.case = T) %in% sample_id)
 
   # input validation
   if(length(sample_id) != length(cols_int) || length(cols_int) != length(map_sample_rt)) {
@@ -43,9 +40,14 @@ import_dataset_peaks = function(filename, collapse_peptide_by = "sequence_modifi
                        paste(headers[map_sample_rt], collapse = ", "), paste(headers[cols_int], collapse = ", ")), type = "error")
   }
 
-  # only read columns of interest to speed up file parsing
-  tibw = as_tibble(data.table::fread(filename, select = c(as.numeric(map_required), map_sample_rt, cols_int), check.names = F, stringsAsFactors = F))
-  colnames(tibw)[seq_along(map_required)] = names(map_required)
+  # list of all columns we want
+  attributes_composed = attributes_required
+  for(n in headers[map_sample_rt]) attributes_composed[[n]] = n
+  for(n in headers[cols_int]) attributes_composed[[n]] = n
+
+  # basically this reads the CSV/TSV table from file and maps column names to expected names.
+  # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+  tibw = read_table_by_header_spec(filename, attributes_required = attributes_composed, as_tibble_type = TRUE)
 
   # filter invalid entries; empty value in any column-of-interest
   tibw = tibw %>%

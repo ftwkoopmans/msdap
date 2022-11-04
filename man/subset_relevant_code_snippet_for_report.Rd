@@ -2,8 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{subset_relevant_code_snippet_for_report}
 \alias{subset_relevant_code_snippet_for_report}
-\title{in case users run the pipeline a few times consecutively (eg; testing various parameters) without resetting R history, we only want to keep the relevant portion of the code.
-simple/transparent way is to show everything from latest dataset import function or source() on}
+\title{subset lines of R code (provided as strings) from the last "import_dataset" function on}
 \usage{
 subset_relevant_code_snippet_for_report(rcode_lines)
 }

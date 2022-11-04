@@ -1,47 +1,60 @@
 
-  - [abstract](#abstract)
-  - [Features](#features)
-  - [Computational procedures involved in differential expression
-    analysis](#computational-procedures-involved-in-differential-expression-analysis)
-      - [DEA-workflow: feature
-        selection](#dea-workflow-feature-selection)
-      - [DEA-workflow: normalization](#dea-workflow-normalization)
-      - [differential detection](#differential-detection)
-      - [estimating foldchange
-        thresholds](#estimating-foldchange-thresholds)
-  - [Quality Control](#quality-control)
-      - [sample metadata](#sample-metadata)
-      - [detect counts](#detect-counts)
-      - [chromatography](#chromatography)
-      - [within-group foldchange
-        distributions](#within-group-foldchange-distributions)
-      - [CoV leave-one-out analysis](#cov-leave-one-out-analysis)
-      - [PCA](#pca)
-      - [use the MS-DAP multifaceted analyses in QC
-        analysis](#use-the-ms-dap-multifaceted-analyses-in-qc-analysis)
-      - [Volcano plot](#volcano-plot)
-      - [protein foldchanges estimated by statistical
-        models](#protein-foldchanges-estimated-by-statistical-models)
-  - [Example of a full report](#example-of-a-full-report)
-      - [Klaassen et al. APMS wildtype vs knockout
-        (DDA)](#klaassen-et-al.-apms-wildtype-vs-knockout-dda)
-      - [O’Connel et al. benchmark dataset
-        (DDA)](#oconnel-et-al.-benchmark-dataset-dda)
-      - [Bader et al. large-scale AD\~control CSF cohorts
-        (DIA)](#bader-et-al.-large-scale-adcontrol-csf-cohorts-dia)
+-   <a href="#abstract" id="toc-abstract">abstract</a>
+-   <a href="#features" id="toc-features">Features</a>
+-   <a
+    href="#computational-procedures-involved-in-differential-expression-analysis"
+    id="toc-computational-procedures-involved-in-differential-expression-analysis">Computational
+    procedures involved in differential expression analysis</a>
+    -   <a href="#dea-workflow-feature-selection"
+        id="toc-dea-workflow-feature-selection">DEA-workflow: feature
+        selection</a>
+    -   <a href="#dea-workflow-normalization"
+        id="toc-dea-workflow-normalization">DEA-workflow: normalization</a>
+    -   <a href="#dea-workflow-statistical-models"
+        id="toc-dea-workflow-statistical-models">DEA-workflow: statistical
+        models</a>
+    -   <a href="#differential-detection"
+        id="toc-differential-detection">differential detection</a>
+    -   <a href="#estimating-foldchange-thresholds"
+        id="toc-estimating-foldchange-thresholds">estimating foldchange
+        thresholds</a>
+-   <a href="#quality-control" id="toc-quality-control">Quality Control</a>
+    -   <a href="#sample-metadata" id="toc-sample-metadata">sample metadata</a>
+    -   <a href="#detect-counts" id="toc-detect-counts">detect counts</a>
+    -   <a href="#chromatography" id="toc-chromatography">chromatography</a>
+    -   <a href="#within-group-foldchange-distributions"
+        id="toc-within-group-foldchange-distributions">within-group foldchange
+        distributions</a>
+    -   <a href="#cov-leave-one-out-analysis"
+        id="toc-cov-leave-one-out-analysis">CoV leave-one-out analysis</a>
+    -   <a href="#pca" id="toc-pca">PCA</a>
+    -   <a href="#use-the-ms-dap-multifaceted-analyses-in-qc-analysis"
+        id="toc-use-the-ms-dap-multifaceted-analyses-in-qc-analysis">use the
+        MS-DAP multifaceted analyses in QC analysis</a>
+    -   <a href="#volcano-plot" id="toc-volcano-plot">Volcano plot</a>
+    -   <a href="#protein-foldchanges-estimated-by-statistical-models"
+        id="toc-protein-foldchanges-estimated-by-statistical-models">protein
+        foldchanges estimated by statistical models</a>
+-   <a href="#examples-of-full-reports"
+    id="toc-examples-of-full-reports">Examples of full reports</a>
+    -   <a href="#klaassen-et-al-apms-wildtype-vs-knockout-dda"
+        id="toc-klaassen-et-al-apms-wildtype-vs-knockout-dda">Klaassen et
+        al. APMS wildtype vs knockout (DDA)</a>
+    -   <a href="#oconnel-et-al-benchmark-dataset-dda"
+        id="toc-oconnel-et-al-benchmark-dataset-dda">O’Connel et al. benchmark
+        dataset (DDA)</a>
+    -   <a href="#bader-et-al-large-scale-adcontrol-csf-cohorts-dia"
+        id="toc-bader-et-al-large-scale-adcontrol-csf-cohorts-dia">Bader et
+        al. large-scale AD~control CSF cohorts (DIA)</a>
 
 This document provides an introduction to MS-DAP; what is it and how
 does it work, together with highlights from the MS-DAP quality control
 report.
 
 Instead of demonstrating MS-DAP using output from a single
-‘representative’ dataset, we have collected interesting
-samples/datasets specifically to highlight several quality control
-analyses and issues you may encounter while working with your data.
-
-*For a hands-on tutorial that shows how to perform MS-DAP analyses
-together with a description of settings and recommended defaults, please
-refer to the **getting started** vignette.*
+‘representative’ dataset, we have collected interesting samples/datasets
+specifically to highlight several quality control analyses and issues
+you may encounter while working with your data.
 
 ## abstract
 
@@ -63,23 +76,27 @@ innovations.
 
 ## Features
 
-![MS-DAP workflow](images/msdap-overview.png)
+<figure>
+<img src="images/msdap-overview.png" style="width:80.0%"
+alt="MS-DAP workflow" />
+<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
+</figure>
 
 MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 
-  - Analysis independent of RAW data processing software
-  - Wide selection of normalization algorithms and statistical models
-  - Plugin architecture to support future algorithms
-  - Standardized workflow, regardless of configured feature selection
+-   Analysis independent of RAW data processing software
+-   Wide selection of normalization algorithms and statistical models
+-   Plugin architecture to support future algorithms
+-   Standardized workflow, regardless of configured feature selection
     and data processing algorithms
-  - Extensive data visualization, including both popular/common plots
+-   Extensive data visualization, including both popular/common plots
     and novelties introduced by MS-DAP, covering many quality control
     aspects
-  - The report is a single PDF, making your results easy to share online
-  - The publication-grade figures are stored as vector graphics, so
+-   The report is a single PDF, making your results easy to share online
+-   The publication-grade figures are stored as vector graphics, so
     simply open the report PDF in Adobe Illustrator to include any of
     the MS-DAP visualizations as panels in your main figures
-  - Available as a Docker container and R package
+-   Available as a Docker container and R package
 
 ## Computational procedures involved in differential expression analysis
 
@@ -89,7 +106,11 @@ peptide filtering strategies, dataset wide or separately for each
 contrast, in a highly configurable framework that allows users to
 configure feature selection, normalization and DEA algorithms of choice.
 
-![DEA-workflow](images/DEA-workflow.png)
+<figure>
+<img src="images/DEA-workflow.png" style="width:50.0%"
+alt="DEA-workflow" />
+<figcaption aria-hidden="true">DEA-workflow</figcaption>
+</figure>
 
 ### DEA-workflow: feature selection
 
@@ -98,14 +119,14 @@ which peptides represent reliable data that should be used in downstream
 statistical analysis. The following criteria are available to determine
 whether a peptide is ‘valid’ in a sample group:
 
-  - identified in at least N samples
-  - identified in at least x% of samples
-  - quantified in at least N samples
-  - quantified in at least x% of samples
-  - topN peptides per protein; after above filters, rank peptides by the
+-   identified in at least N samples
+-   identified in at least x% of samples
+-   quantified in at least N samples
+-   quantified in at least x% of samples
+-   topN peptides per protein; after above filters, rank peptides by the
     number of samples where detected and their overall CoV and keep the
     top N
-  - the respective protein has at least N peptides that pass the above
+-   the respective protein has at least N peptides that pass the above
     filters
 
 ‘identified’ refers to peptide *p* in sample *s* was identified through
@@ -117,21 +138,139 @@ match-between-runs.
 ### DEA-workflow: normalization
 
 A second important step is to choose the normalization procedure. There
-are different normalization algorithms available in MS-DAP:
+are several normalization algorithms available in MS-DAP, below
+documentation is also available at MS-DAP function
+`msdap::normalization_algorithms()`:
 
-  - median, simply scale each sample such that the median value is the
-    same throughout the dataset
-  - VSN, from vsn R package (justvsn)
-  - Loess, from limma R package; normalizeCyclicLoess(log2\_data,
-    iterations = 10, method = “fast”)
-  - RLR, from MSqRob R package; normalizeRLR @
-    <https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R>
-  - MS-EmpiRe, mode normalization as implemented in msEmpiRe R package
-  - VWMB, Variation Within Mode Between (novel, manuscript is a
-    work-in-progress)
-  - modebetween\_protein, application of VWMB to only normalize between
-    groups (replicates within each group are all scaled in the exact
-    same manner)
+-   median: scale each sample such that median abundance values are the
+    same for all samples in the dataset.
+-   loess: Loess normalization as implemented in the limma R package
+    (<PMID:25605792>) [R
+    package](https://bioconductor.org/packages/release/bioc/html/limma.html).
+    code:
+    `limma::normalizeCyclicLoess(log2_data, iterations = 10, method = "fast")`.
+    Normalize the columns of a matrix, cyclicly applying loess
+    normalization to normalize each columns against the average over all
+    columns.
+-   vsn: Variance Stabilizing Normalization (VSN) as implemented in the
+    vsn R package (<PMID:12169536>) [R
+    package](https://bioconductor.org/packages/release/bioc/html/vsn.html).
+    code: `vsn::justvsn()`. From bioconductor: “The model incorporates
+    data calibration step (a.k.a. normalization), a model for the
+    dependence of the variance on the mean intensity and a variance
+    stabilizing data transformation. Differences between transformed
+    intensities are analogous to ‘normalized log-ratios’”.
+-   rlr: Robust Linear Regression normalization, as implemented in the
+    MSqRob package (<PMID:26566788>) [R
+    package](https://github.com/statOmics/msqrob). For each sample s,
+    perform a robust linear regression of all values (peptide
+    intensities) against overall median values (e.g. median value of
+    each peptide over all samples) to obtain the normalization factor
+    for sample s.
+-   msempire: log-foldchange mode normalization, as implemented in the
+    msEmpiRe package (<PMID:31235637>) [R
+    package](https://github.com/zimmerlab/MS-EmpiRe). Instead of
+    computing all pairwise sample scaling factors (i.e. foldchange
+    distributions between all pairs of samples within a sample group),
+    MS-EmpiRe uses single linkage clustering to normalize to subsets of
+    ‘most similar’ samples and iteratively expands until all
+    within-group samples are covered.
+-   vwmb: Variation Within, Mode Between (VWMB) normalization. In brief,
+    this minimizes the median peptide variation within each sample
+    group, then scales between all pairwise sample groups such that the
+    log-foldchange mode is zero. The normalization algorithm consists of
+    two consecutive steps:
+
+1)  samples are scaled within each group such that the median of
+    variation estimates for all rows is minimized
+2)  summarize all samples per group by respective row mean values (from
+    `row*sample` to a `row*group` matrix). Then rescale at the
+    sample-group-level to minimize the mode log-foldchange between all
+    groups See further MS-DAP function `normalize_vwmb`.
+
+-   mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of
+    VWMB. Normalize (/scale) samples within each sample group such that
+    their pairwise log-foldchange modes are zero, then scales between
+    groups such that the log-foldchange mode is zero (i.e. the
+    between-group part is the same as VWMB). If the dataset has
+    (unknown) covariates and a sufficient number of replicates, this
+    might be beneficial because covariate-specific effects are not
+    averaged out as they might be with `VWMB`. See further MS-DAP
+    function `normalize_vwmb`.
+-   modebetween: only the “Mode Between” part of VWMB described earlier,
+    does not affect scaling between (replicate) samples within the same
+    sample group.
+-   modebetween_protein (also referred to as “MBprot”, e.g. in the
+    MS-DAP manuscript and some documentation): only the “Mode Between”
+    part of VWMB described earlier, but the scaling factors are computed
+    at protein-level !! When this normalization function is used, the
+    `normalize_modebetween_protein` function will first rollup the
+    peptide data matrix to protein-level, then compute
+    between-sample-group scaling factors and finally apply those to the
+    input peptide-level data matrix to compute the normalized peptide
+    data.
+
+Multiple normalization algorithms can be applied subsequentially in
+MS-DAP, e.g. first apply “vsn” to normalize the dataset at peptide-level
+and then apply the “modebetween_protein” algorithm to ensure the dataset
+is well balanced when considering between-group foldchanges at the
+protein level. Furthermore, users may provide their own normalization
+function(s) as plugins to MS-DAP, see further this vignette;
+[bioinformatics: plugin custom normalization or DEA](custom_norm_dea.md)
+
+### DEA-workflow: statistical models
+
+MS-DAP integrates several statistical models for Differential Expression
+Analysis (DEA), which are applied to all user-defined contrasts (sets of
+sample-groups to compare in A/B testing) and return (adjusted) p-values
+and foldchanges for each protein in the dataset. Below documentation is
+also available at MS-DAP function `msdap::dea_algorithms()`:
+
+**ebayes**: wrapper for the eBayes function from the limma package
+(<PMID:25605792>) [R
+package](https://bioconductor.org/packages/release/bioc/html/limma.html).
+The eBayes function applies moderated t-statistics to each row of a
+given data matrix. It was originally developed for the analysis of
+RNA-sequencing data but can also be applied to a proteomics
+`protein*sample` data matrix. Doesn’t work on peptide-level data because
+limma eBayes returns t-statistics per row in the input matrix, so using
+peptide-level data would yield statistics per peptide and translating
+those to protein-level statistics is not straight forward. Thus, with
+MS-DAP we first perform peptide-to-protein rollup (e.g. using MaxLFQ
+algorithm) and then apply the limma eBayes function to the protein-level
+data matrix. This is in line with typical usage of moderated
+t-statistics in proteomics (e.g. analogous to Perseus, where a moderated
+t-test is applied to protein data matrix). This method will take
+provided covariates into account (if any). Implemented in function;
+`de_ebayes`
+
+**deqms**: wrapper for the DEqMS package (<PMID:32205417>) [R
+package](https://github.com/yafeng/DEqMS), which is a
+proteomics-focussed extension of the limma eBayes approach that also
+weighs the number of peptides observed per protein to adjust protein
+statistics. MS-DAP will apply this function to the protein-level data
+matrix. This method will take provided covariates into account (if any).
+Implemented in function;
+
+**msempire**: wrapper for the msEmpiRe package (<PMID:31235637>) [R
+package](https://github.com/zimmerlab/MS-EmpiRe). This is a
+peptide-level DEA algorithm. Note that this method cannot deal with
+covariates! Implemented in function; `de_msempire`
+
+**msqrob**: implementation of the MSqRob package, with minor tweak for
+(situationally) faster computation (<PMID:26566788>) [R
+package](https://github.com/statOmics/msqrob). This is a peptide-level
+DEA algorithm. This method will take provided covariates into account
+(if any). Implemented in function; `de_msqrobsum_msqrob`
+
+**msqrobsum**: implementation of the MSqRob package (which also features
+MSqRobSum), with minor tweak for (situationally) faster computation
+(<PMID:32321741>) [R package](https://github.com/statOmics/msqrob). This
+is a hybrid peptide&protein-level DEA algorithm that takes peptide-level
+data as input; it first performs peptide-to-protein rollup, then applies
+statistics to this protein-level data matrix. This method will take
+provided covariates into account (if any). Implemented in function;
+`de_msqrobsum_msqrob`
 
 ### differential detection
 
@@ -146,23 +285,23 @@ provide a simple score based on identification count data.
 
 This is a simplified approach that is intended to rank proteins for
 further qualitative analysis, be careful of over-interpretation and keep
-differences in sample group size (\#replicates) and the absolute amount
-of peptides identified in a sample in mind \!
+differences in sample group size (#replicates) and the absolute amount
+of peptides identified in a sample in mind !
 
 Computational procedures for comparing sample groups *A* and *B*;
 
-  - to account for sample loading etc., first scale the weight of all
+-   to account for sample loading etc., first scale the weight of all
     peptides per sample as; 1 / total number of detected peptides in
     sample *s*
-  - *score\_pA*: the score for protein *p* in sample group *A* is the
-    sum of the weighted score of all peptides that belong to protein *p*
-    in all samples (within group *A*)
-  - ratio for protein *p* in *A vs B*: log2(*score\_pB* + *minimum
-    non-zero score in group B*) - log2(*score\_pA* + *minimum non-zero
+-   *score_pA*: the score for protein *p* in sample group *A* is the sum
+    of the weighted score of all peptides that belong to protein *p* in
+    all samples (within group *A*)
+-   ratio for protein *p* in *A vs B*: log2(*score_pB* + *minimum
+    non-zero score in group B*) - log2(*score_pA* + *minimum non-zero
     score in group A*)
-  - finally, we standardize all protein ratios by subtracting the
+-   finally, we standardize all protein ratios by subtracting the
     overall mean value, then dividing by the standard deviation
-  - proteins of interest, *candidates*, are defined as proteins with an
+-   proteins of interest, *candidates*, are defined as proteins with an
     absolute z-score of at least 2 AND at least a count difference
     between groups *A* and *B* of *group size* \* 0.75 (the latter
     guards against proteins with 0 detect in one group and 1 peptide in
@@ -195,12 +334,12 @@ Satija at <https://doi.org/10.1186/s13059-019-1874-1>
 MS-DAP builds a report that allows in depth quality control (QC).
 Building blocks of the QC report are:
 
-  - individual samples analyzed through identified peptides and
+-   individual samples analyzed through identified peptides and
     chromatographic effects
-  - reproducibility & outliers visualized among replicates
-  - presentation of dataset-wide effects; identification of batch
+-   reproducibility & outliers visualized among replicates
+-   presentation of dataset-wide effects; identification of batch
     effects through PCA
-  - information needed to reproduce results
+-   information needed to reproduce results
 
 The QC report can be used to evaluate data that thereafter is
 subsequently re-analyzed. For instance, after inspection the report
@@ -228,15 +367,14 @@ a table (Excel or plain-text csv/tsv).
 
 MS-DAP generates a template file that is almost ready to go, you only
 have to open it in Excel and provide the sample groups and add
-additional columns that describe experimental conditions\!
+additional columns that describe experimental conditions!
 
 For example, after you’ve loaded your dataset (eg; on the next line
 after `msdap::import_dataset_skyline(...)`) you can write a sample
 metadata template file using
-`msdap::write_template_for_sample_metadata(dataset, filename =
-"C:/temp/samples.xlsx")`, edit it in Excel, close Excel, then read it
-back into R using `msdap::import_sample_metadata(dataset, filename =
-"C:/temp/samples.xlsx")`.
+`msdap::write_template_for_sample_metadata(dataset, filename = "C:/temp/samples.xlsx")`,
+edit it in Excel, close Excel, then read it back into R using
+`msdap::import_sample_metadata(dataset, filename = "C:/temp/samples.xlsx")`.
 
 ### detect counts
 
@@ -439,7 +577,7 @@ phenotype (color-coding by sample groups). Whereas PCA is a common
 technique, we here show that;
 
 1)  the Probabilistic-PCA as used in MS-DAP corroborates individual QC
-    plots indicating outlier samples (it works \!)
+    plots indicating outlier samples
 2)  the entire MS-DAP stack of QC analyses together allows users to
     backtrack outlier samples to upstream technical issues. Using this
     knowledge one can ‘exclude’ these samples and re-run MS-DAP to
@@ -491,14 +629,14 @@ sample WT5: ![RT figures, trouble in WT5](images/qc-rt_wt5_outlier.png)
 2)  If we now consider the PCA analysis, we observe these samples are
     major outliers. Because we have the chromatography figures shown
     above, we can infer this is most likely caused by technicalities and
-    not due to biology\!
+    not due to biology!
 
 ![PCA outliers corroborate earlier QC](images/qc-pca_outlier.png)
 
 Without the detailed QC plots from MS-DAP that describe deviation in
 peptide quantity over HPLC elution time, one would not know why these
 samples are outliers (is it biology or technical issues?), but with
-MS-DAP we can\!
+MS-DAP we can!
 
 ### Volcano plot
 
@@ -545,27 +683,27 @@ peptide-level model MS-EmpiRe and the protein-level eBayes model.
 
 ![volcano](images/qc-stat-fc-density_Klaassen_shisa6ip.png)
 
-## Example of a full report
+## Examples of full reports
 
 ### Klaassen et al. APMS wildtype vs knockout (DDA)
 
 A DDA dataset that compares wildtype and knockout conditions by
-immunoprecipitation (Klaassen et al. 2018, PMID: 26931375). The raw data
-was processed with MetaMorpheus and analyzed in MS-DAP, [click here to
-download the PDF
-report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf)
+immunoprecipitation (Klaassen et al. 2018, <PMID:26931375>). The raw
+data was processed with MetaMorpheus and analyzed in MS-DAP, [click here
+to download the PDF
+report](/examples/data/Klaassen2018_pmid26931375_report.pdf)
 
 ### O’Connel et al. benchmark dataset (DDA)
 
-The MS-DAP report of the O’Connel 2018 DDA benchmark dataset (PRIDE ID:
-PXD007683 , yeast spike-in at various ratios) shows application to a
-MaxQuant dataset: [O’Connel 2018
-dataset](/examples/data/PXD007683_report.pdf)
+The MS-DAP report of the O’Connel 2018 DDA benchmark dataset
+(<PMID:29635916> PRIDE-ID:PXD007683, yeast spike-in at various ratios)
+shows application to a MaxQuant dataset: [O’Connel 2018
+dataset](/examples/data/OConnel2018_pmid29635916_report.pdf)
 
 ### Bader et al. large-scale AD\~control CSF cohorts (DIA)
 
 Demonstration of MS-DAP application to a large-scale biofluid dataset
-(PMID: 32485097). Input data are the Spectronaut report made available
+(<PMID:32485097>). Input data are the Spectronaut report made available
 in the original study and the table that describes each sample’s
 metadata: [Bader 2020
 dataset](/examples/data/Bader2020_pmid32485097_report.pdf)

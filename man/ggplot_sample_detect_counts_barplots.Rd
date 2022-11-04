@@ -7,7 +7,7 @@
 ggplot_sample_detect_counts_barplots(samples, samples_colors_long)
 }
 \arguments{
-\item{samples}{todo}
+\item{samples}{sample metadata table, typically; dataset$samples}
 
 \item{samples_colors_long}{todo}
 }

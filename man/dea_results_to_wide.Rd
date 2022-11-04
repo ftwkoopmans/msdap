@@ -10,6 +10,10 @@ dea_results_to_wide(dataset)
 \item{dataset}{your dataset. if 'de_proteins' is lacking, result is empty tibble}
 }
 \description{
-DEA statistics summary table in wide format: protein_id, accessions, fasta_headers, gene_symbols_or_id, <algo_de x contrast>foldchange.log2, <algo_de x contrast>pvalue, etc.
-if there are 3 or more different DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
+DEA statistics table \code{dataset$de_proteins} presented in wide format;
+protein_id, accessions, fasta_headers, gene_symbols_or_id
+<dea_algorithm x contrast>foldchange.log2, <dea_algorithm x contrast>pvalue, <dea_algorithm x contrast>qvalue (pvalue adjusted for multiple testing), etc.
+}
+\details{
+if there are 2 or more different DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
 }

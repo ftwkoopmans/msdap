@@ -15,8 +15,9 @@ if you run these code snippets on your computer
 
 ## load dataset
 
-1.  load the Skyline output of the LFQbench study (this file is bundled
-    with the MS-DAP package, you don’t have to download anything).
+1.  load the Skyline output of the LFQbench study (<PMID:27701404> \~
+    this file is bundled with the MS-DAP package, you don’t have to
+    download anything).
 
 2.  extract the respective group/condition of each sample by matching a
     regular expression against the filenames. This is just to
@@ -46,7 +47,7 @@ dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
 #> info: contrast: A vs B
 
 print(dataset$samples %>% select(sample_id, group))
-#> # A tibble: 6 x 2
+#> # A tibble: 6 × 2
 #>   sample_id           group
 #>   <chr>               <chr>
 #> 1 lgillet_L150206_007 A    
@@ -81,26 +82,32 @@ print(table(dataset$proteins$classification))
 Below code demonstrates how to apply only the MS-DAP functions for
 feature selection & normalization and DEA. Afterwards, we select only
 human and yeast proteins from the DEA results in preparation of the next
-analysis step. Note that the `analysis_quickstart()` function covers all
-typical MS-DAP use-cases.
+analysis step. Note that the `analysis_quickstart()` function covers
+most typical MS-DAP use-cases and provides lots of additional
+functionality, this vignette shows how to specifically apply only
+filtering and DEA by directly calling respective MS-DAP functions.
 
 ``` r
-# feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm)
+# feature selection: only peptides detected in 3+ replicates in each sample group, then apply normalization (vwmb algorithm, followed by between-group normalization at protein-level)
 dataset = filter_dataset(dataset,
                          filter_min_detect = 3,
                          norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
 #> progress: caching filter data took 2 seconds
 #> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
+#> info: filter dataset with settings: min_detect = 3; norm_algorithm = 'vwmb&modebetween_protein'; rollup_algorithm = 'maxlfq'
+#> 12756/34263 peptides were retained after filtering over all groups
 #> progress: peptide filtering and normalization took 2 seconds
 
+# if you want to run the "msqrob" DEA algorithm instead of "ebayes" (and not use the analysis_quickstart() convenience function), you should first initialize multiprocessing by uncommending the following line;
+# cl = initialize_multiprocessing(n_thread = 4)
+
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
-dataset = dea(dataset, algo_de = "ebayes", qval_signif = 0.05, fc_signif = NA)
-#> info: peptide to protein rollup strategy: maxlfq
+dataset = dea(dataset, dea_algorithm = "ebayes", qval_signif = 0.05, fc_signif = NA)
 #> info: differential expression analysis for contrast: A vs B
 #> info: using data from peptide filter: global data filter
 #> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
-#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.656
+#> info: log2 foldchange threshold estimated by bootstrap analysis: 0.652
 #> progress: eBayes took 1 seconds
 
 # add the yeast/human protein classifications to DEA score tibble and filter to only keep human and yeast proteins
@@ -125,23 +132,29 @@ section in the [introduction](intro.md) or source code of the
 ``` r
 # 5% FDR  versus  5% FDR and foldchange threshold (taken together in column 'signif')
 print(tib_plot %>% 
-        group_by(classification) %>% 
+        group_by(classification, dea_algorithm) %>% 
         summarise(`5% FDR` = sum(qvalue <= 0.05),
                   `5% FDR AND foldchange threshold` = sum(signif)))
-#> # A tibble: 2 x 3
-#>   classification `5% FDR` `5% FDR AND foldchange threshold`
-#>   <chr>             <int>                             <int>
-#> 1 human               126                                16
-#> 2 yeast               629                               607
+#> `summarise()` has grouped output by 'classification'. You can override using
+#> the `.groups` argument.
+#> # A tibble: 2 × 4
+#> # Groups:   classification [2]
+#>   classification dea_algorithm `5% FDR` `5% FDR AND foldchange threshold`
+#>   <chr>          <chr>            <int>                             <int>
+#> 1 human          ebayes             126                                16
+#> 2 yeast          ebayes             629                               608
 
 # analogous for more stringent q-value cutoff at 1% FDR
 print(tib_plot %>% 
-        group_by(classification) %>% 
+        group_by(classification, dea_algorithm) %>% 
         summarise(`1% FDR` = sum(qvalue <= 0.01),
                   `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
-#> # A tibble: 2 x 3
-#>   classification `1% FDR` `1% FDR AND foldchange threshold`
-#>   <chr>             <int>                             <int>
-#> 1 human                40                                10
-#> 2 yeast               599                               581
+#> `summarise()` has grouped output by 'classification'. You can override using
+#> the `.groups` argument.
+#> # A tibble: 2 × 4
+#> # Groups:   classification [2]
+#>   classification dea_algorithm `1% FDR` `1% FDR AND foldchange threshold`
+#>   <chr>          <chr>            <int>                             <int>
+#> 1 human          ebayes              40                                10
+#> 2 yeast          ebayes             599                               582
 ```

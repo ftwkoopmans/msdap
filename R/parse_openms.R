@@ -21,14 +21,14 @@
 #' @export
 import_dataset_openms_mztab = function(filename) {
   # debug; test file; filename = "C:/DATA/iPRG2015_Hannes/iPRG2015_targeted_only.mzTab"
+  # debug; test file; filename = "E:/DATA/PXD007683/openms/result.mzTab"
   reset_log()
   append_log("OpenMS data import is a new feature, please consult the documentations for limitations / work-in-progress", type = "warning")
 
   # first, check if input file exists
   check_parameter_is_string(filename)
-  if (!file.exists(filename)) {
-    append_log(paste("input file does not exist:", filename), type = "error")
-  }
+  # will check for presence of file as well as .gz/.zip extension if file doesn't exist, will throw error if both do not exist
+  filename = path_exists(filename, NULL, try_compressed = TRUE)
 
 
   decorate_modified_sequences = function(sequence, modifications) {
@@ -62,7 +62,7 @@ import_dataset_openms_mztab = function(filename) {
 
 
   # read all lines as single column
-  mztab_raw = data.table::fread(filename, sep = NULL, header = F)
+  mztab_raw = data.table::as.data.table(data.frame(V1 = read_textfile_compressed(filename, as_table = F), stringsAsFactors = F) )
 
   # input validation: on the first 10 lines we should see the expected input filetype
   if(!all(c("MTD\tmzTab-version\t1.0.0", "MTD\tmzTab-type\tQuantification") %in% head(mztab_raw$V1, 10))) { # can we validate input mzTab type?

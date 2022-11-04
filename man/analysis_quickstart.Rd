@@ -13,14 +13,15 @@ analysis_quickstart(
   filter_min_peptide_per_prot = 1,
   filter_topn_peptides = 0,
   filter_by_contrast = FALSE,
-  norm_algorithm = c("vwmb", "modebetween_protein"),
-  dea_protein_rollup = "maxlfq",
-  dea_algorithm = c("deqms", "msqrob"),
+  norm_algorithm = c("vsn", "modebetween_protein"),
+  rollup_algorithm = "maxlfq",
+  dea_algorithm = c("deqms", "msqrob", "msempire"),
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
   diffdetect_min_samples_observed = 3,
   pca_sample_labels = "auto",
   var_explained_sample_metadata = NULL,
+  multiprocessing_maxcores = NA,
   output_abundance_tables = TRUE,
   output_qc_report = TRUE,
   output_dir,
@@ -45,27 +46,29 @@ analysis_quickstart(
 
 \item{filter_by_contrast}{should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately.}
 
-\item{norm_algorithm}{normalization algorithms. Can be empty string to skip normalization, or any algorithm listed by msdap::normalization_algorithms(). Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero}
+\item{norm_algorithm}{normalization algorithm(s), or provide an empty string to skip normalization. Refer to \code{normalization_algorithms()} function documentation for available options and a brief description of each. Provide an array of options to run each algorithm consecutively, for instance; c("vsn", "modebetween_protein") to first apply vsn normalization and then correct between-group ratios such that the protein-level log2-foldchange mode is zero}
 
-\item{dea_protein_rollup}{strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()}
+\item{rollup_algorithm}{rollup_algorithm strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like eBayes and DEqMS. Options: maxlfq, tukey_median, sum. See further documentation for function \code{rollup_pep2prot()}}
 
-\item{dea_algorithm}{algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)}
+\item{dea_algorithm}{algorithm for differential expression analysis (provide an array of strings to run multiple, in parallel). Refer to \code{dea_algorithms()} function documentation for available options and a brief description of each. To use a custom DEA function, provide the respective R function name as a string (see GitHub documentation on custom DEA functions for more details)}
 
 \item{dea_qvalue_threshold}{threshold for significance of adjusted p-values in figures and output tables. Output tables will also include all q-values as-is}
 
 \item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA}
 
-\item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
+\item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable}
 
-\item{pca_sample_labels}{whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let the code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)}
+\item{pca_sample_labels}{whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)}
 
-\item{var_explained_sample_metadata}{optionally, enable variance-explained analysis. This is slow, even for small datasets, and even moreso as the number of experiment metadata grows (so to save time in routine analyses, this is disabled by default). Set to NULL to disable (default), NA to automatically infer column names from dataset@samples to be used, or provide an array of column names from dataset@samples to be used}
+\item{var_explained_sample_metadata}{optionally, enable variance-explained analysis. This is slow, even for small datasets, and even moreso as the number of experiment metadata grows (so to save time in routine analyses, this is disabled by default). Set to NULL to disable (default), NA to automatically infer column names from \code{dataset@samples} to be used, or provide an array of column names from \code{dataset@samples} to be used (e.g. \code{c("group","batch","sex")})}
 
-\item{output_abundance_tables}{whether to write protein-level data matrices to file. options: FALSE, TRUE}
+\item{multiprocessing_maxcores}{optionally, integer parameter to set the maximum number of cores to use when running MSqRob/MSqRobSum DEA algorithms. If other DEA methods are used, this setting doesn't do anything. Set to NA (default) to automatically select all available CPU cores minus 1. For systems with many CPU cores that run into errors related to "socketConnection" or "PSOCK", try limiting this to a lower number (e.g. 8)}
+
+\item{output_abundance_tables}{whether to write peptide- and protein-level data matrices to file. options: FALSE, TRUE}
 
 \item{output_qc_report}{whether to create the Quality Control report. options: FALSE, TRUE . Highly recommended to set to TRUE (default). Set to FALSE to skip the report PDF (eg; to only do differential expression analysis and skip the time-consuming report creation)}
 
-\item{output_dir}{output directory where all output files should be stored. If not an existing directory, it will be created}
+\item{output_dir}{output directory where all output files should be stored. If the provided file path is not an existing directory, it will be created. Optionally, disable the creation of any output files (QC report, DEA table, etc.) by setting this parameter to NA (also overrides the 'dump_all_data' parameter)}
 
 \item{output_within_timestamped_subdirectory}{optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there. options: FALSE, TRUE}
 
@@ -83,8 +86,8 @@ params; filter_min_detect, filter_fraction_detect, filter_min_quant, filter_frac
 You only have to provide active filters (but specify at least 1), filters/settings you do not specify don't do anything by default.
 
 Settings:
-for DDA: at least 1~2 detect (MS/MS ID) and quantified in at least ~75% of replicates.
-for DIA: detect (confidence score < threshold) in at least ~75% of replicates (because for DIA, you typically have an abundance value in each sample regardless of the identifier confidence score).
+for DDA: at least 1~2 detect (MS/MS ID) and quantified in at least ~75\% of replicates.
+for DIA: detect (confidence score < threshold) in at least ~75\% of replicates (because for DIA, you typically have an abundance value in each sample regardless of the identifier confidence score).
 If there are only 3 replicates, we recommend filtering such that there are at least 3 datapoints to work with in differential expression analysis.
 
 Taken together, recommended settings for a DDA dataset with 3~8 replicates in each sample group look like this;
@@ -104,12 +107,12 @@ filter_min_detect = 3, filter_fraction_detect = 0.75
 
 
 Two distinct approaches to selecting peptides can be used for differential expression analysis: 1) 'within contrast' and 2) 'apply filter to all sample groups'.
-
-1) Determine within each contrast (eg; group A vs group B) what peptides can be used by applying above peptide filter criteria and then apply normalization to this data subset.
+\enumerate{
+\item Determine within each contrast (eg; group A vs group B) what peptides can be used by applying above peptide filter criteria and then apply normalization to this data subset.
 Advantaguous in datasets with many groups; this maximizes the number of peptides used in each contrast (eg; let peptide p be observed in groups A and B, not in C. we'd want to use it in A vs B, not in A vs C).
 As a disadvantage, this complicates interpretation since the exact data used is different in each contrast (slightly different peptides and normalization in each contrast).
-
-2) Apply above filter criteria to each sample group (eg; a peptide must past these filter rules in every sample group) and then apply normalization
+\item Apply above filter criteria to each sample group (eg; a peptide must past these filter rules in every sample group) and then apply normalization
+}
 
 This data matrix is then used for all downstream statistics
 
@@ -126,6 +129,7 @@ Note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as bo
 
 normalization algorithms are applied to the peptide-level data matrix.
 options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+Refer to \code{normalization_algorithms()} function documentation for available options and a brief description of each.
 
 You can combine normalizations by providing an array of options to apply subsequential normalizations.
 
@@ -145,9 +149,12 @@ MS-EmpiRe a peptide-level model that works especially well for DDA data. Referen
 
 eBayes is robust but conservative, using the limma package to apply moderated t-tests on protein-level abundances. Reference: https://doi.org/doi:10.18129/B9.bioc.limma
 
-options: ebayes, deqms, msempire, msqrob, msqrobsum
+options: ebayes, deqms, msempire, msqrob, msqrobsum. Refer to \code{dea_algorithms()} function documentation for available options and a brief description of each.
 
 You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
 e.g.; \code{dea_algorithm = c("ebayes", "deqms", "msempire", "msqrob")}
 }
 
+\seealso{
+\code{dea_algorithms()} and \code{normalization_algorithms()} for available algorithms and documentation.
+}

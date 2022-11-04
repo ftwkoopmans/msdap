@@ -1,6 +1,44 @@
 
+#' returns all DEA functions integrated with MS-DAP
+#'
+#' @description
+#'
+#' ## available DEA functions
+#' **ebayes**: wrapper for the eBayes function from the limma package (PMID:25605792) <https://bioconductor.org/packages/release/bioc/html/limma.html>. The eBayes function applies moderated t-statistics to each row of a given data matrix.
+#' It was originally developed for the analysis of RNA-sequencing data but can also be applied to a proteomics `protein*sample` data matrix. Doesn't work on peptide-level data because limma eBayes returns t-statistics per row in the input matrix,
+#' so using peptide-level data would yield statistics per peptide and translating those to protein-level statistics is not straight forward.
+#' Thus, with MS-DAP we first perform peptide-to-protein rollup (e.g. using MaxLFQ algorithm) and then apply the limma eBayes function to the protein-level data matrix.
+#'
+#' This is in line with typical usage of moderated t-statistics in proteomics (e.g. analogous to Perseus, where a moderated t-test is applied to protein data matrix). This method will take provided covariates into account (if any). Implemented in function; \code{de_ebayes}
+#'
+#' **deqms**: wrapper for the DEqMS package (PMID:32205417) <https://github.com/yafeng/DEqMS>, which is a proteomics-focussed extension of the limma eBayes approach that also weighs the number of peptides observed per protein to adjust protein statistics. MS-DAP will apply this function to the protein-level data matrix. This method will take provided covariates into account (if any). Implemented in function; \code{de_deqms}
+#'
+#' **msempire**: wrapper for the msEmpiRe package (PMID:31235637) <https://github.com/zimmerlab/MS-EmpiRe>. This is a peptide-level DEA algorithm. Note that this method cannot deal with covariates! Implemented in function; \code{de_msempire}
+#'
+#' **msqrob**: implementation of the MSqRob package, with minor tweak for (situationally) faster computation (PMID:26566788) <https://github.com/statOmics/msqrob>. This is a peptide-level DEA algorithm. This method will take provided covariates into account (if any). Implemented in function; \code{de_msqrobsum_msqrob}
+#'
+#' **msqrobsum**: implementation of the MSqRob package (which also features MSqRobSum), with minor tweak for (situationally) faster computation (PMID:32321741) <https://github.com/statOmics/msqrob>. This is a hybrid peptide&protein-level DEA algorithm that takes peptide-level data as input; it first performs peptide-to-protein rollup, then applies statistics to this protein-level data matrix. This method will take provided covariates into account (if any). Implemented in function; \code{de_msqrobsum_msqrob}
+#'
+#' @export
+dea_algorithms = function() {
+  return(c("ebayes", "deqms", "msempire", "msqrobsum", "msqrob"))
+}
+
+
+
+#' reserved DEA function names
+#'
+#' The returned function names are reserved; custom DEA functions cannot have any of these names
+#' @export
+dea_algorithms_reserved = function() {
+  return(c(dea_algorithms(), "combined"))
+}
+
+
+
 #' pretty-print label for an intensity column
-#' @param col todo
+#'
+#' @param col column name in dataset$peptides
 column_intensity_to_label = function(col) {
   ref = c("global data filter" = "intensity_all_group",
           "custom filtering and normalization" = "intensity_norm",
@@ -20,9 +58,17 @@ column_intensity_to_label = function(col) {
 
 
 
-#' returns named variable variable (label=column_name) indicating which type of intensity data is used
-#' @param peptides todo
-#' @param contr_lbl todo
+#' prioritized selection of intensity column in a peptides tibble
+#'
+#' 1) if a column with intensity values for a specified contrasts exists, return it
+#' 2) all_group filtering in "intensity_all_group" column
+#' 3) custom filtering in "intensity_norm" column
+#' 4) raw data in "intensity" column
+#'
+#' returns a named array of length 1 where the name is a "pretty print label" and value is the column name
+#'
+#' @param peptides peptides tibble, e.g. dataset$peptides
+#' @param contr_lbl optionally a string describing a contrast, e.g. "contrast: WT vs KO"
 get_column_intensity = function(peptides, contr_lbl = NA) {
   ref = c("filter by contrast" = paste0("intensity_", contr_lbl),
           "global data filter" = "intensity_all_group",
@@ -36,13 +82,15 @@ get_column_intensity = function(peptides, contr_lbl = NA) {
 #' Differential expression analysis
 #'
 #' @param dataset your dataset
-#' @param qval_signif threshold for significance of adjusted p-values
-#' @param fc_signif threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
-#' @param algo_de algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)
-#' @param algo_rollup strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()
+#' @param qval_signif threshold for significance of q-values
+#' @param fc_signif threshold for significance of log2 foldchanges. Set to zero or NA to disregard, or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
+#' @param dea_algorithm algorithm for differential expression analysis (provide an array of strings to run multiple, in parallel). Refer to \code{\link{dea_algorithms}} function documentation for available options and a brief description of each. To use a custom DEA function, provide the respective R function name as a string (see GitHub documentation on custom DEA functions for more details)
+#' @param rollup_algorithm algorithm for combining peptides to proteins as used in DEA algorithms that require a priori rollup from peptides to a protein-level abundance matrix before applying statistics (e.g. ebayes, deqms). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
 #' @param output_dir_for_eset optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that requires this data
+#' @return long-format tibble with results for each DEA algorithm requested via `dea_algorithm` parameter. Note that a MS-DAP contrast for "A vs B" returns foldchanges for B/A. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group. The column `signif` contains a boolean flag indicating significant hits according to both the user defined q-value threshold (parameter `qval_signif`, also in result table column `signif_threshold_qvalue`) and optional foldchange threshold (parameter `fc_signif`, also in result table column `signif_threshold_log2fc`)
+#' @seealso `dea_algorithms()` for available DEA algorithms and documentation.
 #' @export
-dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", algo_rollup = "maxlfq", output_dir_for_eset = "") {
+dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqms", rollup_algorithm = "maxlfq", output_dir_for_eset = "") {
   ### input validation
   if (length(qval_signif) != 1 || !is.finite(qval_signif) || qval_signif <= 0) {
     append_log("q-value threshold must be a single numerical value above 0 (parameter qval_signif)", type = "error")
@@ -52,8 +100,8 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     append_log("log2 foldchange threshold must be a single numerical value or NA (parameter fc_signif)", type = "error")
   }
 
-  if (length(algo_rollup) != 1 || ! algo_rollup %in% c("sum", "maxlfq_diann", "maxlfq")) {
-    append_log("algo_rollup parameter only supports 'sum', 'maxlfq' and 'maxlfq_diann'", type = "error")
+  if (length(rollup_algorithm) != 1 || ! rollup_algorithm %in% c("sum", "maxlfq_diann", "maxlfq", "tukey_median")) {
+    append_log("rollup_algorithm parameter only supports 'sum', 'maxlfq', 'maxlfq_diann' and 'tukey_median'", type = "error")
   }
 
 
@@ -62,17 +110,17 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     fc_signif = NA
   }
 
-  algo_de = unique(algo_de)
-  if (length(algo_de) == 0) {
-    append_log("no algorithms have been defined (parameter algo_de), differential expression analysis is cancelled", type = "warning")
+  dea_algorithm = unique(dea_algorithm)
+  if (length(dea_algorithm) == 0) {
+    append_log("no algorithms have been defined (parameter dea_algorithm), differential expression analysis is cancelled", type = "warning")
     return(dataset)
   }
 
   # valid DEA options are those hardcoded, or pre-existing functions
   global_func = ls(envir=.GlobalEnv)
-  algo_de_invalid = setdiff(algo_de, c("ebayes", "msempire", "msqrob", "msqrobsum", "deqms", global_func))
-  if (length(algo_de_invalid) > 0) {
-    append_log(paste("invalid options for algo_de:", paste(algo_de_invalid, collapse=", ")), type = "error")
+  dea_algorithm_invalid = setdiff(dea_algorithm, c(dea_algorithms(), global_func))
+  if (length(dea_algorithm_invalid) > 0) {
+    append_log(paste("invalid options for dea_algorithm:", paste(dea_algorithm_invalid, collapse=", ")), type = "error")
   }
 
   column_contrasts = dataset_contrasts(dataset)
@@ -80,14 +128,6 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     append_log("no contrasts have been defined, differential expression analysis is cancelled", type = "warning")
     return(dataset)
   }
-
-
-  ### data checks out
-  # for computational efficiency, check whether we need protein-level data in any of the statistical models (eg; even is MaxLFQ is used as the rollup strategy, we don't want to wait for that if we are only doing msqrob)
-  need_protein_rollup = any(! algo_de %in% c("msqrob","msempire"))
-  # if(need_protein_rollup) {
-  append_log(paste("peptide to protein rollup strategy:", algo_rollup), type = "info")
-  # }
 
   # remove preexisting results
   dataset$de_proteins = NULL
@@ -163,45 +203,17 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
     ## convert our long-format peptide table to a peptide- and protein-level ExpressionSet
     # subset peptide tibble for current contrast
     peptides_for_contrast = dataset$peptides %>%
-      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity), any_of("confidence")) %>%
+      select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity), any_of(c("confidence","charge"))) %>%
       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
     # peptide ExpressionSet
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
     # rollup peptide abundance matrix to protein-level
-    m = rollup_pep2prot(peptides_for_contrast, intensity_is_log2 = T, algo_rollup = algo_rollup, return_as_matrix = T)
+    m = rollup_pep2prot(peptides_for_contrast, intensity_is_log2 = T, rollup_algorithm = rollup_algorithm, return_as_matrix = T)
     # align columns with peptide-level ExpressionSet
     m = m[,match(colnames(Biobase::exprs(eset_peptides)), colnames(m)),drop=F] # use match() instead of direct key/string-based indexing because some samples may have names like 1,2,3,4 (eg; if key_sample is used for column names instead of sample_id, as we do in filter_dataset() )
     # protein ExpressionSet
     eset_proteins = protein_eset_from_data(m, eset = eset_peptides)
     rm(m)
-
-    # eset_proteins = NULL
-    # if(need_protein_rollup) {
-    #   # depending on the peptide-to-protein rollup strategy, combine peptides to protein (eg; summation, maxlfq, etc.)
-    #   if(algo_rollup == "maxlfq") {
-    #     start_time_maxlfq = Sys.time()
-    #     # maxlfq will crash on zero values. we simply threshold at 1, _assuming_ upstream data providers (eg; intensity values from user input dataset) are well above zero and any incidental value < 1 is caused by normalization of values that were already near zero
-    #     peptides_for_contrast$intensity[!is.na(peptides_for_contrast$intensity) & peptides_for_contrast$intensity < 1] = 1
-    #     # use the MaxLFQ implementation provided by the DIA-NN team
-    #     x = diann::diann_maxlfq(peptides_for_contrast, sample.header = "sample_id", group.header="protein_id", id.header = "peptide_id", quantity.header = "intensity")
-    #     x = x[, colnames(MSnbase::exprs(eset_peptides))] # align data matrix with the peptide-level ExpressionSet
-    #     eset_proteins = protein_eset_from_data(x, eset = eset_peptides) # wrap the protein*sample abundance matrix in an ExpressionSet, re-using metadata from the peptide-level ExpressionSet
-    #     rm(x)
-    #     append_log_timestamp("peptide to protein rollup with MaxLFQ", start_time_maxlfq) # maxlfq is pretty slow, so print timer to console so the users are aware this is a time consuming step
-    #   } else {
-    #     eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = algo_rollup)
-    #   }
-    #
-    #   ## test code; optionally, normalize after non-standard rollup. very similar results when applying modebetween_protein on peptide-level data prior
-    #   # if(algo_rollup == "ipl") {
-    #   #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "vwmb", mask_sample_groups = Biobase::pData(eset_proteins)$condition)
-    #   # }
-    #   # if(algo_rollup == "maxlfq") {
-    #   #   Biobase::exprs(eset_proteins) = normalize_matrix(Biobase::exprs(eset_proteins), algorithm = "modebetween", mask_sample_groups = Biobase::pData(eset_proteins)$condition) # post-hoc correction between groups
-    #   # }
-    # } else {
-    #   eset_proteins = eset_from_peptides_to_proteins(eset_peptides, mode = "sum")
-    # }
 
     # if a directory for file storage was provided, store eset in a .RData file
     if(length(output_dir_for_eset) == 1 && !is.na(output_dir_for_eset) && nchar(output_dir_for_eset)>0 && dir.exists(output_dir_for_eset)) {
@@ -219,60 +231,68 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, algo_de = "deqms", al
 
     # DE statistics for all requested algorithms
     tib = tibble()
-    for(alg in algo_de) {
+    for(alg in dea_algorithm) {
       err = tryCatch({
-        alg_matched = F
-        if (alg == "ebayes") {
-          # DEBUG_esetprot <<- eset_proteins
-          # DEBUG_esetpep <<- eset_peptides
-          tib = bind_rows(tib, de_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars))
-          alg_matched = T
-        }
-        if (alg == "deqms") {
-          tib = bind_rows(tib, de_deqms(eset_proteins=eset_proteins, peptides=peptides_for_contrast, input_intensities_are_log2 = T, random_variables = ranvars))
-          alg_matched = T
-        }
-        if (alg == "msempire") {
-          tib = bind_rows(tib, de_msempire(eset_peptides, input_intensities_are_log2 = T)) # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
-          alg_matched = T
-        }
-        if (alg == "msqrob") {
-          tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars))
-          alg_matched = T
-        }
-        if (alg == "msqrobsum") {
-          tib = bind_rows(tib, de_msqrobsum_msqrob(eset_peptides, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars))
-          alg_matched = T
-        }
-        # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
-        if(!alg_matched) {
-          alg_fun = match.fun(alg)
+        ### call DEA function
+        alg_result = NULL
+        alg_plugin = FALSE
+        if(alg == "ebayes") {
+          alg_result = de_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
+        } else if(alg == "deqms") {
+          alg_result = de_deqms(eset_proteins=eset_proteins, peptides=peptides_for_contrast, input_intensities_are_log2 = T, random_variables = ranvars)
+        } else if(alg == "msempire") {
+          # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
+          alg_result = de_msempire(eset_peptides, input_intensities_are_log2 = T)
+        } else if(alg == "msqrob") {
+          alg_result = de_msqrobsum_msqrob(eset_peptides, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars)
+        } else if(alg == "msqrobsum") {
+          alg_result = de_msqrobsum_msqrob(eset_peptides, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars)
+        } else {
+          # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
+          alg_fun = match.fun(alg) # throws error if not found
           alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars, dataset_name=dataset$name)
-          # validation checks on expected output, to facilitate debugging/feedback for custom implementations
-          if(!is_tibble(alg_result) || nrow(alg_result) == 0 || !all(c("protein_id", "pvalue", "qvalue", "foldchange.log2", "algo_de") %in% colnames(alg_result))) {
-            append_log(sprintf("provided custom function for differential expression analysis '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|algo_de", alg), type = "error")
-          }
-          alg_result_name = unique(alg_result$algo_de)
-          # add this criterion if method can only generate 1 result (i.e. without, 1 call can generate DEA output for my_algo_param1, my_algo_param2, etc.); length(alg_result_name) != 1 ||
-          if(!is.character(alg_result_name) || nchar(alg_result_name) < 2 || alg_result_name %in% c("ebayes", "msempire", "msqrob", "msqrobsum", "combined")) {
-            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in algo_de column (must be a single non-empty character string uniquely indicating the name/label of your method. cannot be either of ebayes|msempire|msqrob|msqrobsum|combined)", alg), type = "error")
-          }
-          if(!all(!is.na(alg_result$protein_id) & alg_result$protein_id %in% peptides_for_contrast$protein_id)) {
-            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in protein_id column (either NA or not found in provided data structures)", alg), type = "error")
-          }
-          if(!all( (is.na(alg_result$pvalue) | is.numeric(alg_result$pvalue)) &
-                   (is.na(alg_result$qvalue) | is.numeric(alg_result$qvalue)) &
-                   (is.na(alg_result$foldchange.log2) | is.numeric(alg_result$foldchange.log2)) ))  {
-            append_log(sprintf("provided custom function for differential expression analysis '%s' contains invalid values in pvalue|qvalue|foldchange.log2 columns (can only be NA or numeric)", alg), type = "error")
-          }
-          # finally, concatenate results
-          tib = bind_rows(tib, alg_result)
+          alg_plugin = TRUE
         }
+
+        ### validate results from DEA
+        # non-empty result table with required columns
+        if(!is_tibble(alg_result) || nrow(alg_result) == 0 || !all(c("protein_id", "pvalue", "qvalue", "foldchange.log2", "dea_algorithm") %in% colnames(alg_result))) {
+          append_log(sprintf("DEA function '%s' must return a non-empty tibble with the columns protein_id|pvalue|qvalue|foldchange.log2|dea_algorithm", alg), type = "error")
+        }
+        # dea_algorithm ID must be a valid string and not be a reserved method name. Note that a method is allowed to return multiple (e.g. 1 wrapper function that returns stats for both algorithm 1 and algorithm 2)
+        alg_result_name = unique(alg_result$dea_algorithm)
+        if(length(alg_result_name) == 0 || any(!is.character(alg_result_name) | !grepl("^[0-9a-zA-Z_-]{2,}$", alg_result_name))) {
+          append_log(sprintf("DEA function '%s' results contain invalid values in dea_algorithm column; must be a character string with only letters/numbers/underscores (length >= 2), uniquely indicating the name of your method (to be used in plots and output tables)", alg), type = "error")
+        }
+        if(alg_plugin && any(alg_result_name %in% dea_algorithms_reserved())) {
+          append_log(sprintf("DEA function '%s' results contain invalid values in dea_algorithm column; cannot be either of these reserved keywords: %s", alg, paste(dea_algorithms_reserved(), collapse = ",")), type = "error")
+        }
+        # if, within this contrast, we've already stored results for this DEA algorithm... user passed multiple custom functions that return same dea_algorithm ID
+        if(nrow(tib) > 0 && any(alg_result_name %in% tib$dea_algorithm)) {
+          append_log(sprintf("DEA function '%s' results contain invalid values in dea_algorithm column; results for this dea_algorithm ID have already been stored previously. Did you provide multiple DEA functions that return the same dea_algorithm value?", alg), type = "error")
+        }
+        if(any(is.na(alg_result$protein_id) | !is.character(alg_result$protein_id) | ! alg_result$protein_id %in% unique(peptides_for_contrast$protein_id))) {
+          append_log(sprintf("DEA function '%s' results contain invalid values in protein_id column (NA not allowed, must be characters not factors, returned protein_id values must all be present in peptide tibble provided as parameter to DEA function)", alg), type = "error")
+        }
+        if(!all( (is.na(alg_result$pvalue) | is.numeric(alg_result$pvalue)) & !is.infinite(alg_result$pvalue) &
+                 (is.na(alg_result$qvalue) | is.numeric(alg_result$qvalue)) & !is.infinite(alg_result$qvalue) &
+                 (is.na(alg_result$foldchange.log2) | is.numeric(alg_result$foldchange.log2)) &!is.infinite(alg_result$foldchange.log2) ))  {
+          append_log(sprintf("DEA function '%s' results contain invalid values in pvalue|qvalue|foldchange.log2 columns (can only be NA or numeric, no Infinite allowed)", alg), type = "error")
+        }
+        # 1 dea_algorithm can yield only 1 result per protein_id. So test if # unique combinations of both is the same as input table length
+        if(alg_result %>% distinct(dea_algorithm, protein_id) %>% nrow() != nrow(alg_result)) { # faster than `anyDuplicated(alg_result %>% select(dea_algorithm, protein_id)) != 0`
+          append_log(sprintf("DEA function '%s' results contain duplicate values in protein_id column (within same dea_algorithm)", alg), type = "error")
+        }
+
+        ### finally, concatenate results
+        tib = bind_rows(tib, alg_result)
+
       }, error = function(e) e)
 
+      # error handling; a DEA function returned an error, show to user using our logging system
       if(inherits(err, "error")) {
-        append_log(paste("an error occurred during the execution of DEA algorithm:", alg), type="warning")
-        append_log(err$message, type="warning")
+        append_log(sprintf("an error occurred in %s during the execution of DEA function '%s'", col_contr, alg), type="warning")
+        append_log_error(err, type="warning")
       }
     }
 
@@ -416,8 +436,12 @@ permute_ab = function(x, nmax = 100) {
 
 #' convert the results from differential expression analysis from a long-format tibble to wide-format
 #'
-#' DEA statistics summary table in wide format: protein_id, accessions, fasta_headers, gene_symbols_or_id, <algo_de x contrast>foldchange.log2, <algo_de x contrast>pvalue, etc.
-#' if there are 3 or more different DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
+#' DEA statistics table `dataset$de_proteins` presented in wide format;
+#' protein_id, accessions, fasta_headers, gene_symbols_or_id
+#' <dea_algorithm x contrast>foldchange.log2, <dea_algorithm x contrast>pvalue, <dea_algorithm x contrast>qvalue (pvalue adjusted for multiple testing), etc.
+#'
+#' if there are 2 or more different DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
+#'
 #' @param dataset your dataset. if 'de_proteins' is lacking, result is empty tibble
 dea_results_to_wide = function(dataset) {
   if(!is_tibble(dataset$de_proteins) || nrow(dataset$de_proteins) == 0) {
@@ -432,13 +456,13 @@ dea_results_to_wide = function(dataset) {
                     replace(is.na(.), 0),
                   #
                   dataset$de_proteins %>%
-                    select(protein_id, algo_de, contrast, foldchange.log2, pvalue, qvalue, signif) %>%
-                    pivot_wider(names_from = c(algo_de, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif)),
+                    select(protein_id, dea_algorithm, contrast, foldchange.log2, pvalue, qvalue, signif) %>%
+                    pivot_wider(names_from = c(dea_algorithm, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif)),
                   by="protein_id")
 
   # if there are multiple DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged
-  n_algo_de = n_distinct(dataset$de_proteins$algo_de)
-  if(n_algo_de > 1) {
+  n_dea_algorithm = n_distinct(dataset$de_proteins$dea_algorithm)
+  if(n_dea_algorithm > 1) {
     # from the set of significant hits, find in each contrast those protein_id that occur at least twice
     tib_signif_combined = dataset$de_proteins %>%
       filter(signif) %>%

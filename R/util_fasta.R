@@ -17,10 +17,10 @@ fasta_header_to_id = function(x) {
 
 
 
-#' extract the 'short ID' from a fasta header.
+#' extract the "short ID" from a fasta header.
 #'
-#' for uniprot, a 'short ID' is the accession between the pipe symbols.
-#' for all other types, remove <dot><record's version number>.
+#' for uniprot, a "short ID" is the accession between the pipe symbols.
+#' for all other types, remove `<dot><record's version number>`.
 #'
 #' @param id array of fasta identifiers. eg; results from fasta_header_to_id()
 #' @param fasta_id_type fasta type. if uniprot, the 'short ID' is the accession between the pipe symbols
@@ -47,29 +47,28 @@ fasta_header_to_gene = function(x, fasta_id_type = "uniprot") {
 
 
 
-#' reasonably fast method for reading header rows from all fasta files (without over-complicating code/implementation to improve by a mere 1~2 seconds)
+#' Read non-redundant headers from all fasta files
 #
 #' @param fasta_files array of fill paths to fasta files
 #' @param fasta_id_type fasta type, typically this is 'uniprot'
-#'
-#' @importFrom readr read_lines
-#' @importFrom tibble tibble
 fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot") {
+  # first, validate input files
+  ff = NULL
   for (f in fasta_files) {
-    if (!file.exists(f)) {
-      append_log(sprintf('Cannot find file "%s"', f), type = "error")
-    }
+    f = path_exists(f, NULL, try_compressed = TRUE) # throws error if not found
+    ff = c(ff, f)
   }
 
+  # if we didn't abort with errors, we can start reading the validated file paths
   fasta = NULL
-  for (f in fasta_files) {
-    l = readr::read_lines(f, progress = F)
+  for (f in ff) {
+    l = read_textfile_compressed(f, as_table = F)
     char1 = substr(l, 1, 1)
-    fasta = c(fasta, l[char1 == ">"])
+    fasta = c(fasta, l[char1 == ">"]) # only fasta header lines
   }
 
   # distinct() at the end ensures we use data from the first fasta file for each unique accession, in case it's found in multiple
-  tibble::tibble(
+  tibble(
     idlong = fasta_header_to_id(fasta),
     gene = fasta_header_to_gene(fasta, fasta_id_type),
     header = fasta

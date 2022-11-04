@@ -54,7 +54,7 @@ print_dataset_summary = function(dataset) {
       left_join(dataset$proteins, by="protein_id") %>%
       filter(!is.na(qvalue)) %>%
       arrange(qvalue) %>%
-      group_by(contrast, dea_algorithm=algo_de) %>%
+      group_by(contrast, dea_algorithm) %>%
       summarise("#proteins tested" = n(),
                 "signif @ user settings" = sum(signif),
                 "qvalue <= 0.01" = sum(qvalue <= 0.01),
@@ -289,6 +289,7 @@ check_valid_tibble_samples = function(tib) {
 
 
 #' report number of detected precursor and plainseq, target and decoy
+#'
 #' @param peptides peptide tibble in long format
 log_peptide_tibble_pep_prot_counts = function(peptides) {
   report_unique = peptides %>% group_by(isdecoy) %>% summarise(n_precursor=n_distinct(peptide_id), n_seq=n_distinct(sequence_plain), n_prot=n_distinct(protein_id)) %>% arrange(isdecoy)
@@ -300,16 +301,18 @@ log_peptide_tibble_pep_prot_counts = function(peptides) {
 
 
 
-#' placeholder title
-#' @param tib todo
+#' rearrange column in a long-format peptides tibble
+#'
+#' @param tib peptide tibble in long format
 tibble_peptides_reorder = function(tib) {
   tib %>% select(!!intersect(c("peptide_id", "protein_id", "sample_id", "sequence_plain", "sequence_modified", "confidence", "detect", "intensity", "rt"), colnames(tib)), everything())
 }
 
 
 
-#' placeholder title
-#' @param peptides todo
+#' placeholder long-format proteins tibble with minimum set of columns (protein_d, fasta_headers, gene_symbols_or_id) for some given peptides tibble
+#'
+#' @param peptides peptide tibble in long format
 empty_protein_tibble = function(peptides) {
   uprot = unique(peptides$protein_id)
   return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols_or_id = uprot))

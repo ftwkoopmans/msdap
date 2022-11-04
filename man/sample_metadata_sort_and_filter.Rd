@@ -2,7 +2,7 @@
 % Please edit documentation in R/sample_metadata.R
 \name{sample_metadata_sort_and_filter}
 \alias{sample_metadata_sort_and_filter}
-\title{placeholder title}
+\title{sample metadata formatting and validation}
 \usage{
 sample_metadata_sort_and_filter(
   df,
@@ -11,12 +11,12 @@ sample_metadata_sort_and_filter(
 )
 }
 \arguments{
-\item{df}{todo}
+\item{df}{data.frame with sample metadata}
 
-\item{sample_exclude_regex}{todo}
+\item{sample_exclude_regex}{optionally, regex to select samples that should be flagged as 'exclude'}
 
-\item{group_order}{todo}
+\item{group_order}{optionally, you can provide a preferred ordering of the sample groups as a character array}
 }
 \description{
-placeholder title
+sample metadata formatting and validation
 }

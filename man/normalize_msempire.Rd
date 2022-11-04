@@ -2,17 +2,15 @@
 % Please edit documentation in R/util_normalization.R
 \name{normalize_msempire}
 \alias{normalize_msempire}
-\title{adapted from msEmpiRe::normalize(), supports any input matrix + definition of groups
-input expected as finite values, not log transformed}
+\title{wrapper function for msEmpiRe::normalize()}
 \usage{
-normalize_msempire(x, mask_sample_groups)
+normalize_msempire(x, group_by_cols)
 }
 \arguments{
-\item{x}{todo}
+\item{x}{numerical matrix, NOT log transformed}
 
-\item{mask_sample_groups}{todo}
+\item{group_by_cols}{a character array of the same length as the number of columns in the provided data matrix, describing the grouping of each column/sample}
 }
 \description{
-adapted from msEmpiRe::normalize(), supports any input matrix + definition of groups
-input expected as finite values, not log transformed
+wrapper function for msEmpiRe::normalize()
 }

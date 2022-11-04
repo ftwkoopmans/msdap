@@ -5,8 +5,29 @@ output:
     toc: false
 ---
 
-# Using the Dockerized MS-DAP
+# About Docker
 
+The MS-DAP R package depends on many other tools / code libraries, so in order to work with MS-DAP one needs to install all these dependencies as well as the R programming language and RStudio (ref; MS-DAP R package install guide). So there's some effort involved in installing all software and dependencies. Furthermore, suppose that one of the dependencies (e.g. an R package for a DEA algorithm) has an impactful change in version X and on one computer you use MS-DAP with version X of that library and on another version Y; running the same data analysis on both computers might not yield the exactly same results.
+
+This is where "containers" can be useful; these are isolated environments that include (in 1 big bundle) all code and dependencies needed to run an application on any computing environment (i.e. the container doesn't even rely on any software/tools present in the operating system, it's completely independent). We provide a container for MS-DAP that includes the MS-DAP R package, all dependencies, RStudio and the R programming language all neatly packed together. On your computer, only the Docker software is needed to use the MS-DAP container.
+
+Advantages of using the Docker container:
+
+- perfect reproducibility of data analysis results, the entire software stack is always the same
+- only tool that needs to be installed on your computer is Docker
+
+Disadvantages of using the Docker container:
+
+- if you're already working with R/RStudio, getting up-and-running by just installing the MS-DAP R package is much easier
+- there's a learning curve to use Docker, even though we provide launcher scripts to make things easier you may need to consult with your local IT support if things don't go smoothly
+  - dealing with files / sharing files between computer and Docker container can be especially tricky
+- performing additional analyses outside standard MS-DAP workflows might take some extra work if you want to use R packages that aren't available within the Docker container
+  - i.e. you don't want to install new/extra R packages into the MS-DAP container as you might mistakingly update other packages that MS-DAP depends on, thereby breaking the reproducibility aspect of working with containers
+
+_note; this is intended as a very brief introduction and only highlights some common (dis)advantages from the perspective of MS-DAP users. This is by no means a complete introduction to containers or Docker, nor a thorough examination of the pros and cons of working with containers._
+
+
+# Using the Dockerized MS-DAP
 
 ## install Docker for Windows or macOS
 
@@ -25,9 +46,31 @@ output:
 
 
 
-## install Docker on Linux
+## install and test Docker on Linux
 
-follow the official installation guide for your Linux distribution at: https://docs.docker.com/engine/install/
+Follow the official installation guide for your Linux distribution at: https://docs.docker.com/engine/install/
+
+Example of running the MS-DAP Docker container that was tested on a Ubuntu live-USB;
+
+1) Installation following the guide on https://docs.docker.com/engine/install/ubuntu/ and using the "convenience script" for installation provided by Docker;
+
+- `curl -fsSL https://get.docker.com -o get-docker.sh`
+- `sudo sh get-docker.sh`
+
+2) Setting up users following https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user
+
+- `sudo groupadd docker` # might get a warning that group already exists, which is fine
+- `sudo usermod -aG docker $USER`  # or instead of `$USER` , enter your username
+- `newgrp docker` # update group
+- Now we'll need to log out (the current user) and log back in so the group membership is re-evaluated. (in the Ubuntu live-USB example this could be done by; `sudo -i` then `su ubuntu` )
+- `docker run hello-world` # test if docker works. Should see Docker downloading an image, print "Hello from Docker !" among other info/text
+
+3) run the MS-DAP docker launcher script (you can download it from this GitHub repository, there's a versioned script attached to each release at https://github.com/ftwkoopmans/msdap/releases )
+
+- `mkdir -m 777 ~/msdap_data` # importantly, check the permission flags used here. Create a folder in your home directory where data is exchanged between host system and the Docker container
+- `cd ~/msdap_data` # we want to run the launcher script from within the directory where data is exchanged
+- `~/Downloads/msdap_launcher_unix.sh`  # assume the launcher script is here and already made executable
+
 
 
 ## Start the Docker container
@@ -74,12 +117,12 @@ This section details each step involved in using the MS-DAP Docker container. In
 
 3) Download the MS-DAP Docker container by executing the following command in the terminal (only have to do this 'installation step' once):
 
-```docker pull ftwkoopmans/msdap:0.2.7.1```
+```docker pull ftwkoopmans/msdap:1.0.3```
 
 4) Run the Docker container and give it access to the directory on your computer (the 'host' system) that contains the proteomics data. 
 **importantly, Docker containers only have access to files on the host system that are explicitly mounted: update the highlighted path in the following command** (see further @ next subsection).
 
-<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:0.2.7.1</code>
+<code>docker run -p 3839:8787 -e PASSWORD=msdap -v **C:/data/proteomics**:/data -it ftwkoopmans/msdap:1.0.3</code>
 
 5) Open a browser, such as Firefox or Chrome, and access MS-DAP at http://localhost:3839 . You will be presented with a complete RStudio environment that contains MS-DAP!
 
@@ -145,6 +188,7 @@ dataset = analysis_quickstart(dataset,
                               dea_log2foldchange_threshold = NA,
                               diffdetect_min_samples_observed = 2, # for differential detection only
                               output_qc_report = TRUE,
+                              multiprocessing_maxcores = 4,
                               # note; within the Docker container, /data maps to the directory on your computer
                               # as defined when launching the MS-DAP Docker container
                               output_dir = "/data/dataset_Klaassen2018_pmid26931375",
@@ -162,6 +206,18 @@ print_dataset_summary(dataset)
 - https://docs.docker.com/docker-for-mac/
 
 
+**permission denied while trying to connect to the Docker daemon**
+
+The current user is not privileged to use docker. For instance, docker daemon is running as user U from group G and either; a) user U is root, or b) current user is not a member of group G (i.e. current user should be added to user group G). 
+
+The docker installation guide shows how to run docker as non-root user; https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user
+
+
+**failed to create output director  /  reason 'Permission denied'**
+
+When using the MS-DAP Docker container, you need to make sure the directory from which the launcher script is started is configured such that the current user has read and write permissions. For example, create a directory with world-writable permissions and start the launcher script from within. See Ubuntu example above. 
+
+
 **cannot locate input data from within the Docker container**
 
 1) double-check that the _mapped directory_ is correctly provided when starting the Docker container, as detailed in the above documentation.
@@ -171,4 +227,4 @@ print_dataset_summary(dataset)
 
 **timestamped MS-DAP output directories do not match the current time**
 
-This is a known issue; the timezone of the Docker container (and R runtime within) does not match the host computer (a solution is scheduled for the next release)
+This is a known issue; the timezone of the Docker container (and R runtime within) may not match the host computer. We try to deal with this in the launcher scripts, but issues may persist.

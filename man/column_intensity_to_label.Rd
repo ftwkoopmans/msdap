@@ -7,7 +7,7 @@
 column_intensity_to_label(col)
 }
 \arguments{
-\item{col}{todo}
+\item{col}{column name in dataset$peptides}
 }
 \description{
 pretty-print label for an intensity column

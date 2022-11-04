@@ -2,13 +2,13 @@
 % Please edit documentation in R/util_generic.R
 \name{coefficient_of_variation}
 \alias{coefficient_of_variation}
-\title{placeholder title}
+\title{CoV computation for an array of non-log values}
 \usage{
 coefficient_of_variation(nonlog_array)
 }
 \arguments{
-\item{nonlog_array}{todo}
+\item{nonlog_array}{numeric array of non-log values}
 }
 \description{
-placeholder title
+CoV computation for an array of non-log values
 }

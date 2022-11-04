@@ -3,7 +3,7 @@
 \docType{package}
 \name{msdap}
 \alias{msdap}
-\title{MS-DAP: A package for Downstream Analysis of Proteomics.}
+\title{MS-DAP: Mass Spectrometry Downstream Analysis Pipeline for label-free proteomics data.}
 \description{
 http://github.com/ftwkoopmans/msdap
 }

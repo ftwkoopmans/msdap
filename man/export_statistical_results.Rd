@@ -12,5 +12,5 @@ export_statistical_results(dataset, output_dir)
 \item{output_dir}{path to existing directory}
 }
 \description{
-write statistical results to file
+combines both the DEA and "differential testing" results into output file differential_abundance_analysis.xlsx
 }

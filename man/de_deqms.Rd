@@ -13,7 +13,7 @@ de_deqms(
 )
 }
 \arguments{
-\item{eset_proteins}{protein-level dataset stores as a Biobase ExpressionSet}
+\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet}
 
 \item{peptides}{peptide-level data tibble, must contain a protein_id and peptide_id column, used to count the number of unique peptides per protein}
 
@@ -24,5 +24,9 @@ de_deqms(
 \item{doplot}{create a QC plot?}
 }
 \description{
+ref; PMID:32205417
+ref; https://github.com/yafeng/DEqMS
+}
+\details{
 implementation follows example code from the vignette; https://bioconductor.org/packages/release/bioc/vignettes/DEqMS/inst/doc/DEqMS-package-vignette.html
 }

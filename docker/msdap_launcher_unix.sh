@@ -3,7 +3,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-VERSION="1.0.2"
+VERSION="1.0.3"
 
 
 ### OS
@@ -32,7 +32,15 @@ else
   # https://stackoverflow.com/a/677212
   # docker install guide: https://docs.docker.com/engine/install/#server  (in the table of supported platforms, click on your OS. eg; Ubuntu)
   command -v docker > /dev/null 2>&1 || { echo >&2 "ERROR: Docker is not installed"; exit 1; }
-  docker info > /dev/null 2>&1 || { echo >&2 "ERROR: Docker daemon must be up-and-running prior to running this script"; exit 1; }
+
+  if [ ! docker info > /dev/null 2>&1 ]; then
+    set -x
+    docker info groups
+    set +x
+    echo >&2 "ERROR: Docker daemon must be up-and-running prior to running this script"
+    echo >&2 "    And the user must be a member of the group docker"
+    exit 1
+  fi
 fi
 
 
@@ -59,7 +67,7 @@ fi
 
 ### open browser after an N second delay
 URL_RSTUDIO="http://localhost:3839"
-echo $'\nRStudio & MS-DAP will be available at: ${URL_RSTUDIO}\n'
+echo -e $'\e[32m' "\nRStudio & MS-DAP will be available at: ${URL_RSTUDIO}\n" $'\e[0m' 
 
 if [ ! -z "$ISMACOS" ]; then
   sleep 3 && open "${URL_RSTUDIO}" &

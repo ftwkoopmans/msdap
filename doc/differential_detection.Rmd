@@ -27,7 +27,7 @@ note: in the code blocks shown below (grey areas), the lines that start with `#>
 
 ## load dataset
 
-1. load the Skyline output of the LFQbench study (this file is bundled with the MS-DAP package, you don't have to download anything).
+1. load the Skyline output of the LFQbench study (PMID:27701404 ~ this file is bundled with the MS-DAP package, you don't have to download anything).
 
 2. extract the respective group/condition of each sample by matching a regular expression against the filenames. This is just to demonstrate a more advanced utility function that may come in handy for bioinformatic analyses. In typical MS-DAP workflows, the sample metadata would be loaded from file (a csv or Excel table), as demonstrated in the [user guide](userguide.md).
 

@@ -13,12 +13,12 @@ knitr::opts_chunk$set(
 ```
 
 
-This vignette describes the main functions of the MS-DAP R package.
+This vignette details the main functions of the MS-DAP R package.
 
 If you have not installed MS-DAP yet, check out the installation guides and example dataset for. You can use either of these;
 
-1) [MS-DAP in a Docker container](docker.md) that includes everything required to get started right away
-2) [MS-DAP R package](rpackage.md) that may be installed into a preexisting bioinformatics workflow
+1) [MS-DAP R package](rpackage.md) guide for installing MS-DAP into your `R` programming environment
+2) [MS-DAP in a Docker container](docker.md) guide for using a bundled "MS-DAP & RStudio" container using Docker
 
 
 
@@ -162,6 +162,7 @@ dataset = setup_contrasts(dataset,
 
 
 ## Apply pipeline
+
 ```{r eval=FALSE}
 dataset = analysis_quickstart(
   dataset,
@@ -194,24 +195,27 @@ dataset = analysis_quickstart(
   filter_by_contrast = TRUE,
 
   ## normalization algorithms are applied to the peptide-level data matrix.
-  # options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+  # options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+  # Refer to `normalization_algorithms()` function documentation for available options and a brief description of each.
   #
   # You can combine normalizations by providing an array of options to apply subsequential normalizations.
   # For instance, \code{norm_algorithm = c("vsn", "modebetween_protein")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group protein-level foldchanges with modebetween normalization.
   #
-  # Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the optimal strategies, see MS-DAP manuscript.
-  norm_algorithm = c("vwmb", "modebetween_protein"),
+  # Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the great general-purpose strategies, see MS-DAP manuscript.
+  norm_algorithm = c("vsn", "modebetween_protein"),
+  # rollup_algorithm strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like eBayes and DEqMS. Options: maxlfq, tukey_median, sum. See further documentation for function `rollup_pep2prot()`
+  rollup_algorithm = "maxlfq",
 
   ## Differential Expression Analysis (DEA)
-  # algorithms for differential expression analysis. options: options: ebayes, deqms, msempire, msqrob, msqrobsum
+  # algorithms for differential expression analysis. options include: ebayes, deqms, msempire, msqrob, msqrobsum. Refer to `dea_algorithms()` function documentation for available options and a brief description of each.
   # You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
   dea_algorithm = c("deqms", "msempire", "msqrob"),
-  # significance cutoff used in QC plots and 'significant' column in output Excel tables
+  # threshold for significance of q-values in figures and output tables. Output tables will also include all q-values as-is
   dea_qvalue_threshold = 0.05,
   # threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
   dea_log2foldchange_threshold = NA,
 
-  ## for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B
+  ## for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable
   diffdetect_min_samples_observed = 3,
 
   ## Quality Control reports
@@ -219,7 +223,7 @@ dataset = analysis_quickstart(
   output_qc_report = TRUE,
   # whether to write protein-level data matrices to file. options: FALSE, TRUE
   output_abundance_tables = TRUE,
-  # output directory where all output files should be stored. If not an existing directory, it will be created
+  # output directory where all output files should be stored. If the provided file path is not an existing directory, it will be created. Optionally, disable the creation of any output files (QC report, DEA table, etc.) by setting this parameter to NA (also overrides the 'dump_all_data' parameter)
   output_dir = "C:/<path>/",
   # optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there
   output_within_timestamped_subdirectory = TRUE,
@@ -235,7 +239,10 @@ dataset = analysis_quickstart(
 print_dataset_summary(dataset)
 ```
 
-## visualize all peptide-level data per protein
+Additional documentation and a few optional/niche-case parameters can be viewed by accessing the help for the `analysis_quickstart()` function in R (after loading the msdap R package, issue the command `?analysis_quickstart()`).
+
+
+## Visualize all peptide-level data per protein
 This is relatively time consuming, especially when you select to print _all_ proteins in the dataset. We therefore suggest to create these figures after exploring filtering, normalization and DEA parameters (and their impact on QC figures and finding significant hits).
 
 Importantly, the `norm_algorithm` parameter should list the same algorithm(s) as used in the pipeline previously
@@ -247,6 +254,12 @@ plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candid
                   # importantly, sync this parameter with the setting you used for analysis_quickstart()
                   norm_algorithm = c("vwmb", "modebetween_protein"))
 ```
+
+
+
+# Troubleshooting
+
+- For systems with many CPU cores that run into errors related to "socketConnection" or "PSOCK", try limiting the number of parallel threads to use for MSqRob/MSqRobSum by setting `analysis_quickstart()` function parameter `multiprocessing_maxcores` to a low number (e.g. 8)
 
 
 

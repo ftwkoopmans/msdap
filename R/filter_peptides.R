@@ -1,10 +1,16 @@
 
+#' check if peptide tibble has cache
+#' @param dataset your dataset
+#' @export
 check_dataset_hascache = function(dataset) {
   is.list(dataset) && all(c("groups","dt_pep_group") %in% names(dataset))
 }
 
 
 
+#' invalidate peptide tibble cache
+#' @param dataset your dataset
+#' @export
 invalidate_cache = function(dataset) {
   dataset$groups = NULL
   dataset$dt_pep_group = NULL
@@ -78,21 +84,25 @@ cache_filtering_data = function(dataset) {
   ################# pre-cache CoV
   ###### simplest approach: just compute CoV for each peptide, and later worry about the subset we will use downstream yes/no. These are only reference CoV's for sorting peptides @ topN filter anyway
   m = as_matrix_except_first_column(dataset$peptides %>% pivot_wider(id_cols = "key_peptide", names_from = "key_sample", values_from = "intensity"))
-  # fast mode normalization
-  m = normalize_matrix(m, mask_sample_groups = dataset$samples$group[match(colnames(m), as.character(dataset$samples$key_sample))], algorithm = "vwmb")
-  # debug; boxplot(m, outline=F)
-  # convert log2 intensities to natural log for CoV
-  m = log2_to_ln(m)
+  # remove rows that lack data
+  m = m[matrixStats::rowSums2(!is.na(m)) >= 2, , drop=F]
+  if(nrow(m) > 1) {
+    # fast mode normalization. samples$group is a character array, enforced upstream by sample_metadata_sort_and_filter()
+    m = normalize_matrix(m, group_by_cols = dataset$samples$group[match(colnames(m), as.character(dataset$samples$key_sample))], algorithm = "vwmb")
+    # debug; boxplot(m, outline=F)
+    # convert log2 intensities to natural log for CoV
+    m = log2_to_ln(m)
 
-  # cache CoV (so we get accurate estimation of 'low variation peptides' in downstream topN filters)
-  dtw_cov = data.table::data.table(key_peptide = as.numeric(rownames(m)))
-  for(k in grps$key_group) {
-    sid = intersect(as.character(dataset$samples %>% filter(key_group == k & !exclude) %>% pull(key_sample)), colnames(m))
-    if(length(sid) >= 2) {
-      dtw_cov[,as.character(k)] = coefficient_of_variation_vectorized(m[,colnames(m) %in% sid,drop=F])
+    # cache CoV (so we get accurate estimation of 'low variation peptides' in downstream topN filters)
+    dtw_cov = data.table::data.table(key_peptide = as.integer(rownames(m)))
+    for(k in grps$key_group) {
+      sid = intersect(as.character(dataset$samples %>% filter(key_group == k & !exclude) %>% pull(key_sample)), colnames(m))
+      if(length(sid) >= 2) {
+        dtw_cov[,as.character(k)] = coefficient_of_variation_vectorized(m[,colnames(m) %in% sid,drop=F])
+      }
     }
+    dt_cov = data.table::melt.data.table(dtw_cov, id.vars = "key_peptide", variable.name = "key_group", value.name = "cov")
   }
-  dt_cov = data.table::melt.data.table(dtw_cov, id.vars = "key_peptide", variable.name = "key_group", value.name = "cov")
 
   ## convert CoV estimates to scores between 0~1
   # this parameter has huge impact on peptide topN selection and is critical.
@@ -102,7 +112,7 @@ cache_filtering_data = function(dataset) {
   # CoV's are log-normal. we could relax penalizing 'outlier' CoVs by log transforming the CoVs before scaling 0~1
   #
   # alternatively, we could scale between 0.1~min(1, quantile(dt_cov$cov,0.99,na.rm=T)) for some added robustness. Eg; if a dataset has barely any variation, a peptides with ~5% variation is 'much worse' than one at 2% while at that point, difference in #detect might weigh more more. Haven't found any such problems in real data though
-  if("cov" %in% colnames(dt_cov)) {
+  if(exists("dt_cov") && "cov" %in% colnames(dt_cov)) {
     dt_cov$cov_scale_quantiles = scale_between_quantiles(dt_cov$cov, min_quantile = 0.01, max_quantile = 0.99)
     dt_cov$key_group = as.integer(as.vector(dt_cov$key_group))
     # join CoV's into peptide*group tibble
@@ -169,7 +179,7 @@ cache_filtering_data = function(dataset) {
   # # fast mode normalization
   # m = as.matrix(dtw_int[,-"key_peptide"])
   # rownames(m) = dtw_int$key_peptide
-  # m = log2_to_ln(normalize_mode(m, mask_sample_groups = dataset$samples$group[match(colnames(m), as.character(dataset$samples$key_sample))]))
+  # m = log2_to_ln(normalize_mode(m, group_by_cols = dataset$samples$group[match(colnames(m), as.character(dataset$samples$key_sample))]))
   #
   # #cleanup
   # rm(dtw_int)
@@ -181,7 +191,7 @@ cache_filtering_data = function(dataset) {
 
 #' Filter dataset
 #'
-#' For each of the filters (by group, all groups, by contrast) an extra column will be appended to the dataset$peptides table that contains the intensity data for all peptides that pass these filters (name: intensity_<filter>).
+#' For each of the filters (by group, all groups, by contrast) an extra column will be appended to the dataset$peptides table that contains the intensity data for all peptides that pass these filters (`name: intensity_<filter>`).
 #' Optionally, you can apply normalization (recommended).
 #'
 #' Note; this is built-in for \code{analysis_quickstart} so if you use that all-in-one function you don't have to perform all pipeline steps manually
@@ -194,6 +204,7 @@ cache_filtering_data = function(dataset) {
 #' @param filter_min_peptide_per_prot in order for a peptide to 'pass' in a sample group, how many peptides should be available after detect filters?
 #' @param filter_topn_peptides maximum number of peptides to maintain for each protein (from the subset that passes above filters, peptides are ranked by the number of samples where detected and their variation between replicates). 1 is default, 2 can be a good choice situationally. If set to 1, make sure to inspect individual peptide data/plots for proteins with 1 peptide.
 #' @param norm_algorithm normalization algorithms. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
+#' @param rollup_algorithm the algorithm for combining peptides to proteins as used in normalization algorithms that require a priori rollup from peptides to a protein-level abundance matrix (e.g. modebetween_protein). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
 #' @param by_group within each sample group, apply the filter. All peptides that fail the filter in group g will have intensity value NA in the intensity_by_group column for the samples in the respective group
 #' @param all_group in every sample group, apply the filter. All peptides that fail the filter in any group will have intensity value NA in the intensity_all_groups column for all samples
 #' @param by_contrast should the above filters be applied to all sample groups, or only those tested within each contrast? Enabling this optimizes available data in each contrast, but increases the complexity somewhat as different subsets of peptides are used in each contrast and normalization is applied separately
@@ -202,14 +213,15 @@ cache_filtering_data = function(dataset) {
 #' @importFrom matrixStats rowSums2
 #' @export
 filter_dataset = function(dataset,
-                             # peptide filter criteria applied within each sample group
-                             filter_min_detect = 1, filter_fraction_detect = 0, filter_min_quant = 0, filter_fraction_quant = 0,
-                             # respective criteria on protein level
-                             filter_min_peptide_per_prot = 1, filter_topn_peptides = 0,
-                             # normalization
-                             norm_algorithm="",
-                             # which filters to apply
-                             by_group = T, all_group = T, by_contrast = F) {
+                          # peptide filter criteria applied within each sample group
+                          filter_min_detect = 1, filter_fraction_detect = 0, filter_min_quant = 0, filter_fraction_quant = 0,
+                          # respective criteria on protein level
+                          filter_min_peptide_per_prot = 1, filter_topn_peptides = 0,
+                          # normalization
+                          norm_algorithm = "",
+                          rollup_algorithm = "maxlfq",
+                          # which filters to apply
+                          by_group = T, all_group = T, by_contrast = F) {
   start_time = Sys.time()
 
   ##### input validation
@@ -218,6 +230,9 @@ filter_dataset = function(dataset,
   check_parameter_is_boolean(by_group, all_group, by_contrast)
   if(!all(is.character(norm_algorithm))) {
     append_log("function argument 'norm_algorithm' must be a string", type = "error")
+  }
+  if(length(rollup_algorithm) != 1 || any(!is.character(rollup_algorithm))) {
+    append_log("function argument 'rollup_algorithm' must be a single string (not an array)", type = "error")
   }
 
   # there should be no decoys at this point
@@ -238,12 +253,16 @@ filter_dataset = function(dataset,
     dataset = cache_filtering_data(dataset)
   }
 
+  # used for reporting results later on
+  npep_input = n_distinct(dataset$peptides$peptide_id)
+  log_stats = NULL
 
   # remove all pre-existing filtering columns
   cols_intensity = grep("^intensity_", colnames(dataset$peptides), ignore.case = T, value=T)
   if(length(cols_intensity) > 0) {
     append_log(sprintf("applying new filters, removing pre-existing data columns: %s", paste(cols_intensity, collapse=", ")))
-    dataset$peptides[,cols_intensity] = NULL
+    dataset$peptides[,cols_intensity] = NULL # remove additional intensity columns
+    dataset$peptides = dataset$peptides %>% filter(is.finite(intensity)) # remove imputed values, if any
   }
 
 
@@ -304,6 +323,8 @@ filter_dataset = function(dataset,
       dataset$peptides$intensity_all_group_withexclude[is.na(i) | dt_filter_group_wide$ngroup[i] != nrow(dataset$groups)] <- NA
       rm(i)
     }
+    # log results
+    log_stats = c(log_stats, sprintf("%d/%d peptides were retained after filtering over all groups", dataset$peptides %>% filter(!is.na(intensity_all_group)) %>% distinct(peptide_id) %>% nrow(), npep_input))
   }
 
 
@@ -345,6 +366,10 @@ filter_dataset = function(dataset,
       intensity_col_contr = paste0("intensity_", col_contr)
       dataset$peptides[,intensity_col_contr] = dataset$peptides$intensity
       dataset$peptides[!(grp1_mask & grp2_mask & dataset$peptides$key_sample %in% col_contr_samples$key_sample), intensity_col_contr] <- NA
+
+      # log results
+      log_stats = c(log_stats, sprintf("%d/%d peptides were retained after filtering within %s", dataset$peptides %>% select(peptide_id, intensity = !!intensity_col_contr) %>% filter(!is.na(intensity)) %>% distinct(peptide_id) %>% nrow(), npep_input, col_contr))
+
       # table(grp1_mask); table(grp2_mask); table(!(grp1_mask & grp2_mask & dataset$peptides$key_group %in% c(grp1_key,grp2_key))); dataset$peptides %>% select(value = !!intensity_col_contr, key_group, sample_id, peptide_id) %>% filter(!is.na(value)) %>% count(key_group, sample_id)
     }
   # } else {
@@ -386,14 +411,32 @@ filter_dataset = function(dataset,
     dataset$peptides = dataset$peptides %>% select(-one_of(cols_bygroup))
     # update intensity column names after merging by-group filter
     cols_intensity = grep("^intensity_", colnames(dataset$peptides), ignore.case = T, value=T)
+    # log results
+    log_stats = c(log_stats, sprintf("%d/%d peptides were retained after filtering within each group independently (\"by group\")", dataset$peptides %>% filter(!is.na(intensity_by_group)) %>% distinct(peptide_id) %>% nrow(), npep_input))
   }
 
 
   if(any(norm_algorithm != "")) {
     for(col_intensity in cols_intensity) { #col_intensity=cols_intensity[1]
-      dataset$peptides[ , col_intensity] = normalize_intensities(data.table::setDT(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!col_intensity)), norm_algorithm = norm_algorithm)
+      dataset = normalize_peptide_intensity_column(dataset, col_intensity = col_intensity, norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm)
+      # dataset$peptides[ , col_intensity] = normalize_intensities(data.table::setDT(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!col_intensity)), norm_algorithm = norm_algorithm)
     }
-    # obsolete, v1; dataset$peptides = normalize_peptide_intensities(dataset$peptides, samples = dataset$samples, cols_intensity = cols_intensity, norm_algorithm = norm_algorithm)
+  }
+
+
+  # report to console
+  if(length(log_stats) > 0) {
+    log_settings = NULL
+    if(filter_min_detect > 0) log_settings = c(log_settings, paste("min_detect =", filter_min_detect))
+    if(filter_fraction_detect > 0) log_settings = c(log_settings, paste("fraction_detect =", filter_fraction_detect))
+    if(filter_min_quant > 0) log_settings = c(log_settings, paste("min_quant =", filter_min_quant))
+    if(filter_fraction_quant > 0) log_settings = c(log_settings, paste("fraction_quant =", filter_fraction_quant))
+    if(filter_min_peptide_per_prot > 1) log_settings = c(log_settings, paste("min_peptide_per_prot =", filter_min_peptide_per_prot))
+    if(filter_topn_peptides > 0) log_settings = c(log_settings, paste("topn_peptides =", filter_topn_peptides))
+    if(any(norm_algorithm != "")) log_settings = c(log_settings, paste0("norm_algorithm = '", paste(norm_algorithm, collapse = "&"), "'"))
+    log_settings = c(log_settings, paste0("rollup_algorithm = '", rollup_algorithm, "'"))
+
+    append_log(sprintf("filter dataset with settings: %s\n%s", paste(log_settings, collapse = "; "), paste(log_stats, collapse = "\n")), type = "info")
   }
 
   # guarantee downstream compatability, enforce tibble type
@@ -409,7 +452,7 @@ filter_dataset = function(dataset,
   #                       replications = 100)
   # result; a=12sec, b=1sec
   #
-  ################# some reference code to keep around until codebase is stable
+  ################# some reference code
   ## ref; all-in-one bygroup filter & minpep
   # dataset$peptides$intensity_by_group = dataset$peptides$intensity
   # # add 'by group' filter ignoring the exclude samples where we remove from the intensity values those that originate from a sample where the respective peptide doesn't pass group-wide filter (no normalization applied yet)
@@ -457,7 +500,6 @@ filter_proteins_by_pepcount = function(peptides, col_intensity, min_peptides) {
   protein_filter = protein_filter %>%
     filter(peptide_count >= min_peptides)
   # log_count_post = nrow(protein_filter)
-  # TODO: print log
 
   return(protein_filter$key_protein)
   # peptides[!(peptides$key_protein %in% protein_filter$key_protein), col_intensity] <- NA
@@ -523,7 +565,6 @@ filter_proteins_by_topn = function(peptides, dt_pep_group, col_intensity, filter
   # 1) number peptides within a protein from 1:N, 2) remove those outside of topN as an efficient way of subsetting
   x = x[ , index := seq_len(.N), by = key_protein][index <= filter_topn_peptides]
 
-  # cat(nrow(dt_pep_score), "/", nrow(tibw_abundance), "\n")
   return(x$key_peptide)
 
   ## reference code for both dplyr and data.table in a benchmark. Performance is comparable, with a slight edge for data.table
@@ -544,141 +585,11 @@ filter_proteins_by_topn = function(peptides, dt_pep_group, col_intensity, filter
 }
 
 
-# given some intensity column, values must be log2 transformed, return an aligned intensity array (eg; so downstream code can insert said array anywhere, and/or compare to input data (eg; in case we'd overwrite))
-#' @importFrom data.table data.table is.data.table setorder dcast
-normalize_intensities = function(DT, norm_algorithm = "vwmb") {
-  stopifnot(data.table::is.data.table(DT))
-  stopifnot(c("key_peptide_sample", "key_peptide", "key_sample", "key_group", "intensity") %in% colnames(DT))
-  if(!all(is.character(norm_algorithm)) || !any(norm_algorithm != "")) {
-    append_log(sprintf("invalid normalization algorithm: must be (and array of) character type and contain at least one non-empty. Provided value: %s", paste(norm_algorithm, collapse = ",")), type = "warning")
-    return(DT$intensity)
-  }
-
-  # start_time = Sys.time()
-
-  # remove NA values to ensure we remove empty rows and columns, then convert to wide. this is the matrix we need to normalize
-  DT_subset = DT[!is.na(intensity), ]
-  # only check for total absence of values, for now
-  if(nrow(DT_subset) == 0) {
-    return(DT$intensity)
-  }
-
-  # enforce the order of this long-format table such that mapping long-to-wide and the reverse is trivial downstream
-  data.table::setorder(DT_subset, key_sample, key_peptide)
-  DTw = data.table::dcast(DT_subset, key_peptide ~ key_sample, value.var = "intensity", fill = NA)
-  # peptide grouping
-  m_protein = DT$key_protein[match(DTw$key_peptide, DT$key_peptide)]
-  # drop ID column from wide format matrix
-  DTw[ , key_peptide := NULL]
-  m = as.matrix(DTw)
-
-  # get group names. using match is pretty fast, see benchmark; rbenchmark::benchmark(match={m_groups = paste0("group_key_", DT$key_group[match(as.integer(colnames(m)), DT$key_sample)])}, dt={tmp=DT[unique(key_sample), .(key_sample, key_group)]})
-  m_groups = paste0("group_key_", DT$key_group[match(as.integer(colnames(m)), DT$key_sample)])
-
-  # actual normalization
-  for(alg in norm_algorithm) {
-    if(alg == "") break
-    m = normalize_matrix(x_as_log2 = m, algorithm = alg, mask_sample_groups = m_groups, rows_group_by = m_protein)
-  }
-  stopifnot(colnames(m) == colnames(DTw)) # column names must be preserved inside normalization functions
-
-  # back to long-format. because we sorted the long-format data.table and made sure to remove empty rows/columns, the data order is unchanged between long-format DT_subset and wide-format DTw. Thus, casting back from wide-to-long is trivial
-  # v2: return from m those indices in the 'data cast to wide format' that were not NA to begin with
-  DT_subset$intensity_norm = m[!is.na(DTw)]
-  # v1:
-  # # have to omit the NA's, as those are also absent from DT_subset
-  # # !! while efficient, this could lead to bugs IF the normalization yields NAs for indices/values that previously were a finite number
-  # DT_subset$intensity_norm = na.omit(c(m))
-
-  # debug: summary(DT_subset$intensity_norm-DT_subset$intensity)
-  # debug: plot(density(DT_subset$intensity_norm - DT_subset$intensity, na.rm=T)); abline(v=0,col=2)
-  # debug: boxplot(m[,order(m_groups),drop=F], outline=F, main="normalized") # make sure we order samples by group when showing abundance distributions
-
-  # return intensity values aligned to the input data.table DT, using the unique peptide*sample key
-  # append_log_timestamp(sprintf("peptide intensity normalization '%s'", paste(norm_algorithm, collapse = "&")), start_time)
-  return(DT_subset$intensity_norm[match(DT$key_peptide_sample, DT_subset$key_peptide_sample)])
-}
-
-
-
-## normalization implementation v1; 'more natural' but relatively slow
-# normalize_peptide_intensities = function(peptides, samples, cols_intensity, norm_algorithm) {
-#   # peptides: key_peptide_sample, key_peptide, key_sample, key_group, intensity
-#   # debug; PEP <<- peptides; SAM <<- samples; COL <<- cols_intensity; NRM <<- norm_algorithm
-#   # debug; peptides = PEP; samples=SAM; cols_intensity=COL; norm_algorithm=NRM
-#   # debug; print(cols_intensity); print(norm_algorithm)
-#   stopifnot(c("group","key_sample") %in% colnames(samples))
-#   if(!any(norm_algorithm != "")) {
-#     return(peptides)
-#   }
-#   start_time = Sys.time()
-#   # prep data.table
-#   x = data.table::data.table(peptides %>% select(key_peptide_sample, key_peptide, key_sample, !!cols_intensity))
-#   # data.table::setkey(x, key_peptide, key_sample)
-#   # i = match(peptides$key_peptide_sample, x$key_peptide_sample)
-#
-#   for(col_intensity in cols_intensity) { #col_intensity=cols_intensity[1]
-#     # convert to wide, this is the matrix we need to normalize
-#     y = data.table::dcast(x[!is.na(x[[col_intensity]]), ], key_peptide ~ key_sample, value.var = col_intensity, fill = NA)
-#     # as matrix
-#     m = as.matrix(y[,-1])
-#     # debug: M=m;
-#     # debug; print(col_intensity); print(colnames(m)); print(samples %>% filter(as.character(key_sample) %in% colnames(m)) %>% select(key_sample, sample_id, shortname, group, exclude), n=99)
-#
-#     # actual normalization
-#     m_column_index_in_samples = match(colnames(m), as.character(samples$key_sample))
-#     if(any(is.na(m_column_index_in_samples))) {
-#       append_log(sprintf("normalization: matching data matrix to sample metadata to retrieve sample groups failed. columns (`key_sample`): %s. Respective column @ samples: %s", paste(colnames(m), collapse=", "), paste(samples$key_sample, collapse=", ")), type = "error")
-#     }
-#     mask_sample_groups = samples$group[m_column_index_in_samples]
-#     for(alg in norm_algorithm) {
-#       if(alg == "") break
-#       m = normalize_matrix(x_as_log2 = m, algorithm = alg, mask_sample_groups = mask_sample_groups)
-#     }
-#     stopifnot(colnames(m) == colnames(y)[-1]) # column names must be preserved inside normalization functions
-#     # debug: summary(c(M-m)); plot(density(c(M-m), na.rm=T)); boxplot(M, outline=F, main="pre-norm"); boxplot(m, outline=F, main="normalized")
-#
-#     # back to long-format
-#     dt_m = data.table::data.table(m)
-#     dt_m$key_peptide = y$key_peptide
-#     z = data.table::melt.data.table(dt_m, id.vars = "key_peptide", variable.name = "key_sample", value.name = "intensity_norm")
-#     z$key_sample = as.integer(as.vector(z$key_sample))
-#
-#     # new
-#     data.table::setkey(z, key_peptide, key_sample)
-#     data.table::setkey(x, key_peptide, key_sample)
-#     z = data.table::merge.data.table(z, x[ , .(key_peptide, key_sample, key_peptide_sample)], all.x = T, all.y = F, by=c("key_peptide", "key_sample"), sort = FALSE) # disable sort for speed
-#     # code QC: value yes/no should be preserved before/after normalization. a double check for indexing screwups; stopifnot(is.na(peptides[,col_intensity]) == is.na(z$intensity_norm[match(peptides$key_peptide_sample, z$key_peptide_sample)]))
-#     peptides[,col_intensity] = z$intensity_norm[match(peptides$key_peptide_sample, z$key_peptide_sample)]
-#
-#     # # drop intensity column from x and merge normalized data back in (because we don't have direct mapping from z back to x. after all, each intensity column has different subset of peptides-with-nonNA and/or samples)
-#     # data.table::setkey(z, key_peptide, key_sample)
-#     # data.table::setkey(x, key_peptide, key_sample)
-#     # x = data.table::merge.data.table(x, z, all.x = T, sort = FALSE) # disable sort is important, so we can recycle the index from peptides to x
-#     # # debug; summary(peptides[,col_intensity] %>% pull() - x[i,intensity_norm]); plot(density(peptides[,col_intensity] %>% pull() - x[i,intensity_norm], na.rm=T)); plot(peptides[,col_intensity] %>% pull(), x[i,intensity_norm])
-#     #
-#     # # overwrite normalized data @ peptides tibble, re-using the mapping from peptides-to-x over and over again
-#     # peptides[,col_intensity] = x[i,intensity_norm]
-#     #
-#     # # drop normalized intensities from x
-#     # x[, intensity_norm := NULL]
-#
-#     # debug;
-#     # peptides %>% select(value=!!col_intensity, sample_id) %>% left_join(samples %>% select(sample_id, group, exclude, shortname))
-#     # print(peptides %>% select(value=!!col_intensity, sample_id) %>% filter(!is.na(value)) %>% count(sample_id) %>% left_join(samples %>% select(sample_id, group, exclude, shortname), n=99), n=99)
-#   }
-#
-#   append_log_timestamp("peptide intensity normalization", start_time)
-#   return(peptides)
-# }
-
-
-
 
 # helper function for simple filtering, applies a filter to each group individually
 # eg; within each group, remove peptides that are not detected in at least 2 replicates
 #' @importFrom data.table data.table
-filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard_exclude_samples=F, nquant=2, ndetect=1, norm_algorithm = "vwmb") {
+filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard_exclude_samples=F, nquant=2, ndetect=1, norm_algorithm = "vwmb", rollup_algorithm = "maxlfq") {
   # input validation
   check_dataset_integrity(dataset)
   if(length(colname) != 1 || !grepl("^intensity_", colname)) {
@@ -705,6 +616,117 @@ filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard
   }
 
   # normalize
-  dataset$peptides[ , colname] = normalize_intensities(data.table::data.table(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!colname)), norm_algorithm = norm_algorithm)
+  dataset = normalize_peptide_intensity_column(dataset, col_intensity = colname, norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm)
+  # dataset$peptides[ , colname] = normalize_intensities(data.table::data.table(dataset$peptides %>% select(key_peptide_sample, key_peptide, key_protein, key_sample, key_group, intensity = !!colname)), norm_algorithm = norm_algorithm)
+  return(dataset)
+}
+
+
+
+#' Apply an array of normalization algorithms to some intensity column in the peptide table
+#'
+#' @param dataset your dataset
+#' @param col_intensity intensity column in dataset$peptides tibble
+#' @param norm_algorithm array of normalization algorithm character IDs
+#' @param rollup_algorithm the algorithm for combining peptides to proteins as used in normalization algorithms that require a priori rollup from peptides to a protein-level abundance matrix (e.g. modebetween_protein). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
+#' @importFrom data.table data.table is.data.table setorder dcast
+normalize_peptide_intensity_column = function(dataset, col_intensity, norm_algorithm, rollup_algorithm ) {
+  if(length(col_intensity) != 1 || !is.character(col_intensity) || ! col_intensity %in% colnames(dataset$peptides)) {
+    append_log(sprintf("invalid dataset$peptides column provided to normalize_peptide_intensity_column(). Provided value: %s", paste(col_intensity, collapse = ",")), type = "error")
+  }
+  if(!all(is.character(norm_algorithm)) || !any(norm_algorithm != "")) {
+    append_log(sprintf("invalid normalization algorithm provided to normalize_peptide_intensity_column(): must be (and array of) character type and contain at least one non-empty. Provided value: %s", paste(norm_algorithm, collapse = ",")), type = "error")
+  }
+
+  # remove NA values to ensure we remove empty rows and columns
+  tib_subset = dataset$peptides %>% filter(!is.na(!!as.symbol(col_intensity)))
+
+  # only check for total absence of values, for now
+  if(nrow(tib_subset) == 0) {
+    return(dataset)
+  }
+
+  # convert to wide. this is the matrix we need to normalize
+  tibw_subset = tib_subset %>%
+    pivot_wider(id_cols = "peptide_id", names_from = "sample_id", values_from = !!col_intensity, values_fill = NA)
+
+  # tibble to numeric matrix
+  mat = as.matrix(tibw_subset %>% select(-peptide_id))
+
+  # group names
+  m_groups = dataset$samples$group[match(colnames(mat), dataset$samples$sample_id)] # character array, enforced upstream by sample_metadata_sort_and_filter()
+  # peptide-to-protein grouping
+  m_protein = tib_subset$protein_id[match(tibw_subset$peptide_id, tib_subset$peptide_id)]
+
+  # actual normalization; apply all algorithms iteratively
+  for(alg in norm_algorithm) {
+    mat = normalize_matrix(x_as_log2 = mat, algorithm = alg, group_by_cols = m_groups, group_by_rows = m_protein, rollup_algorithm = rollup_algorithm)
+  }
+
+  # back to long-format
+  tib_result = as_tibble(mat) %>%
+    # matrix to tibble, and add peptide ID back
+    add_column(peptide_id = tibw_subset$peptide_id) %>%
+    # to long format
+    pivot_longer(cols = -"peptide_id", names_to = "sample_id", values_to = "intensity_temp") %>%
+    # remove NA from normalized data matrix
+    filter(is.finite(intensity_temp)) %>%
+    rename({{col_intensity}} := intensity_temp)
+
+
+  # importantly, now that we allow normalization functions to impute, this function can actually EXPAND the peptide tibble
+  # e.g. peptide P in sample S was never observed in the input data (not detect, not MBR) -> impute -> must expand table
+
+
+  # FULL JOIN original peptide tables and our normalization results from this function
+  dataset$peptides = dataset$peptides %>%
+    select(-one_of(!!col_intensity)) %>%
+    full_join(tib_result, by = c("peptide_id", "sample_id"))
+
+  # carry over other columns from peptide_id. e.g. protein_id, sequence_plain, etc. set decoy and detect columns to boolean
+  dataset = dataset_transfer_peptide_properties(dataset)
+
+  # if any imputation was performed, invalidate cache
+  if(anyNA(dataset$peptides$intensity)) {
+    dataset = invalidate_cache(dataset)
+  }
+
+  return(dataset)
+  # debug, show imputed rows; tmp %>% filter(is.na(intensity)) %>% select(!starts_with("key_"))
+}
+
+
+
+#' carries over protein_id, sequence_plain and sequence_modified in rows where protein_id is NA
+#'
+#' all NA values in detect and isdecoy columns will be set to FALSE
+#'
+#' @param dataset input dataset
+#' @importFrom data.table chmatch
+dataset_transfer_peptide_properties = function(dataset) {
+  stopifnot(!is.na(dataset$peptides$peptide_id) & !is.na(dataset$peptides$sample_id))
+  # rows that need updating; protein_id is NA. We here assume that rows with a protein_id have sequence data
+  rows_todo = is.na(dataset$peptides$protein_id)
+  if(!any(rows_todo)) {
+    return(dataset)
+  }
+
+  # reference table
+  tib_ref = dataset$peptides %>% filter(!rows_todo)
+  # index from entire table to reference. use data.table::chmatch as it's a bit faster than regular match
+  i = data.table::chmatch(dataset$peptides$peptide_id, tib_ref$peptide_id)
+
+  # just blanked overwrite, faster than subsetting all the time
+  dataset$peptides$protein_id = tib_ref$protein_id[i]
+  dataset$peptides$sequence_plain = tib_ref$sequence_plain[i]
+  dataset$peptides$sequence_modified = tib_ref$sequence_modified[i]
+
+  # optional columns to set to a default value
+  if("detect" %in% colnames(dataset$peptides)) {
+    dataset$peptides$detect[is.na(dataset$peptides$detect)] = FALSE
+  }
+  if("isdecoy" %in% colnames(dataset$peptides)) {
+    dataset$peptides$isdecoy[is.na(dataset$peptides$isdecoy)] = FALSE
+  }
   return(dataset)
 }

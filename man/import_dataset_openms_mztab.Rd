@@ -15,7 +15,7 @@ This parser is based on output we generated with OpenMS 2.5 using input data and
 \details{
 Check the file "run_lfq.sh" in the above instructions (from OpenMS team) for exact workflow and settings used.
 
-By lack of more example mzTab files that we can adapt to, this code now **only** supports input data generated as in run_lfq.sh from the above example;
+By lack of more example mzTab files that we can adapt to, this code now \strong{only} supports input data generated as in run_lfq.sh from the above example;
 
 The main dependency / complication is that we require the peptide- and protein-scores exactly as computed in the reference OpenMS workflow.
 Thus, on each mzML file, apply search engine (eg; xtandem), PercolatorAdapter, FalseDiscoveryRate, IDFilter, IDScoreSwitcher.

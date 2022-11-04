@@ -6,11 +6,16 @@
 \usage{
 metadata_matrix_from_filenames(x)
 }
+\arguments{
+\item{x}{array of filenames}
+}
 \description{
-Assuming input files are somewhat well formatted,
-we here try to detect sample groups and other metadata to populate metadata table for user's convenience
+main function, remaining functions are internal / utility
 }
 \details{
+Assuming input files are somewhat well formatted,
+we here try to detect sample groups and other metadata to populate metadata table for user's convenience
+
 example; wt1, wt2, ko1, ko2, ...
 example; wt_1, wt_2, ko_1, ko_2, ...
 example; control_day1_1, control_day1_2, cond1_day1_1, cond1_day2_2, cond1_day2_3, ...

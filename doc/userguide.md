@@ -1,34 +1,42 @@
 
--   [Annotated example](#annotated-example)
-    -   [Import data](#import-data)
-    -   [Sample metadata table](#sample-metadata-table)
-    -   [Define contrasts](#define-contrasts)
-        -   [Dealing with batch effects](#dealing-with-batch-effects)
-    -   [Apply pipeline](#apply-pipeline)
-    -   [visualize all peptide-level data per
-        protein](#visualize-all-peptide-level-data-per-protein)
--   [Preparing input data](#preparing-input-data)
-    -   [MaxQuant](#maxquant)
-    -   [MetaMorpheus](#metamorpheus)
-    -   [Skyline](#skyline)
-    -   [FragPipe](#fragpipe)
-    -   [DIA-NN](#dia-nn)
-    -   [OpenSWATH](#openswath)
-    -   [EncyclopeDIA](#encyclopedia)
-    -   [Spectronaut](#spectronaut)
-    -   [Peaks](#peaks)
-    -   [OpenMS](#openms)
-    -   [ProteomeDiscoverer](#proteomediscoverer)
+-   <a href="#annotated-example" id="toc-annotated-example">Annotated
+    example</a>
+    -   <a href="#import-data" id="toc-import-data">Import data</a>
+    -   <a href="#sample-metadata-table" id="toc-sample-metadata-table">Sample
+        metadata table</a>
+    -   <a href="#define-contrasts" id="toc-define-contrasts">Define
+        contrasts</a>
+        -   <a href="#dealing-with-batch-effects"
+            id="toc-dealing-with-batch-effects">Dealing with batch effects</a>
+    -   <a href="#apply-pipeline" id="toc-apply-pipeline">Apply pipeline</a>
+    -   <a href="#visualize-all-peptide-level-data-per-protein"
+        id="toc-visualize-all-peptide-level-data-per-protein">Visualize all
+        peptide-level data per protein</a>
+-   <a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
+-   <a href="#preparing-input-data" id="toc-preparing-input-data">Preparing
+    input data</a>
+    -   <a href="#maxquant" id="toc-maxquant">MaxQuant</a>
+    -   <a href="#metamorpheus" id="toc-metamorpheus">MetaMorpheus</a>
+    -   <a href="#skyline" id="toc-skyline">Skyline</a>
+    -   <a href="#fragpipe" id="toc-fragpipe">FragPipe</a>
+    -   <a href="#dia-nn" id="toc-dia-nn">DIA-NN</a>
+    -   <a href="#openswath" id="toc-openswath">OpenSWATH</a>
+    -   <a href="#encyclopedia" id="toc-encyclopedia">EncyclopeDIA</a>
+    -   <a href="#spectronaut" id="toc-spectronaut">Spectronaut</a>
+    -   <a href="#peaks" id="toc-peaks">Peaks</a>
+    -   <a href="#openms" id="toc-openms">OpenMS</a>
+    -   <a href="#proteomediscoverer"
+        id="toc-proteomediscoverer">ProteomeDiscoverer</a>
 
-This vignette describes the main functions of the MS-DAP R package.
+This vignette details the main functions of the MS-DAP R package.
 
 If you have not installed MS-DAP yet, check out the installation guides
 and example dataset for. You can use either of these;
 
-1.  [MS-DAP in a Docker container](docker.md) that includes everything
-    required to get started right away
-2.  [MS-DAP R package](rpackage.md) that may be installed into a
-    preexisting bioinformatics workflow
+1)  [MS-DAP R package](rpackage.md) guide for installing MS-DAP into
+    your `R` programming environment
+2)  [MS-DAP in a Docker container](docker.md) guide for using a bundled
+    “MS-DAP & RStudio” container using Docker
 
 # Annotated example
 
@@ -125,7 +133,7 @@ Workflow:
 
 <!-- -->
 
-3.  save the Excel file and import the sample metadata in R
+3)  save the Excel file and import the sample metadata in R
 
 ``` r
 # create a template file to describe your sample metadata
@@ -226,24 +234,27 @@ dataset = analysis_quickstart(
   filter_by_contrast = TRUE,
 
   ## normalization algorithms are applied to the peptide-level data matrix.
-  # options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+  # options: "" (empty string disables normalization), "vsn", "loess", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein" (this balances foldchanged between sample groups. Highly recommended, see MS-DAP manuscript)
+  # Refer to `normalization_algorithms()` function documentation for available options and a brief description of each.
   #
   # You can combine normalizations by providing an array of options to apply subsequential normalizations.
   # For instance, \code{norm_algorithm = c("vsn", "modebetween_protein")} applies the vsn algorithm (quite strong normalization reducing variation) and then balances between-group protein-level foldchanges with modebetween normalization.
   #
-  # Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the optimal strategies, see MS-DAP manuscript.
-  norm_algorithm = c("vwmb", "modebetween_protein"),
+  # Benchmarks have shown that c("vwmb", "modebetween_protein") and c("vsn", "modebetween_protein") are the great general-purpose strategies, see MS-DAP manuscript.
+  norm_algorithm = c("vsn", "modebetween_protein"),
+  # rollup_algorithm strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like eBayes and DEqMS. Options: maxlfq, tukey_median, sum. See further documentation for function `rollup_pep2prot()`
+  rollup_algorithm = "maxlfq",
 
   ## Differential Expression Analysis (DEA)
-  # algorithms for differential expression analysis. options: options: ebayes, deqms, msempire, msqrob, msqrobsum
+  # algorithms for differential expression analysis. options include: ebayes, deqms, msempire, msqrob, msqrobsum. Refer to `dea_algorithms()` function documentation for available options and a brief description of each.
   # You can simply apply multiple DEA models in parallel by supplying an array of options. The output of each model will be visualized in the PDF report and data included in the output Excel report.
   dea_algorithm = c("deqms", "msempire", "msqrob"),
-  # significance cutoff used in QC plots and 'significant' column in output Excel tables
+  # threshold for significance of q-values in figures and output tables. Output tables will also include all q-values as-is
   dea_qvalue_threshold = 0.05,
   # threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
   dea_log2foldchange_threshold = NA,
 
-  ## for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B
+  ## for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable
   diffdetect_min_samples_observed = 3,
 
   ## Quality Control reports
@@ -251,7 +262,7 @@ dataset = analysis_quickstart(
   output_qc_report = TRUE,
   # whether to write protein-level data matrices to file. options: FALSE, TRUE
   output_abundance_tables = TRUE,
-  # output directory where all output files should be stored. If not an existing directory, it will be created
+  # output directory where all output files should be stored. If the provided file path is not an existing directory, it will be created. Optionally, disable the creation of any output files (QC report, DEA table, etc.) by setting this parameter to NA (also overrides the 'dump_all_data' parameter)
   output_dir = "C:/<path>/",
   # optionally, automatically create a subdirectory (within output_dir) that has the current date&time as name and store results there
   output_within_timestamped_subdirectory = TRUE,
@@ -267,7 +278,12 @@ dataset = analysis_quickstart(
 print_dataset_summary(dataset)
 ```
 
-## visualize all peptide-level data per protein
+Additional documentation and a few optional/niche-case parameters can be
+viewed by accessing the help for the `analysis_quickstart()` function in
+R (after loading the msdap R package, issue the command
+`?analysis_quickstart()`).
+
+## Visualize all peptide-level data per protein
 
 This is relatively time consuming, especially when you select to print
 *all* proteins in the dataset. We therefore suggest to create these
@@ -284,6 +300,14 @@ plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candid
                   # importantly, sync this parameter with the setting you used for analysis_quickstart()
                   norm_algorithm = c("vwmb", "modebetween_protein"))
 ```
+
+# Troubleshooting
+
+-   For systems with many CPU cores that run into errors related to
+    “socketConnection” or “PSOCK”, try limiting the number of parallel
+    threads to use for MSqRob/MSqRobSum by setting
+    `analysis_quickstart()` function parameter
+    `multiprocessing_maxcores` to a low number (e.g. 8)
 
 # Preparing input data
 
@@ -393,7 +417,7 @@ a format compatible with MS-DAP.
 
 There’s 2 ways to set this up (you only have to do this once):
 
-1.  download and import a schema that we already prepared for you
+1)  download and import a schema that we already prepared for you
     (probably easiest)
 
 -   <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/master/doc/misc/MS-DAP%20Format.rs">download
@@ -401,7 +425,7 @@ There’s 2 ways to set this up (you only have to do this once):
 -   in Spectronaut, open your dataset and go to the Report section
 -   click “import Schema…” then select the file you just downloaded
 
-2.  manually create a new schema
+2)  manually create a new schema
 
 -   in Spectronaut, open your dataset and go to the Report section
 -   click the default report
@@ -433,7 +457,9 @@ select “open image in new tab” (or just right-click, download/save
 image, open the downloaded image)
 
 <figure>
-<img src="misc/Spectronaut_report.png" style="width:100.0%" alt="Spectronaut config" /><figcaption aria-hidden="true">Spectronaut config</figcaption>
+<img src="misc/Spectronaut_report.png" style="width:100.0%"
+alt="Spectronaut config" />
+<figcaption aria-hidden="true">Spectronaut config</figcaption>
 </figure>
 
 ## Peaks
@@ -452,7 +478,9 @@ peptides ‘identified and quantified’ versus ‘only quantified’
 Peaks all peptides are considered ‘identified & quantified’.
 
 <figure>
-<img src="misc/peaks_config.png" style="width:50.0%" alt="Peaks config" /><figcaption aria-hidden="true">Peaks config</figcaption>
+<img src="misc/peaks_config.png" style="width:50.0%"
+alt="Peaks config" />
+<figcaption aria-hidden="true">Peaks config</figcaption>
 </figure>
 
 MS-DAP import function: `msdap::import_dataset_peaks()`
@@ -493,10 +521,10 @@ requirements:
 -   after installation of the above, you may need to reboot first as we
     found on some test systems
 
-1.  place this .bat file in the directory where your input files are
-2.  input: centroided mzML files + fasta files WITHOUT decoys (will be
+1)  place this .bat file in the directory where your input files are
+2)  input: centroided mzML files + fasta files WITHOUT decoys (will be
     generated on-the-fly)
-3.  output: mzTab output file compatible with MS-DAP + consensusXML for
+3)  output: mzTab output file compatible with MS-DAP + consensusXML for
     (optional) further processing by OpenMS
 
 MS-DAP import function: `msdap::import_dataset_openms_mztab()`
@@ -526,9 +554,9 @@ Example PD workflow:
 Optionally, tweak label-free data analysis settings to explore effects
 on MS-DAP assessment of your dataset:
 
--   Consensus step –>\> “peptide and protein filter” –>\> Peptide
-    Confidence At Least –>\> change to medium
--   Processing Step –>\> change precursor quantification from peak
+-   Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
+    Confidence At Least –\>\> change to medium
+-   Processing Step –\>\> change precursor quantification from peak
     (height) to area
 
 MS-DAP was tested with the results of the above workflow applied to the

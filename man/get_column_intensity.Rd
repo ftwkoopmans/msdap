@@ -2,15 +2,23 @@
 % Please edit documentation in R/dea.R
 \name{get_column_intensity}
 \alias{get_column_intensity}
-\title{returns named variable variable (label=column_name) indicating which type of intensity data is used}
+\title{prioritized selection of intensity column in a peptides tibble}
 \usage{
 get_column_intensity(peptides, contr_lbl = NA)
 }
 \arguments{
-\item{peptides}{todo}
+\item{peptides}{peptides tibble, e.g. dataset$peptides}
 
-\item{contr_lbl}{todo}
+\item{contr_lbl}{optionally a string describing a contrast, e.g. "contrast: WT vs KO"}
 }
 \description{
-returns named variable variable (label=column_name) indicating which type of intensity data is used
+\enumerate{
+\item if a column with intensity values for a specified contrasts exists, return it
+\item all_group filtering in "intensity_all_group" column
+\item custom filtering in "intensity_norm" column
+\item raw data in "intensity" column
+}
+}
+\details{
+returns a named array of length 1 where the name is a "pretty print label" and value is the column name
 }

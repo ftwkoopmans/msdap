@@ -7,11 +7,11 @@
 peptide_and_protein_counts_per_sample(peptides, samples, isdia)
 }
 \arguments{
-\item{peptides}{todo}
+\item{peptides}{peptide tibble in long format}
 
-\item{samples}{todo}
+\item{samples}{samples tibble in wide format}
 
-\item{isdia}{todo}
+\item{isdia}{boolean indicating this is a DIA dataset (DDA otherwise). Use is_dia_dataset(dataset) to obtain this from data}
 }
 \description{
 add peptide and protein counts to samples tibble, so downstream code includes this in output tables and report figures relating to sample metadata

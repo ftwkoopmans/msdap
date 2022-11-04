@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_fasta.R
 \name{fasta_parse_file}
 \alias{fasta_parse_file}
-\title{reasonably fast method for reading header rows from all fasta files (without over-complicating code/implementation to improve by a mere 1~2 seconds)}
+\title{Read non-redundant headers from all fasta files}
 \usage{
 fasta_parse_file(fasta_files, fasta_id_type = "uniprot")
 }
@@ -12,5 +12,5 @@ fasta_parse_file(fasta_files, fasta_id_type = "uniprot")
 \item{fasta_id_type}{fasta type, typically this is 'uniprot'}
 }
 \description{
-reasonably fast method for reading header rows from all fasta files (without over-complicating code/implementation to improve by a mere 1~2 seconds)
+Read non-redundant headers from all fasta files
 }

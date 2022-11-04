@@ -4,16 +4,43 @@
 \alias{plot_variance_explained}
 \title{Plot the variance explained of sample metadata properties in the protein-intensity matrix}
 \usage{
-plot_variance_explained(dataset, cols_metadata = NULL)
+plot_variance_explained(
+  dataset,
+  cols_metadata = NULL,
+  rollup_algorithm = "maxlfq"
+)
 }
 \arguments{
-\item{dataset}{your dataset}
+\item{dataset}{your dataset. Prior to calling the this function, you must have applied "all_group" filtering and normalization using the filter_dataset() function  (see example below)}
 
-\item{cols_metadata}{columns from dataset@samples to be used. leave empty to automatically infer (default)}
+\item{cols_metadata}{columns from `dataset@samples`` to be used. Set to NA or NULL to automatically infer (default)}
+
+\item{rollup_algorithm}{algorithm for combining peptides to proteins as used in DEA algorithms that require a priori rollup from peptides to a protein-level abundance matrix before applying statistics (e.g. ebayes, deqms). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each}
 }
 \description{
-basically a wrapper around the variancePartition R package (Hoffman GE, Schadt EE, 2016, PMID:27884101)
+precondition: the input dataset$peptides tibble must have a "intensity_all_group" column,
+e.g. obtained by first calling the filter_dataset() function with parameter all_group=TRUE
+(when using this function to analysis_quickstart() that is automatically taken care of)
 }
 \details{
+\enumerate{
+\item performs peptide-to-protein rollup
+\item impute missing values using the missForest R package (doi: 10.1093/bioinformatics/btr597)
+\item call the variancePartition R package (Hoffman GE, Schadt EE, 2016, PMID:27884101)
+}
+
 note; this is quite slow even on small datasets
+}
+\examples{
+\dontrun{
+  dataset = filter_dataset(
+    dataset, filter_min_detect = 0, filter_min_quant = 3,
+    by_group = FALSE, by_contrast = FALSE, all_group = TRUE,
+    norm_algorithm = c("vwmb", "modebetween_protein")
+  )
+  tmp = plot_variance_explained(dataset, cols_metadata = NA)
+  print(tmp$p_ve_violin)
+  print(tmp$tbl_ve)
+}
+
 }

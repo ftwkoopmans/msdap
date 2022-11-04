@@ -2,8 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{gg_color_hue}
 \alias{gg_color_hue}
-\title{generate colours analogous to ggplot's default palette
-https://stackoverflow.com/a/8197703}
+\title{generate colours analogous to ggplot's default palette}
 \usage{
 gg_color_hue(n)
 }
@@ -11,6 +10,5 @@ gg_color_hue(n)
 \item{n}{number of colors}
 }
 \description{
-generate colours analogous to ggplot's default palette
 https://stackoverflow.com/a/8197703
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_fasta.R
 \name{fasta_id_short}
 \alias{fasta_id_short}
-\title{extract the 'short ID' from a fasta header.}
+\title{extract the "short ID" from a fasta header.}
 \usage{
 fasta_id_short(id, fasta_id_type = "uniprot")
 }
@@ -12,6 +12,6 @@ fasta_id_short(id, fasta_id_type = "uniprot")
 \item{fasta_id_type}{fasta type. if uniprot, the 'short ID' is the accession between the pipe symbols}
 }
 \description{
-for uniprot, a 'short ID' is the accession between the pipe symbols.
-for all other types, remove <dot><record's version number>.
+for uniprot, a "short ID" is the accession between the pipe symbols.
+for all other types, remove \verb{<dot><record's version number>}.
 }

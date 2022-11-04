@@ -17,7 +17,7 @@ sample_metadata_custom(
 
 \item{sample_property_regex}{a named list of regular expressions to extract sample properties. name=sample property, value = array of length two with the regex and the replace string (first 2 arguments of sub())}
 
-\item{sample_exclude_regex}{regex to select samples that should be flagged as 'exclude'}
+\item{sample_exclude_regex}{optionally, regex to select samples that should be flagged as 'exclude'}
 
 \item{group_order}{optionally, you can provide a preferred ordering of the sample groups as a character array}
 

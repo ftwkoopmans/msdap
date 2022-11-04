@@ -4,8 +4,6 @@
 #' @param path the directory that contains the search results (typically the 'txt' filter that contains files 'proteinGroups.txt' and 'evidence.txt')
 #' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
 #' @param remove_shared remove all shared peptides that could not be assigned to a single proteingroup as a unique- or razor-peptide ?
-#'
-#' @importFrom data.table fread
 #' @export
 import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequence_modified", remove_shared = TRUE) {
   reset_log()
@@ -21,7 +19,7 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
   }
 
   # first, check if input file exists
-  file_evidence = path_exists(path, "evidence.txt")
+  file_evidence = path_exists(path, "evidence.txt", try_compressed = TRUE)
 
   # get proteingroup information; accessions and mapping to peptides
   pep2prot = import_maxquant_proteingroups(path, remove_shared = remove_shared)
@@ -40,22 +38,60 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
                              mz = "m/z")
   attributes_optional = list(contaminant = c("contaminant", "Potential contaminant"),
                              score_target = "Score",
-                             score_mbr = "Match score")
+                             score_mbr = "Match score",
+                             # mq_pep_id = "Peptide ID",
+                             mq_mod_pep_id = "Mod. peptide ID")
 
-  headers = unlist(strsplit(readLines(file_evidence, n = 1), "\t"))
-  map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
-  map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
+  # basically this reads the CSV/TSV table from file and maps column names to expected names.
+  # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+  tibble_evidence = read_table_by_header_spec(file_evidence, attributes_required, attributes_optional, as_tibble_type = TRUE)
 
-  # here we don't allow duplicate matches
-  col_indices = c(map_required, map_optional)
-  col_indice_dupe_names = names(col_indices)[col_indices %in% col_indices[duplicated(col_indices)]]
-  if(length(col_indice_dupe_names) > 0) {
-    append_log(paste('Duplicates encountered when finding column names in input data;', paste(col_indice_dupe_names, collapse = ", ")), type = "error")
+
+  rows_fail = !is.character(tibble_evidence$sequence_plain) | nchar(tibble_evidence$sequence_plain) <= 3
+  if(any(rows_fail)) {
+    append_log(sprintf("%d/%d rows (%.1f%%) in MaxQuant evidence.txt contain no plain sequence", sum(rows_fail), length(rows_fail), sum(rows_fail)/length(rows_fail) * 100), type = "error")
   }
+  # bugfix: MaxQuant 2.1.1.0 may return empty values in "modified sequence" column sometimes (found some cases on MBR hits @ timsTOF DDA data)
+  # We here try to repair using the "Mod. peptide ID" column
+  rows_fail = !is.character(tibble_evidence$sequence_modified) | nchar(tibble_evidence$sequence_modified) <= 3
+  if(any(rows_fail)) {
+    if("mq_mod_pep_id" %in% colnames(tibble_evidence)) {
+      # if peptide identifiers are available, borrow modified sequences from there
+      if(all(is.numeric(tibble_evidence$mq_mod_pep_id) & is.finite(tibble_evidence$mq_mod_pep_id))) {
+        # lookup table for the set of unique modified sequence IDs to modified sequence string
+        tib_lookup = tibble_evidence %>%
+          select(sequence_modified, mq_mod_pep_id) %>%
+          distinct(mq_mod_pep_id, .keep_all = T) %>%
+          mutate(fail = !is.character(sequence_modified) | sequence_modified == "")
 
-  # only read columns of interest to speed up file parsing
-  tibble_evidence = as_tibble(data.table::fread(file_evidence, select = as.numeric(col_indices), check.names = T, stringsAsFactors = F))
-  colnames(tibble_evidence) = names(col_indices)
+        fraction_fail = sum(tib_lookup$fail) / nrow(tib_lookup)
+        if(fraction_fail <= 0.1) {
+          nrow_before = nrow(tibble_evidence)
+          # replace all modified sequence using lookup table
+          tibble_evidence = tibble_evidence %>%
+            # join modified sequence from lookup table. Subset of valid sequences only
+            select(-sequence_modified) %>%
+            left_join(tib_lookup %>% filter(!fail), by = "mq_mod_pep_id") %>%
+            # remove those entries in evidence table that failed to map
+            filter(!is.na(sequence_modified))
+
+          # print warning for data integrity issue and report on success rate of repairing
+          append_log(sprintf("%d/%d rows (%.1f%%) in MaxQuant evidence.txt contain no modified sequence. After repairing %.2f%% of problematic peptides, we have to remove %d/%d peptides (%.2f%% of all rows in evidence.txt). Note that unrepairable entries are most likely MBR hits that were never identified by MS/MS, most likely this information is missing in evidence.txt due to a bug in MaxQuant (if input files for MS-DAP were MaxQuant output as-is)",
+                             sum(rows_fail), length(rows_fail), sum(rows_fail)/length(rows_fail) * 100, (1-fraction_fail) * 100, sum(tib_lookup$fail), nrow(tib_lookup), (nrow_before - nrow(tibble_evidence)) / nrow_before * 100), type = "warning")
+        } else {
+          # halt if more than 10% of peptides would be removed
+          append_log(sprintf("%d/%d rows (%.1f%%) in MaxQuant evidence.txt contain no modified sequence. We can only repair %.1f%% of peptides, so %d/%d peptides would be removed in total. Most likely a bug in MaxQuant, please report the mqpar.xml and evidence.txt to the MaxQuant team",
+                             sum(rows_fail), length(rows_fail), sum(rows_fail)/length(rows_fail) * 100, (1-fraction_fail) * 100, sum(tib_lookup$fail), nrow(tib_lookup)), type = "error")
+        }
+      } else {
+        # halt if we cannot repair due to incomplete modified peptide ID column
+        append_log(sprintf("%d/%d rows (%.1f%%) in MaxQuant evidence.txt contain no modified sequence. Modified peptide ID column is available but contains invalid (non-numeric) values, so we cannot repair. Most likely a bug in MaxQuant, please report the mqpar.xml and evidence.txt to the MaxQuant team", sum(rows_fail), length(rows_fail), sum(rows_fail)/length(rows_fail) * 100), type = "error")
+      }
+    } else {
+      # halt if we cannot repair due to lack of modified peptide ID column
+      append_log(sprintf("%d/%d rows (%.1f%%) in MaxQuant evidence.txt contain no modified sequence. Modified peptide ID column also missing, so we cannot repair. Most likely a bug in MaxQuant, please report the mqpar.xml and evidence.txt to the MaxQuant team.", sum(rows_fail), length(rows_fail), sum(rows_fail)/length(rows_fail) * 100), type = "error")
+    }
+  }
 
 
   # remove contaminants
@@ -122,12 +158,10 @@ import_dataset_maxquant_evidencetxt = function(path, collapse_peptide_by = "sequ
 #'
 #' @param path the directory that contains the search results (typically the 'txt' filter that contains files 'proteinGroups.txt' and 'evidence.txt')
 #' @param remove_shared remove all shared peptides that could not be assigned to a single proteingroup as a unique- or razor-peptide ?
-#'
-#' @importFrom data.table fread
 #' @export
 import_maxquant_proteingroups = function(path, remove_shared = T) {
-  file_prot = path_exists(path, "proteinGroups.txt")
-  file_pep = path_exists(path, "peptides.txt")
+  file_prot = path_exists(path, "proteinGroups.txt", try_compressed = TRUE)
+  file_pep = path_exists(path, "peptides.txt", try_compressed = TRUE)
 
   ###### parse proteinGroups.txt
   ## read proteingroup file and validate input columns
@@ -138,20 +172,9 @@ import_maxquant_proteingroups = function(path, remove_shared = T) {
                              peptide_ids = "Peptide IDs")
   attributes_optional = list(contaminant = c("contaminant", "Potential contaminant"))
 
-  headers = unlist(strsplit(readLines(file_prot, n = 1), "\t"))
-  map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
-  map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
-
-  # here we don't allow duplicate matches
-  col_indices = c(map_required, map_optional)
-  col_indice_dupe_names = names(col_indices)[col_indices %in% col_indices[duplicated(col_indices)]]
-  if(length(col_indice_dupe_names) > 0) {
-    append_log(paste('Duplicates encountered when finding column names in input data;', paste(col_indice_dupe_names, collapse = ", ")), type = "error")
-  }
-
-  # only read columns of interest to speed up file parsing
-  MQ_prot = as_tibble(data.table::fread(file_prot, select = as.numeric(col_indices), check.names = T, stringsAsFactors = F))
-  colnames(MQ_prot) = names(col_indices)
+  # basically this reads the CSV/TSV table from file and maps column names to expected names.
+  # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+  MQ_prot = read_table_by_header_spec(file_prot, attributes_required, attributes_optional, as_tibble_type = TRUE)
 
 
   # remove contaminants
@@ -174,20 +197,19 @@ import_maxquant_proteingroups = function(path, remove_shared = T) {
   }
   # to tibble
   pep2prot = tibble(
-    pepid = unlist(l_pepid, use.names = F),
+    pepid = suppressWarnings(as.integer(unlist(l_pepid, use.names = F))),
     protein_id = rep(MQ_prot$majority_protein_ids, lengths(l_pepid)),
     is_razor = tolower(unlist(l_pepisrazor, use.names = F)) == "true"
   )
+  if(any(!is.finite(pep2prot$pepid))) {
+    append_log("Mapping between MaxQuant files, all peptide identifiers in the 'Peptide IDs' column in proteinGroups.txt must be integers", type = "error")
+  }
 
 
   ###### collect peptide sequences for each peptide id
-  # read peptide file
-  MQ_pep = as.data.frame(fread(file_pep, select = c("id", "Sequence"), colClasses = "character"), stringsAsFactors = F)
-  if(ncol(MQ_pep) != 2) {
-    append_log("MaxQuant peptides.txt file must contain both columns 'id' and 'Sequence'", type = "error")
-  }
-  colnames(MQ_pep)[tolower(colnames(MQ_pep)) == "sequence"] = "sequence_plain"
-
+  # basically this reads the CSV/TSV table from file and maps column names to expected names.
+  # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+  MQ_pep = read_table_by_header_spec(file_pep, attributes_required = list(id = "id", sequence_plain = "Sequence"), as_tibble_type = TRUE)
 
   # align with pep2prot. must have a match for all peptide ids
   i = match(pep2prot$pepid, MQ_pep$id)
@@ -229,12 +251,13 @@ import_maxquant_proteingroups = function(path, remove_shared = T) {
 #' @param file_peptides full file path to MaxQuant's peptides.txt output file
 #' @param remove_shared_peptides remove all peptides that are assigned to multiple proteingroups (checked by having a semicolon in the 'Protein group IDs' column)
 #' @param pep2prot if available, provide a 2 column table that provides a mapping from each peptide to a protein. Required columns; protein_id and sequence_plain. Set NA to use "Leading razor protein" as protein grouping
-#'
-#' @importFrom data.table fread
 #' @export
 import_maxquant_peptides = function(file_peptides, remove_shared_peptides = T, pep2prot = NA) {
   reset_log()
   append_log("importing MaxQuant data from peptides.txt -->> we strongly recommend to import MaxQuant data using the function msdap::import_dataset_maxquant_evidencetxt() that used evidence.txt peptides.txt proteinGroups.txt", type = "warning")
+
+  # will check for presence of file as well as .gz/.zip extension if file doesn't exist, will throw error if both do not exist
+  file_peptides = path_exists(file_peptides, try_compressed = TRUE)
 
   ## read MaxQuant peptides.txt and validate input columns
   attributes_required = list(#id = "id",
@@ -245,32 +268,14 @@ import_maxquant_peptides = function(file_peptides, remove_shared_peptides = T, p
   attributes_optional = list(contaminant = c("contaminant", "Potential contaminant"),
                              proteingroups = c("Protein group IDs", "proteingroups"))
 
-  headers = unlist(strsplit(readLines(file_peptides, n = 1), "\t"))
-  map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
-  map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
+  # basically this reads the CSV/TSV table from file and maps column names to expected names.
+  # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
+  tibble_peptides = read_table_by_header_spec(file, attributes_required, attributes_optional, regex_headers = "^Intensity..+", as_tibble_type = TRUE)
 
-  #
-  map_intensity = grep("^Intensity..+", headers, ignore.case = T)
-  names(map_intensity) = headers[map_intensity]
-  if(length(map_intensity) == 0) {
-    append_log("Cannot find any Intensity columns in MaxQuant peptides.txt input file", type = "error")
-  }
-
-  # here we don't allow duplicate matches
-  col_indices = c(map_required, map_optional, map_intensity)
-  col_indice_dupe_names = names(col_indices)[col_indices %in% col_indices[duplicated(col_indices)]]
-  if(length(col_indice_dupe_names) > 0) {
-    append_log(paste('Duplicates encountered when finding column names in input data;', paste(col_indice_dupe_names, collapse = ", ")), type = "error")
-  }
-
-  # only read columns of interest to speed up file parsing
-  tibble_peptides = as_tibble(data.table::fread(file_peptides, select = as.numeric(col_indices), check.names = T, stringsAsFactors = F))
-  colnames(tibble_peptides) = names(col_indices)
 
   if(!"confidence" %in% colnames(tibble_peptides)) {
     tibble_peptides$confidence = NA
   }
-
 
   ### filters
   # shared between protein-groups

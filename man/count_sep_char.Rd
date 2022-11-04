@@ -6,6 +6,9 @@
 \usage{
 count_sep_char(x)
 }
+\arguments{
+\item{x}{array of strings}
+}
 \description{
 Count how often commonly used separation characters occur in an array of strings
 }

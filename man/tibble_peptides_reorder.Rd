@@ -2,13 +2,13 @@
 % Please edit documentation in R/dataset.R
 \name{tibble_peptides_reorder}
 \alias{tibble_peptides_reorder}
-\title{placeholder title}
+\title{rearrange column in a long-format peptides tibble}
 \usage{
 tibble_peptides_reorder(tib)
 }
 \arguments{
-\item{tib}{todo}
+\item{tib}{peptide tibble in long format}
 }
 \description{
-placeholder title
+rearrange column in a long-format peptides tibble
 }

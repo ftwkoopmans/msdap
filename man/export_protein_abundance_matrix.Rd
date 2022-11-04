@@ -4,12 +4,12 @@
 \alias{export_protein_abundance_matrix}
 \title{Rollup and export to protein-level TSV table, applied to all peptide-level intensity data}
 \usage{
-export_protein_abundance_matrix(dataset, algo_rollup, output_dir)
+export_protein_abundance_matrix(dataset, rollup_algorithm, output_dir)
 }
 \arguments{
 \item{dataset}{your dataset}
 
-\item{algo_rollup}{strategy for combining peptides to proteins. For valid options, see rollup_pep2prot()}
+\item{rollup_algorithm}{strategy for combining peptides to proteins. For valid options, see rollup_pep2prot()}
 
 \item{output_dir}{output directory where all output files are stored, must be an existing directory}
 }

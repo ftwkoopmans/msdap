@@ -1,6 +1,6 @@
 
 #' generate color-coding for all sample metadata
-#' @param samples todo
+#' @param samples sample metadata table, typically; dataset$samples
 #' @importFrom gtools mixedsort
 #' @importFrom ggplot2 cut_interval
 #' @importFrom colorspace sequential_hcl
@@ -183,7 +183,7 @@ sample_color_coding__long_format = function(samples) {
 
 
 #' placeholder title
-#' @param samples todo
+#' @param samples sample metadata table, typically; dataset$samples
 #' @param samples_colors_long todo
 #'
 #' @importFrom ggpubr theme_pubr

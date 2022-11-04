@@ -2,13 +2,15 @@
 % Please edit documentation in R/util_generic.R
 \name{remove_by_charlength}
 \alias{remove_by_charlength}
-\title{placeholder title}
+\title{remove NA, non-character and characters shorter than N from array}
 \usage{
 remove_by_charlength(x, minchar)
 }
 \arguments{
-\item{x}{todo}
+\item{x}{character array}
+
+\item{minchar}{integer, minimum character of elements in x}
 }
 \description{
-placeholder title
+remove NA, non-character and characters shorter than N from array
 }

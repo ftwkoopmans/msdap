@@ -2,8 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{log2_to_ln}
 \alias{log2_to_ln}
-\title{convert base-log from log2 to natural log. log_a(x) = log_b(x) / log_b(a)
-example: log2(4); exp(log2_to_ln(log2(4)))}
+\title{convert base-log from log2 to natural log}
 \usage{
 log2_to_ln(x)
 }
@@ -11,6 +10,12 @@ log2_to_ln(x)
 \item{x}{numeric values that were log2 transformed}
 }
 \description{
-convert base-log from log2 to natural log. log_a(x) = log_b(x) / log_b(a)
-example: log2(4); exp(log2_to_ln(log2(4)))
+log_a(x) = log_b(x) / log_b(a)
+}
+\examples{
+\dontrun{
+  x = 1:4
+  cbind(input = x, as_log2 = log2(x), as_ln = log2_to_ln(log2(x)),
+  ln_then_undo = exp(log2_to_ln(log2(x))) )
+}
 }

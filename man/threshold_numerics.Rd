@@ -2,15 +2,15 @@
 % Please edit documentation in R/util_generic.R
 \name{threshold_numerics}
 \alias{threshold_numerics}
-\title{basic threshold function}
+\title{threshold finite numeric values}
 \usage{
 threshold_numerics(x, threshold)
 }
 \arguments{
 \item{x}{numeric array or matrix}
 
-\item{threshold}{limit values below this val}
+\item{threshold}{limit finite values below this val}
 }
 \description{
-basic threshold function
+threshold finite numeric values
 }

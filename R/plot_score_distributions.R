@@ -14,6 +14,7 @@ plot_dia_cscore_histograms = function(tib_input) {
 
   plotlist = list()
   plotscores = c()
+  start_time = Sys.time()
 
   for (sid in unique(tib_input$sample_id)) {
     tib = tib_input %>% filter(sample_id == sid & is.finite(cscore))
@@ -83,6 +84,8 @@ plot_dia_cscore_histograms = function(tib_input) {
     # each set of 3 plots is a 'row' in output PDF, combine these plots into n columns
     result[[length(result) + 1]] = suppressWarnings(ggpubr::ggarrange(plotlist = l, ncol = 3, nrow = 1))
   }
+
+  append_log_timestamp("histogram Cscore distributions", start_time)
   return(result)
 }
 

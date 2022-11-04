@@ -1,7 +1,10 @@
 
-#' apply limma's ebayes() function to a protein-level ExpressionSet
+#' apply limma::eBayes() function to a protein-level ExpressionSet
 #'
-#' @param eset_proteins protein-level dataset stores as a Biobase ExpressionSet
+#' ref; PMID:25605792
+#' ref; https://bioconductor.org/packages/release/bioc/html/limma.html
+#'
+#' @param eset_proteins protein-level dataset stored as a Biobase ExpressionSet
 #' @param input_intensities_are_log2 boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)
 #' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream
 #'
@@ -48,7 +51,7 @@ de_ebayes = function(eset_proteins, input_intensities_are_log2 = TRUE, random_va
   result = as_tibble(result) %>%
            mutate(protein_id = rownames(x)) %>%
            select(protein_id, pvalue = P.Value, qvalue = adj.P.Val, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation, standarderror) %>%
-    add_column(algo_de = "ebayes")
+    add_column(dea_algorithm = "ebayes")
 
   # note; we added condition to random variables above, strip it from result table for consistency within this R package ('condition' is always assumed to be a regression variable)
   if(length(random_variables) > 1) { # ! test larger than 1
@@ -62,9 +65,12 @@ de_ebayes = function(eset_proteins, input_intensities_are_log2 = TRUE, random_va
 
 #' apply DEqMS to a protein-level ExpressionSet
 #'
+#' ref; PMID:32205417
+#' ref; https://github.com/yafeng/DEqMS
+#'
 #' implementation follows example code from the vignette; https://bioconductor.org/packages/release/bioc/vignettes/DEqMS/inst/doc/DEqMS-package-vignette.html
 #'
-#' @param eset_proteins protein-level dataset stores as a Biobase ExpressionSet
+#' @param eset_proteins protein-level dataset stored as a Biobase ExpressionSet
 #' @param peptides peptide-level data tibble, must contain a protein_id and peptide_id column, used to count the number of unique peptides per protein
 #' @param input_intensities_are_log2 boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)
 #' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream
@@ -79,6 +85,13 @@ de_deqms = function(eset_proteins, peptides, input_intensities_are_log2 = TRUE, 
   if(length(random_variables) > 0 && (!is.vector(random_variables) || any(is.na(random_variables) | !is.character(random_variables))) ) {
     append_log(paste("random_variables must either be NULL or character vector", paste(random_variables, collapse=", ")), type = "error")
   }
+  if(length(Biobase::fData(eset_proteins)) == 0 || !is.data.frame(Biobase::fData(eset_proteins)) || length(Biobase::fData(eset_proteins)$protein_id) == 0) {
+    append_log("eset_proteins ExpressionSet fData must be a data.frame that contains column 'protein_id'", type = "error")
+  }
+  if(!all(c("protein_id", "peptide_id") %in% colnames(peptides)) || !all(Biobase::fData(eset_proteins)$protein_id %in% peptides$protein_id)) {
+    append_log("peptides tibble must contain columns protein_id and peptide_id, and the former must contain all values listed in eset_proteins ExpressionSet fData column 'protein_id'", type = "error")
+  }
+
 
   # transform to log2 if input data is non-log
   if (!input_intensities_are_log2) {
@@ -102,6 +115,15 @@ de_deqms = function(eset_proteins, peptides, input_intensities_are_log2 = TRUE, 
 
 
   #### DEqMS unique code, everything else in this function is analogous to de_ebayes implementation ####
+
+  ### bugfix for DEqMS::spectraCounteBayes()
+  # DEqMS will Loess fit log peptide counts versus log sigma^2
+  # However, in some datasets/normalizations a subset of `fit$sigma` values from limma::eBayes() fit
+  # Log transforming sigma^0 where sigma is zero results in a non-finite value, which crashes the loess fit
+  # fix: replace zero sigma's with lowest non-zero sigma  (easy fix without having to update DEqMS code)
+  # ? perhaps it's better if DEqMS would fit against eBayes' posterior estimates of sigma instead ?
+  fit$sigma[fit$sigma <= 0] = min(fit$sigma[fit$sigma > 0])
+
   # gather peptide-per-protein counts
   if(!all(rownames(x) %in% peptides$protein_id)) {
     append_log("all proteins in the dataset (rownames of Biobase::exprs() in the ExpressionSet) must be in the peptide tibble (column protein_id)", type = "error")
@@ -113,7 +135,7 @@ de_deqms = function(eset_proteins, peptides, input_intensities_are_log2 = TRUE, 
   # overwrite the fit object with DEqMS's
   fit = suppressWarnings(DEqMS::spectraCounteBayes(fit))
   if(doplot) {
-    suppressWarnings(VarianceBoxplot(fit, n=20, main = "DEqMS QC plot", xlab="#unique peptides per protein"))
+    suppressWarnings(DEqMS::VarianceBoxplot(fit, n=20, main = "DEqMS QC plot", xlab="#unique peptides per protein"))
   }
 
   ## analogous to our do_ebayes() implementation, extract results from the fit object but grab the DEqMS specific output columns where available (reference; DEqMS::outputResult() )
@@ -131,11 +153,11 @@ de_deqms = function(eset_proteins, peptides, input_intensities_are_log2 = TRUE, 
   result$standarderror = sqrt(fit$sca.postvar) * fit$stdev.unscaled[,coef_col]
   result$standarddeviation = sqrt(fit$sca.postvar)
 
-  ## create a result tibble that contains all columns required for downstream compatability with this pipeline; protein_id, pvalue, qvalue, foldchange.log2, algo_de
+  ## create a result tibble that contains all columns required for downstream compatability with this pipeline; protein_id, pvalue, qvalue, foldchange.log2, dea_algorithm
   result = as_tibble(result) %>%
     mutate(protein_id = rownames(x)) %>%
     select(protein_id, pvalue, qvalue, foldchange.log2 = logFC, effectsize, tstatistic, standarddeviation, standarderror) %>%
-    add_column(algo_de = "deqms")
+    add_column(dea_algorithm = "deqms")
   #### DEqMS unique code, everything else in this function is analogous to de_ebayes implementation ####
 
 
@@ -180,7 +202,7 @@ de_ebayes_fit = function(x, random_variables) {
     all( rownames(random_variables) == as.character(1:nrow(random_variables)) ) ||
     all( rownames(random_variables) == colnames(x) )
   )) {
-      append_log("input matrix x and random_variables seem misaligned; column names of x versus rownames of variables do not match", type = "error")
+      append_log("input matrix x and random_variables seem misaligned, but the column names of x versus rownames of variables do not match", type = "error")
   }
 
   if(is.vector(random_variables) || is.array(random_variables)) {
@@ -201,8 +223,8 @@ de_ebayes_fit = function(x, random_variables) {
   # design matrix; simply use all columns in the user-provided metadata table
   contr_design = stats::model.matrix(~ . , data = random_variables)
   ## version 1
-  # mask_sample_groups = match(mask_sample_groups, unique(mask_sample_groups)) - 1
-  # contr_design = stats::model.matrix(~mask_sample_groups)
+  # group_by_cols = match(group_by_cols, unique(group_by_cols)) - 1
+  # contr_design = stats::model.matrix(~group_by_cols)
 
   return(suppressWarnings(limma::eBayes(limma::lmFit(x, contr_design))))
 
@@ -226,11 +248,18 @@ de_ebayes_fit = function(x, random_variables) {
 }
 
 
-#' Wrapper function for msEmpiRe::de.ana()
+
+#' MS-EmpiRe implementation, a wrapper function for msEmpiRe::de.ana()
 #'
-#' input data should NOT be log2 transformed (if it is, we revert this prior to passing data to MS-EmpiRe)
+#' ref; PMID:31235637
+#' ref; https://github.com/zimmerlab/MS-EmpiRe
+#'
+#' input data should NOT be log2 transformed (if it is, make sure to set parameter `input_intensities_are_log2` so we can revert this prior to passing data to MS-EmpiRe)
+#'
+#' note; MS-EmpiRe crashes when all proteins have the same number of peptides (eg; filtering topn=1 or topn=3 and minpep=3)
 #'
 #' TODO: proper standarderror computation
+#'
 #' @param eset a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition
 #' @param input_intensities_are_log2 whether the provided intensities are already log2 transformed
 #'
@@ -258,8 +287,6 @@ de_msempire = function(eset, input_intensities_are_log2 = F) {
   x[!is.finite(x)] = 0
   Biobase::exprs(eset) = x
 
-  # note; MS-EmpiRe crashes when all proteins have the same number of peptides (eg; filtering topn=1 or topn=3 and minpep=3)
-
   # protein identifiers are expected in this column
   Biobase::fData(eset)["prot.id"] = Biobase::fData(eset)[, "protein_id"]
   # call msempire main function while silencing all of its output
@@ -275,13 +302,19 @@ de_msempire = function(eset, input_intensities_are_log2 = F) {
     tstatistic = NA,
     standarddeviation = as.numeric(result$prot.sd),
     standarderror = NA,
-    algo_de = "msempire"
+    dea_algorithm = "msempire"
   ))
 }
 
 
 
 #' Wrapper function for msqrob, using the implementation from the msqrobsum package
+#'
+#' note that this is the final version of this algorithm provided by its authors, and is no longer maintained; https://github.com/statOmics/msqrob
+#' only difference with the GitHub version is that code included here has minor adaptions to situationally improve multithreading (i.e. speeds up computation a bit, on some systems)
+#'
+#' ref; PMID:26566788 PMID:32321741
+#' ref; https://github.com/statOmics/msqrob
 #'
 #' @param eset a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition
 #' @param use_peptide_model if true, apply msqrob. if false, apply msqrobsum
@@ -310,6 +343,9 @@ de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_ar
   if(length(random_variables) > 0 && !all(random_variables %in% colnames(Biobase::pData(eset)))) {
     append_log("ExpressionSet pData() must contain columns matching all random_variables", type = "error")
   }
+
+  # just to be sure, fix random seed
+  set.seed(123)
 
 
   # transform to log2 if input data is non-log
@@ -373,8 +409,8 @@ de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_ar
   # prepare output table in our standard format
   result = as_tibble(result_unpacked) %>%
     mutate(protein_id = as.character(protein_id),
-           algo_de = algorithm_name) %>%
-    select(protein_id, pvalue, qvalue, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation = sigma_post, standarderror = se, algo_de)
+           dea_algorithm = algorithm_name) %>%
+    select(protein_id, pvalue, qvalue, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation = sigma_post, standarderror = se, dea_algorithm)
 
   if(length(random_variables) > 0) {
     result = result %>% add_column(contrast_ranvars = paste(random_variables, collapse = ", "))

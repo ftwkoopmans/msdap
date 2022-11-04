@@ -2,7 +2,7 @@
 % Please edit documentation in R/rollup.R
 \name{rollup_pep2prot_summation}
 \alias{rollup_pep2prot_summation}
-\title{rollup by plain peptide intensity summation}
+\title{rollup a peptide tibble by summation of all intensity values per protein}
 \usage{
 rollup_pep2prot_summation(
   tib,
@@ -11,12 +11,12 @@ rollup_pep2prot_summation(
 )
 }
 \arguments{
-\item{tib}{peptide tibble in long-format. missing values should be set NA, not zero. required columns: peptide_id, protein_id, sample_id, intensity}
+\item{tib}{peptide tibble in long-format. Required columns: peptide_id, protein_id, sample_id, intensity}
 
-\item{intensity_is_log2}{boolean indicating log2 scaling}
+\item{intensity_is_log2}{boolean indicating if input peptide intensities are log2 scaled}
 
 \item{return_as_matrix}{instead of long-format tibble, return a protein*sample matrix (missing values set to NA)}
 }
 \description{
-rollup by plain peptide intensity summation
+rollup a peptide tibble by summation of all intensity values per protein
 }

@@ -2,16 +2,17 @@
 % Please edit documentation in R/util_files.R
 \name{path_append_and_check}
 \alias{path_append_and_check}
-\title{append a file to path. If longer than N characters (Windows filesystem max path length), try with md5 hashed filename}
+\title{append file to path, then call file_check() for validation of the file. Does not validate illegal characters in the path}
 \usage{
-path_append_and_check(path, file)
+path_append_and_check(path, file, strict = FALSE)
 }
 \arguments{
 \item{path}{a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix}
 
 \item{file}{filename that should be appended to the path}
+
+\item{strict}{boolean indicating 'strict mode' for checking the filename, if TRUE; only allow alphanumeric, underscore and '-'}
 }
 \description{
-note;
-in contrast to using a timestamp or substring+index, this solution yields stable filenames. Should never fail if provided path/dir is reasonable
+returns a (potentially cleaned) file path
 }

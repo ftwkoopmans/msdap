@@ -10,35 +10,68 @@
 #' @param label_mode which class of proteins should be labeled in the plot. Options: topn_pvalue (top N smallest p-value, default), signif (all significant proteins), protein_id (a provided set of protein_id). Defaults to topN for consistency and clarity; if the upstream analysis yielded hundreds of hits the labels will be unreadable
 #' @param label_target further specification of the label_mode parameter. For instance, if 'topn_pvalue' is set, here you can set the number of proteins that should be labeled. Analogously, if label_mode='protein_id' is set you can here provide an array of protein_id values (that are available in the stats_de data table)
 #' @param label_avoid_overlap use the ggrepel R package to try and place labels with minimal overlap (only works when the number of labeled proteins is relatively low and sparse, e.g. for topN 25). Options: TRUE, FALSE
-#' @return returns a named list that contains a list, with properties 'ggplot' and 'ggplot_data', for each unique 'algo_de' in the input stats_de table
+#' @return returns a named list that contains a list, with properties 'ggplot' and 'ggplot_data', for each unique 'dea_algorithm' in the input stats_de table
 #'
 #' @examples
-#' # Exampes. Note that these assume that prior, the MS-DAP pipeline was successfully run using `dataset = analysis_quickstart(...)`. If your dataset contains multiple contrasts, follow example 5
+#' ### Exampes. Note that these assume that prior, the MS-DAP pipeline was successfully run
+#' # using `dataset = analysis_quickstart(...)`.
+#' # If your dataset contains multiple contrasts, follow example 5
 #'
-#' # example 1: add protein-metadata to the DEA results (dataset$de_proteins), plotting the top 10 'best pvalue' hits while hardcoding the cutoffs for foldchange and Q-value
+#' ## example 1: add protein-metadata to the DEA results (dataset$de_proteins), plotting the
+#' # top 10 'best pvalue' hits while hardcoding the cutoffs for foldchange and Q-value
 #' \dontrun{
-#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins), log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano, label top 10", label_mode = "topn_pvalue", label_target = 10, label_avoid_overlap = TRUE)
-#'   lapply(plot_list, "[[", "ggplot") # for each unique 'algo_de' in the input stats_de table, a list with a ggplot object and it's respective data
-#' }
-#'
-#' # example 2: analogous, but now show all significant proteins and disable "repelled labels" (instead, print protein labels just below each data point)
-#' \dontrun{
-#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins), log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano, label all significant", label_mode = "signif", label_avoid_overlap = FALSE)
+#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins),
+#'     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
+#'     mtitle = "volcano, label top 10", label_mode = "topn_pvalue", label_target = 10,
+#'     label_avoid_overlap = TRUE
+#'   )
+#'   # for each unique 'dea_algorithm' in the stats_de table, list of ggplot objects and data
 #'   lapply(plot_list, "[[", "ggplot")
 #' }
 #'
-#' # example 3: show labels for some set of protein IDs. First line selects all proteins where symbol starts with GRIA or DLG (arbitrary example, either adapt the regex or use other filters/criteria to define a subset of protein_id from your dataset). Second line shows how to specify protein_id to be used as a label
+#' ## example 2: analogous, but now show all significant proteins and disable "repelled labels"
+#' # (instead, print protein labels just below each data point)
 #' \dontrun{
-#'   pid_label = dataset$proteins %>% filter(grepl("^(GRIA|DLG)", gene_symbols_or_id, ignore.case=T)) %>% pull(protein_id)
-#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins), log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano, label selected proteins", label_mode = "protein_id", label_target = pid_label, label_avoid_overlap = FALSE)
+#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins),
+#'     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
+#'     mtitle = "volcano, label all significant", label_mode = "signif",
+#'     label_avoid_overlap = FALSE
+#'   )
 #'   lapply(plot_list, "[[", "ggplot")
 #' }
 #'
-#' # example 4: plot all significant labels as before, then add custom labels for some subset of proteins (we here regex select some labels in the plot, you should adapt the regex to match some proteins in your dataset to make this work, but you can also further filter by other properties in the 'ggplot_data' tibble like the y-coordinate aka qvalue)
+#' ## example 3: show labels for some set of protein IDs. First line selects all proteins where symbol
+#' # starts with GRIA or DLG (arbitrary example, either adapt the regex or use other filters/criteria
+#' # to define a subset of protein_id from your dataset). Second line shows how to specify protein_id
+#' # to be used as a label
 #' \dontrun{
-#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins), log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano, label all significant + custom labels", label_mode = "signif", label_avoid_overlap = FALSE)
+#'   pid_label = dataset$proteins %>%
+#'     filter(grepl("^(GRIA|DLG)", gene_symbols_or_id, ignore.case=T)) %>% pull(protein_id)
+#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins),
+#'     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
+#'     mtitle = "volcano, label selected proteins", label_mode = "protein_id",
+#'     label_target = pid_label, label_avoid_overlap = FALSE
+#'   )
+#'   lapply(plot_list, "[[", "ggplot")
+#' }
+#'
+#' ## example 4: plot all significant labels as before, then add custom labels for some subset of
+#' # proteins (we here regex select some labels in the plot, you should adapt the regex to match
+#' # some proteins in your dataset to make this work, but you can also further filter by other
+#' # properties in the 'ggplot_data' tibble like the y-coordinate aka qvalue)
+#' \dontrun{
+#'   plot_list = msdap::plot_volcano(dataset$de_proteins %>% left_join(dataset$proteins),
+#'     log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano,
+#'     label all significant + custom labels", label_mode = "signif",
+#'     label_avoid_overlap = FALSE
+#'   )
 #'   l = plot_list[[1]]
-#'   l$ggplot + ggrepel::geom_text_repel(alpha=1, color="green", data = l$ggplot_data %>% filter(plottype %in% c("asis_lab", "lim_lab") & grepl("^(GRIA|DLG)", label, ignore.case = T)), segment.alpha = 0.3, min.segment.length = unit(0.25, 'lines'), vjust = 0.6, show.legend = FALSE, size = 2)
+#'   l$ggplot + ggrepel::geom_text_repel(
+#'     alpha=1, color="green", data = l$ggplot_data %>%
+#'       filter(plottype %in% c("asis_lab", "lim_lab") & grepl("^(GRIA|DLG)", label, ignore.case=T)),
+#'     segment.alpha = 0.3, min.segment.length = unit(0.25, 'lines'),
+#'     vjust = 0.6, show.legend = FALSE, size = 2
+#'   )
 #' }
 #'
 #' # example 5: iterate over contrasts before calling plot_volcano()
@@ -46,10 +79,13 @@
 #'   contrasts = unique(dataset$de_proteins$contrast)
 #'   for(contr in contrasts) {
 #'     # subset the DEA results for the current contrast
-#'     tib_volcano = dataset$de_proteins %>% filter(contrast == contr) %>% left_join(dataset$proteins)
+#'     tib_volcano = dataset$de_proteins %>% filter(contrast==contr) %>% left_join(dataset$proteins)
 #'
-#'     # volcano plot function (compared to above example snippet, we now include the contrast in the title)
-#'     plot_list = msdap::plot_volcano(tib_volcano, log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = paste(contr, "volcano, label top 10"), label_mode = "topn_pvalue", label_target = 10, label_avoid_overlap = TRUE)
+#'     # volcano plot function (compared to above example, now include the contrast in the title)
+#'     plot_list = msdap::plot_volcano(tib_volcano, log2foldchange_threshold = 1,
+#'       qvalue_threshold = 0.01, mtitle = paste(contr, "volcano, label top 10"),
+#'       label_mode = "topn_pvalue", label_target = 10, label_avoid_overlap = TRUE
+#'     )
 #'
 #'     # grab ggplot objects and print plot
 #'     ggplot_list = lapply(plot_list, "[[", "ggplot")
@@ -100,33 +136,16 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
   }
 
   ## pretty-print labels
-  stats_de$label = stats_de$protein_id
-  # use gene symbols if available
-  if("gene_symbols_or_id" %in% colnames(stats_de)) {
-    stats_de$label = stats_de$gene_symbols_or_id
-    rows_nolabel = is.na(stats_de$label) | nchar(stats_de$label) < 2
-    stats_de$label[rows_nolabel] = stats_de$protein_id[rows_nolabel]
-  }
-  # reduce the string length of very long labels
-  rows = nchar(stats_de$label) > 12
-  stats_de$label[rows] = paste0(substr(stats_de$label[rows], 1, 9), "...")
-  # find labels that have a semi-colon, indicating ambiguous IDs
-  rows = grepl(";", stats_de$label, fixed=T)
-  if(any(rows)) {
-    # strip ambiguous IDs
-    stats_de$label = gsub(";.*", "", stats_de$label)
-    # mark ambiguous IDs with an asterix
-    stats_de$label[rows] = paste0(stats_de$label[rows], "*")
-  }
+  stats_de = add_protein_prettyprint_label(stats_de)
 
 
   ########### create volcano plots
 
   result = list()
-  for (algo_name in unique(stats_de$algo_de)) { #algo_name = "ebayes"
+  for (algo_name in unique(stats_de$dea_algorithm)) { #algo_name = "ebayes"
     # prepare data for current contrast
     tib = stats_de %>%
-      filter(algo_de == algo_name) %>%
+      filter(dea_algorithm == algo_name) %>%
       drop_na(foldchange.log2, pvalue, qvalue) %>%
       # minlog10 conversion must be performed within this loop! scales zero's to max-value, ONLY valid within same statistical test
       mutate(minlog10qval = minlog10(qvalue),
@@ -254,7 +273,7 @@ plot_foldchanges = function(tib, mtitle="") {
     geom_vline(xintercept=0) +
     # same density function as default in base R's stats::density()
     geom_line(stat = "density", adjust=1, bw = "SJ", na.rm = T) +
-    facet_wrap( ~ algo_de, nrow = ceiling(sqrt(n_distinct(tib$color_code))), scales = "free_y") +
+    facet_wrap( ~ dea_algorithm, nrow = ceiling(sqrt(n_distinct(tib$color_code))), scales = "free_y") +
     coord_cartesian(xlim = c(-1,1) * max(abs(quantile(tib$foldchange.log2, probs = c(0.005, 0.995), na.rm=T)))) +
     labs(x="log2 foldchange", colour = "", title=mtitle) +
     theme_bw() +
@@ -279,13 +298,13 @@ plot_foldchanges = function(tib, mtitle="") {
 plot_pvalue_histogram = function(tib, mtitle="") {
   # debug_tib_pvalue_hist <<- tib
   binwidth = 0.05
-  tib_summ = tib %>% filter(is.finite(pvalue)) %>% group_by(algo_de) %>% summarise(yintercept_line = binwidth * n())
+  tib_summ = tib %>% filter(is.finite(pvalue)) %>% group_by(dea_algorithm) %>% summarise(yintercept_line = binwidth * n())
 
   ggplot(tib, aes(pvalue)) +
     geom_histogram(binwidth = binwidth, boundary = 0, colour = "white", fill="darkgrey", na.rm=T) +
     geom_hline(data = tib_summ, aes(yintercept = yintercept_line), colour = "darkblue") +
     scale_x_continuous(breaks = (0:10)/10, minor_breaks = (0:5)/5) +
-    facet_wrap( ~ algo_de, nrow = 2, scales = "fixed") +
+    facet_wrap( ~ dea_algorithm, nrow = 2, scales = "fixed") +
     labs(x="p-value", y="number of proteins", colour = "", title=mtitle) +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5, size=8),

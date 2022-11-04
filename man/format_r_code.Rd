@@ -2,15 +2,13 @@
 % Please edit documentation in R/util_generic.R
 \name{format_r_code}
 \alias{format_r_code}
-\title{format R code
-parameter can either be a string or an array of strings (eg; lines from R history)}
+\title{format a string of R code using the formatR and styler packages}
 \usage{
 format_r_code(rcode_lines)
 }
 \arguments{
-\item{rcode}{R code as an array of characters (strings)}
+\item{rcode_lines}{R code as an array of characters (strings)}
 }
 \description{
-format R code
 parameter can either be a string or an array of strings (eg; lines from R history)
 }

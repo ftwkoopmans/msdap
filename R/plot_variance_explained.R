@@ -1,17 +1,35 @@
 
 #' Plot the variance explained of sample metadata properties in the protein-intensity matrix
 #'
-#' basically a wrapper around the variancePartition R package (Hoffman GE, Schadt EE, 2016, PMID:27884101)
+#' precondition: the input dataset$peptides tibble must have a "intensity_all_group" column,
+#' e.g. obtained by first calling the filter_dataset() function with parameter all_group=TRUE
+#' (when using this function to analysis_quickstart() that is automatically taken care of)
+#'
+#' 1) performs peptide-to-protein rollup
+#' 2) impute missing values using the missForest R package (doi: 10.1093/bioinformatics/btr597)
+#' 3) call the variancePartition R package (Hoffman GE, Schadt EE, 2016, PMID:27884101)
 #'
 #' note; this is quite slow even on small datasets
 #'
-#' @param dataset your dataset
-#' @param cols_metadata columns from dataset@samples to be used. leave empty to automatically infer (default)
+#' @param dataset your dataset. Prior to calling the this function, you must have applied "all_group" filtering and normalization using the filter_dataset() function  (see example below)
+#' @param cols_metadata columns from `dataset@samples`` to be used. Set to NA or NULL to automatically infer (default)
+#' @param rollup_algorithm algorithm for combining peptides to proteins as used in DEA algorithms that require a priori rollup from peptides to a protein-level abundance matrix before applying statistics (e.g. ebayes, deqms). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
+#' @examples
+#' \dontrun{
+#'   dataset = filter_dataset(
+#'     dataset, filter_min_detect = 0, filter_min_quant = 3,
+#'     by_group = FALSE, by_contrast = FALSE, all_group = TRUE,
+#'     norm_algorithm = c("vwmb", "modebetween_protein")
+#'   )
+#'   tmp = plot_variance_explained(dataset, cols_metadata = NA)
+#'   print(tmp$p_ve_violin)
+#'   print(tmp$tbl_ve)
+#' }
+#'
 #' @importFrom variancePartition fitExtractVarPartModel plotVarPart
 #' @importFrom missForest missForest
 #' @importFrom BiocParallel SerialParam
-#' @importFrom ggpubr ggarrange
-plot_variance_explained = function(dataset, cols_metadata = NULL) {
+plot_variance_explained = function(dataset, cols_metadata = NULL, rollup_algorithm = "maxlfq") {
   start_time = Sys.time()
   if(! "intensity_all_group" %in% colnames(dataset$peptides)) {
     append_log("'all group' filtering has to be applied before running this function (e.g. filter_dataset(..., all_group=TRUE) )", type = "error")
@@ -37,12 +55,12 @@ plot_variance_explained = function(dataset, cols_metadata = NULL) {
   append_log("computing variance-explained...", type = "info")
 
   ## protein-level matrix
-  protein_matrix = msdap::rollup_pep2prot(
+  protein_matrix = rollup_pep2prot(
     dataset$peptides %>%
       filter(!is.na(intensity_all_group)) %>%
       select(sample_id, protein_id, peptide_id, intensity=intensity_all_group),
     intensity_is_log2 = T,
-    algo_rollup = "maxlfq",
+    rollup_algorithm = rollup_algorithm,
     return_as_matrix = T)
 
   ## DDA data may have missing values and unfortunately the variancePartition package cannot deal with this
@@ -85,7 +103,7 @@ plot_variance_explained = function(dataset, cols_metadata = NULL) {
                                                                                       BPPARAM = BiocParallel::SerialParam()) ))
   },
   error = function(err) {
-    append_log(paste("failed to run variance-explained analysis. Often this is due to rank deficiency while fitting the linear models, there is insufficient information contained in your data to estimate the model created from all metadata parameters;", formula_string, " -->> try again by hardcoding a few non-redundant properties that represent categorical variables (e.g. set the parameter to:  c('group', 'gel', 'batch') )"), type = "warning")
+    append_log(paste("failed to run variance-explained analysis. Often this is due to rank deficiency while fitting the linear models, there is insufficient information contained in your data to estimate the model created from all metadata parameters;", formula_string, " -->> try again by specifying a few non-redundant properties that represent categorical variables (e.g. set the 'cols_metadata' parameter to:  c('group',  'batch') )"), type = "warning")
     return(NULL)
   })
 
@@ -94,13 +112,10 @@ plot_variance_explained = function(dataset, cols_metadata = NULL) {
 
     ## collect plot and summary stats (as plot/table)
     vp_sort = variancePartition::sortCols(variancePartition::sortCols(vp, FUN = mean), fun = median)
-    p_ve_violin = variancePartition::plotVarPart(vp_sort, )
+    p_ve_violin = variancePartition::plotVarPart(vp_sort)
     tbl_ve = as_tibble(as.matrix(vp_sort)) %>%
       summarize_all(.funs = function(x) {bp=boxplot.stats(x, do.conf=FALSE, do.out=FALSE)$stats; m=mean(x,na.rm=T); c(bp[5:4], m, bp[3:1])} ) %>% mutate_all(function(x) sprintf("%.1f", x * 100)) %>%
       add_column(statistic = c("boxplot upper whisker", "boxplot upper hinge", "mean", "median", "boxplot lower hinge", "boxplot lower whisker"), .before = 1)
-
-    # p_ve_table = ggpubr::ggtexttable(tbl_ve, rows = NULL)
-    # p = ggpubr::ggarrange(p_ve_violin, p_ve_table, ncol = 1, nrow = 2, heights = c(3,1) )
 
     return(list(p_ve_violin=p_ve_violin, tbl_ve = tbl_ve))
   }

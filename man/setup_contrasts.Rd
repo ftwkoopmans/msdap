@@ -7,14 +7,14 @@
 setup_contrasts(dataset, contrast_list, random_variables = NULL)
 }
 \arguments{
-\item{dataset}{your dataset, make sure you've already imported sample metadata (so each sample is assigned to a sample group)}
+\item{dataset}{your dataset. Make sure you've already imported sample metadata (so each sample is assigned to a sample group)}
 
 \item{contrast_list}{a list that captures all contrasts that you want to compare. Check the examples for details.}
 
-\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info.}
+\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info (start at \code{dea_algorithms()} )}
 }
 \description{
-Setup contrasts for downstream Differential Expression Analysis
+Note that a MS-DAP contrast for "A vs B" will return foldchanges for B/A in downstream output tables and data visualizations. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group.
 }
 \examples{
 # a simple wild-type knockout study with only 2 groups, WT and KO

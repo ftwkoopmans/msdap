@@ -2,10 +2,17 @@
 % Please edit documentation in R/util_infer_metadata_from_file.R
 \name{split_generic}
 \alias{split_generic}
-\title{split_generic}
+\title{generic detection of metadata splitting}
 \usage{
 split_generic(x, regex_list, sep_char = "@")
 }
+\arguments{
+\item{x}{array of strings}
+
+\item{regex_list}{list of regular expressions to try}
+
+\item{sep_char}{separation character for str_split}
+}
 \description{
-split_generic
+generic detection of metadata splitting
 }

@@ -72,7 +72,7 @@ plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, s
 
       # base plot
       p = ggplot(tib, aes(x = x, y = y, label = label, colour = prop, fill = prop)) +
-        guides(alpha = F, fill = F) +
+        guides(alpha = "none", fill = "none") +
         labs(
           title = "",
           x = sprintf("dimension %d (%.1f%%)", dims[1], pca_var[dims[1]] * 100),

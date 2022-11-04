@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_expressionset.R
 \name{protein_eset_from_data}
 \alias{protein_eset_from_data}
-\title{Construct an ExpressionSet}
+\title{protein-level ExpressionSet from protein abundance matrix}
 \usage{
 protein_eset_from_data(x, eset)
 }
@@ -12,5 +12,5 @@ protein_eset_from_data(x, eset)
 \item{eset}{A Biobase ExpressionSet with protein_id and sample_id metadata}
 }
 \description{
-Construct an ExpressionSet
+protein-level ExpressionSet from protein abundance matrix
 }

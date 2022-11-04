@@ -8,24 +8,30 @@ dea(
   dataset,
   qval_signif = 0.01,
   fc_signif = 0,
-  algo_de = "deqms",
-  algo_rollup = "maxlfq",
+  dea_algorithm = "deqms",
+  rollup_algorithm = "maxlfq",
   output_dir_for_eset = ""
 )
 }
 \arguments{
 \item{dataset}{your dataset}
 
-\item{qval_signif}{threshold for significance of adjusted p-values}
+\item{qval_signif}{threshold for significance of q-values}
 
-\item{fc_signif}{threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA}
+\item{fc_signif}{threshold for significance of log2 foldchanges. Set to zero or NA to disregard, or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA}
 
-\item{algo_de}{algorithms for differential expression analysis. options: ebayes, deqms, msqrobsum, msempire, msqrob (to run multiple, provide an array)}
+\item{dea_algorithm}{algorithm for differential expression analysis (provide an array of strings to run multiple, in parallel). Refer to \code{\link{dea_algorithms}} function documentation for available options and a brief description of each. To use a custom DEA function, provide the respective R function name as a string (see GitHub documentation on custom DEA functions for more details)}
 
-\item{algo_rollup}{strategy for combining peptides to proteins as used in DEA algorithms that first combine peptides to proteins and then apply statistics, like ebayes and deqms. options: maxlfq, sum. The former applies the MaxLFQ algorithm, the latter employs the 'classic' strategy of summing all peptides per protein. See further rollup_pep2prot()}
+\item{rollup_algorithm}{algorithm for combining peptides to proteins as used in DEA algorithms that require a priori rollup from peptides to a protein-level abundance matrix before applying statistics (e.g. ebayes, deqms). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each}
 
 \item{output_dir_for_eset}{optionally, provide an output directory where the expressionset objects should be stored. Only useful if you're doing downstream data analysis that requires this data}
 }
+\value{
+long-format tibble with results for each DEA algorithm requested via \code{dea_algorithm} parameter. Note that a MS-DAP contrast for "A vs B" returns foldchanges for B/A. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group. The column \code{signif} contains a boolean flag indicating significant hits according to both the user defined q-value threshold (parameter \code{qval_signif}, also in result table column \code{signif_threshold_qvalue}) and optional foldchange threshold (parameter \code{fc_signif}, also in result table column \code{signif_threshold_log2fc})
+}
 \description{
 Differential expression analysis
+}
+\seealso{
+\code{dea_algorithms()} for available DEA algorithms and documentation.
 }

@@ -1,6 +1,6 @@
 ---
 title: "MS-DAP: Mass Spectrometry Downstream Analysis Pipeline"
-subtitle: "version: `r msdap::msdap_version()`  &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/"
+subtitle: "version: `r msdap::msdap_version()` &nbsp; &nbsp;  https://github.com/ftwkoopmans/msdap/"
 output:
   pdf_document:
     toc: true
@@ -73,6 +73,7 @@ sm_scatterplot_ht = min(10, 1.5 + 0.2 * length(levels(samples_metadata_counts_co
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_dcbp = ggplot_sample_detect_counts_barplots(dataset$samples, samples_colors_long)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
 suppressWarnings(print(p_dcbp))
 ```
@@ -90,6 +91,7 @@ Note that the visualization of sample metadata in this report depends on user-pr
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_dcvsmetadata_scatter = ggplot_sample_detect_vs_metadata_scatterplot(samples_metadata_counts_colors)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis", fig.height=sm_scatterplot_ht}
 suppressWarnings(print(p_dcvsmetadata_scatter))
 ```
@@ -128,6 +130,7 @@ To visualize how many peptides are consistently identified in multiple samples, 
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_datacompleteness = ggplot_peptide_detect_frequency_distribution(dataset$peptides, dataset$samples, include_quant = !isdia, remove_exclude_samples = TRUE)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis", fig.width=5, fig.height=5}
 suppressWarnings(print(p_datacompleteness))
 ```
@@ -145,6 +148,7 @@ Optimally, the majority of peptides in each sample are red~orange with relativel
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_detectfrequency = ggplot_peptide_detect_frequency(dataset$peptides, dataset$samples)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
 suppressWarnings(print(p_detectfrequency))
 ```
@@ -160,6 +164,7 @@ The figures in this subsection are used to identify unexpected mass-spec sensiti
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_intensity = plot_abundance_distributions(dataset$peptides, dataset$samples, isdia)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis"}
 suppressWarnings(print(p_intensity$intensity_distributions_all))
 cat('\n\n')
@@ -182,6 +187,7 @@ The density of the number of peptides eluting at each point in time. The figure 
 ```{r, echo=F, message=F, warning=F, results="hide"}
 p_rt = plot_retention_time_v2(dataset$peptides, dataset$samples, isdia)
 ```
+
 ```{r, echo=F, message=F, warning=F, results="asis"} 
 suppressWarnings(print(p_rt$rt_distributions_all))
 suppressWarnings(print(p_rt$rt_distributions_colour_groups))
@@ -212,7 +218,7 @@ The reproducibility of replicate measurements is expressed in three different an
 ### within-group foldchange distributions
 The foldchange of all peptides in a sample is compared to their respective mean value over all samples in the group. This visualizes how strongly each sample deviates from other samples in the same group which helps identify outlier samples. The same data was used as detailed in the "retention time" section above.
 
-For each sample group, two plots are shown: 1) a basic monochrome plot and 2) a variant that color-codes the top10 'worst' samples based on the standard deviation of their respective distributions. The legend is sorted in column-first descending order (sample with highest sd in column 1 row 1, sample with second highest sd in column 1 row 2, etc.). If there are 10 or fewer samples, all are color-coded. 
+For each sample group, two plots are shown: 1) a basic monochrome plot and 2) a variant that color-codes the top10 'worst' samples based on the standard deviation (sd) of their respective distributions. Note; per sample, the 0.5% quantiles of both top- and bottom-most outliers are disregarded in sd computation. The legend is sorted in column-first descending order (sample with highest sd in column 1 row 1, sample with second highest sd in column 1 row 2, etc.). If there are 10 or fewer samples, all are color-coded. On the pages after the plots, these sd values are shown as tables.
 
 The 'input' panel is based on the peptide intensities as-is (i.e. the user-provided input data from upstream software), the 'normalized' panel shows the exact same samples and peptides after normalization (as specified by user). Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
 
@@ -220,7 +226,13 @@ The 'input' panel is based on the peptide intensities as-is (i.e. the user-provi
 
 ```{r echo=F, message=F, warning=F, results='asis'}
 # returns a list (names are the sample groups), each contains 3 ggplot objects; mono, highlight, legend
-p_group_mean_foldchange = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
+l_fc_distr = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
+p_group_mean_foldchange = l_fc_distr$plotlist
+tib_group_mean_foldchange = l_fc_distr$tib_scores %>%
+    mutate(sd = sprintf("%.3f", sd)) %>%
+    select(Group = group, Sample = shortname, `Standard Deviation` = sd)
+
+
 
 i = 0 # counter for unique chunk IDs
 for(plotlist in p_group_mean_foldchange) {
@@ -231,7 +243,16 @@ for(plotlist in p_group_mean_foldchange) {
   cat('\n\n') 
   i = i + 1
 }
+
+# generate a table for each group. Only top10 worst samples per group, otherwise with large datasets it'll be 10 pages of tables...
+cat('\n\\newpage \n')
+cat('**top10 outliers per sample group** \n\n ')
+for(g in unique(tib_group_mean_foldchange$Group)) { # note capital G
+  rmarkdown_xtable_custom(tib_group_mean_foldchange %>% filter(Group == g) %>% tail(n=10L), caption = "sd() of within-group foldchange distributions")
+  cat('\n\n') 
+}
 ``` 
+
 
 
 ```{r, echo=F, message=F, warning=F, results="hide"}
@@ -310,8 +331,8 @@ if(isplot_cov) {
   # print documentation
   cat("The Coefficient of Variation (CoV) is a quality metric for the reproducibility of replicate measurements, here visualized using box- and violin-plots. \n\n")
   cat("Only samples that are NOT marked 'exclude' in the provided sample metadata and are in a sample group among at least 3 replicates are used for these figures. ")
-  cat("The user-specified filtering rules (eg; filter_min_detect, filter_min_peptide_per_prot, etc.) were applied within each sample group independently and remaining peptides were subsequently normalized. ")
-  cat("Only peptides with at least 3 data points across replicate samples are used for each CoV computation. \n\n")
+  cat('The user-specified filtering rules (eg; filter_min_detect, filter_min_peptide_per_prot, etc.) were applied within each sample group independently and remaining peptides were subsequently normalized using the "', paste(norm_algorithm, collapse = "&"), '" algorithm (an important parameter to keep in mind when comparing across datasets/analyses). ')
+  cat('Only peptides with at least 3 data points across replicate samples are used for each CoV computation. \n\n')
 
   cat("**Peptide-level CoV:** \n\n")
   suppressWarnings(print(p_cov$boxplot))
@@ -327,7 +348,7 @@ if(isplot_cov) {
 isplot_cov_protein = FALSE
 p_cov = list()
 if(isplot_cov) {
-  x = rollup_pep2prot(dataset$peptides %>% select(peptide_id, protein_id, sample_id, intensity=intensity_by_group), algo_rollup = "maxlfq")
+  x = rollup_pep2prot(dataset$peptides %>% select(peptide_id, protein_id, sample_id, intensity=intensity_by_group), rollup_algorithm = rollup_algorithm)
   p_cov_protein = suppressWarnings(ggplot_coefficient_of_variation(x %>% rename(peptide_id=protein_id, intensity_by_group=intensity), dataset$samples, samples_colors))
   rm(x)
   isplot_cov_protein = length(p_cov_protein) > 0 && "boxplot" %in% names(p_cov_protein)
@@ -337,7 +358,7 @@ if(isplot_cov) {
 ```{r, echo=F, message=F, warning=F, results="asis"}
 if(isplot_cov_protein) {
   cat('\n\\newpage \n')
-  cat("**Protein-level CoV:** (analogous to peptide CoV's, but with additional MaxLFQ rollup to protein abundances) \n\n")
+  cat("**Protein-level CoV:** \n\n(analogous to peptide CoV's, but with additional rollup to protein abundances using '", rollup_algorithm ,"' algorithm) \n\n", sep = "")
   suppressWarnings(print(p_cov_protein$boxplot))
   cat("\n\n")
   suppressWarnings(print(p_cov_protein$violin))
@@ -357,6 +378,7 @@ if(length(p_varexplained) > 0) {
   suppressWarnings(print(p_varexplained$p_ve_violin))
   cat("\n\n")
   rmarkdown_xtable_custom(p_varexplained$tbl_ve)
+  cat("\n\n")
 }
 ```
 
@@ -430,12 +452,16 @@ if(length(p_pca__excl_outliers) > 0) {
 ```{r echo=F, message=F, warning=F, results='asis'}
 if(length(l_contrast) > 0) {
   cat("\n\\newpage \n# Differential abundance analysis \n\n")
+  
   cat('**goal: maximize reliable features for quantification** \n \n')
-  cat('In a pairwise analysis of two groups of samples, only peptides with N data-points in both groups are used for quantitative analysis (where N = defined by user settings). For example; if peptide *p* is consistently quantified in sample groups A and B but not in C/D/E, it can be used when comparing group A *versus* group B but should not be used in any other group comparisons. This approach is particularly suited to maximize the number of peptides used for statistical analysis in experimental designs with many sample groups. \n\n')
+  cat('In a pairwise analysis of two groups of samples, only peptides with N data-points in both groups are used for quantitative analysis (where N = defined by user settings). For example; if peptide *p* is consistently quantified in sample groups A and B but not in C/D/E, it can be used when comparing group A *versus* group B but should not be used in any other group comparisons. This approach is particularly suited to maximize the number of peptides used for statistical analysis in experimental designs with many sample groups. In MS-DAP this is referred to as "by contrast" filtering. \n\n')
   cat('A common alternative strategy is a global filtering approach where peptides are selected based on their properties in the overall dataset (eg; present in x% of samples or x% of replicates in all groups) and subsequentially the resulting data matrix is used for all downstream statistical analyses. In the example above where peptide *p* is present in a subset of sample groups, *p* would either be left out (not present in majority of samples in entire dataset) or erronously used when applying t-statistics to groups B and C (since *p* is not present in group C, it may differentially detected but there are no features available for quantitative analysis) \n\n')
+  
+  cat('**contrasts and foldchanges** \n \n')
+  cat('Note that a MS-DAP contrast for "A vs B" returns foldchanges for B/A. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group. \n\n')
 
-  has_msqrob = "msqrob" %in% dataset$de_proteins$algo_de
-  has_msempire = "msempire" %in% dataset$de_proteins$algo_de
+  has_msqrob = "msqrob" %in% dataset$de_proteins$dea_algorithm
+  has_msempire = "msempire" %in% dataset$de_proteins$dea_algorithm
 
   for(contr_index in seq_along(l_contrast)) {
     contr = names(l_contrast)[contr_index]

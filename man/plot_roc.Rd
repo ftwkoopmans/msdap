@@ -3,7 +3,7 @@
 \name{plot_roc}
 \alias{plot_roc}
 \title{placeholder title
-prior to this; species %in% c("YEAST", "HUMAN")
+prior to this; species \%in\% c("YEAST", "HUMAN")
 add extra column predictor; true for spike-in, false for rest}
 \usage{
 plot_roc(tib, mtitle = "", universe = "all", plot_coords = FALSE)
@@ -19,6 +19,6 @@ plot_roc(tib, mtitle = "", universe = "all", plot_coords = FALSE)
 }
 \description{
 placeholder title
-prior to this; species %in% c("YEAST", "HUMAN")
+prior to this; species \%in\% c("YEAST", "HUMAN")
 add extra column predictor; true for spike-in, false for rest
 }

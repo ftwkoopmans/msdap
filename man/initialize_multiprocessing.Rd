@@ -7,7 +7,7 @@
 initialize_multiprocessing(n_thread = 0)
 }
 \arguments{
-\item{n_thread}{number of threads}
+\item{n_thread}{maximum number of threads}
 }
 \description{
 You only need this if a) not using the quickstart function and b) running DEA algorithms msqrob or msqrobsum

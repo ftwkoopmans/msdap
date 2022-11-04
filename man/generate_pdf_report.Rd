@@ -8,20 +8,23 @@ generate_pdf_report(
   dataset,
   output_dir,
   norm_algorithm = "vwmb",
+  rollup_algorithm = "maxlfq",
   pca_sample_labels = "auto",
   var_explained_sample_metadata = NULL
 )
 }
 \arguments{
-\item{dataset}{a valid dataset object generated upstream by, for instance, import_dataset_skyline}
+\item{dataset}{your dataset}
 
 \item{output_dir}{output directory where all output files are stored, must be an existing directory}
 
-\item{norm_algorithm}{normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively}
+\item{norm_algorithm}{normalization algorithm(s). See \code{\link{analysis_quickstart}} function documentation}
 
-\item{pca_sample_labels}{see plot_sample_pca() function for params}
+\item{rollup_algorithm}{peptide-to-protein rollup strategy. See \code{\link{analysis_quickstart}} function documentation}
 
-\item{var_explained_sample_metadata}{NULL to disable (default), NA for auto, or a character array of sample metadata column names. see analysis_quickstart() function for additional details}
+\item{pca_sample_labels}{configuration for PCA plot labels. See \code{\link{analysis_quickstart}} function documentation}
+
+\item{var_explained_sample_metadata}{configuration for variance-explained analyses. See \code{\link{analysis_quickstart}} function documentation}
 }
 \description{
 Normally used as part of the analysis_quickstart() function, refer to its implementation for example code.

@@ -2,19 +2,20 @@
 % Please edit documentation in R/util_files.R
 \name{map_headers}
 \alias{map_headers}
-\title{placeholder title}
+\title{robust matching of a list of desired columns to a character array representing column headers}
 \usage{
 map_headers(headers, l, error_on_missing = FALSE, allow_multiple = FALSE)
 }
 \arguments{
-\item{headers}{todo}
+\item{headers}{character array representing column names}
 
-\item{l}{list of mappings, where list names are target names and values are arrays of patterns that should match provided table headers}
+\item{l}{list of mappings, where list names are target column names and values are character arrays that are (ordered) valid values to represent a column}
 
-\item{error_on_missing}{todo}
+\item{error_on_missing}{throw error if any element in l fails to match}
 
-\item{allow_multiple}{todo}
+\item{allow_multiple}{throw error if any element in l has multiple matches}
 }
 \description{
-placeholder title
+instead of literal string matching between 'headers' and values in l,
+strip/cleanup both by removing all non-alphanumeric characters and convert to lowercase.
 }

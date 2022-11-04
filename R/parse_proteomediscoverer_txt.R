@@ -38,7 +38,7 @@
 #'
 #' @param filename full path to the _PSMs.txt file
 #'
-#' @importFrom data.table fread chmatch
+#' @importFrom data.table chmatch
 #' @importFrom tibble as_tibble
 #' @importFrom tidyr unnest
 #' @importFrom stringr str_sub
@@ -46,7 +46,7 @@
 #'
 import_dataset_proteomediscoverer_txt = function(filename) {
   # debug;
-  # dataset = import_dataset_proteomediscoverer_txt(filename = "C:/DATA/PXD007683/pd/PXD007683/pdout_PSMs.txt")
+  # dataset = import_dataset_proteomediscoverer_txt(filename = "E:/DATA/PXD007683/pd/PXD007683/pdout_PSMs.txt")
   # x = dataset$peptides %>% pivot_wider(id_cols = peptide_id, names_from = sample_id, values_from = "intensity")
   # plot(x$a05191, x$a05192, main = sprintf("R^2=%.4f", cor(x$a05191, x$a05192, use = "pairwise.complete.obs", method = "pearson")^2))
 
@@ -55,12 +55,10 @@ import_dataset_proteomediscoverer_txt = function(filename) {
 
   # first, check if input file exists
   check_parameter_is_string(filename)
-  if (!file.exists(filename)) {
-    append_log(paste("input file does not exist:", filename), type = "error")
-  }
+  # will check for presence of file as well as .gz/.zip extension if file doesn't exist, will throw error if both do not exist
+  filename = path_exists(filename, NULL, try_compressed = TRUE)
 
-
-  tib_psm = tibble::as_tibble(data.table::fread(filename))
+  tib_psm = tibble::as_tibble(read_textfile_compressed(filename, as_table = T, stringsAsFactors = F, data.table = F))
 
   cols_required = c("Percolator PEP", "Confidence", "# Protein Groups", "Annotated Sequence", "Modifications", "Charge", "Spectrum File", "RT [min]", "Precursor Abundance", "Master Protein Accessions")
   cols_missing = setdiff(cols_required, colnames(tib_psm))

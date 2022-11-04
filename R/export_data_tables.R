@@ -1,6 +1,8 @@
 
 #' write statistical results to file
 #'
+#' combines both the DEA and "differential testing" results into output file differential_abundance_analysis.xlsx
+#'
 #' @param dataset your dataset
 #' @param output_dir path to existing directory
 #'
@@ -44,7 +46,8 @@ export_statistical_results = function(dataset, output_dir) {
                                                           "The next set of columns describe the results from each contrast (comparison of sample groups).",
                                                           "'peptides_used_for_dea' shows the number of peptides that pass the filter rules within some contrast (eg; comparing WT vs KO, how many peptides for protein P could be used for statistical analysis?).",
                                                           "",
-                                                          "For each statistical model applied (eBayes, MSqRob, etc.), the log2 foldchange, pvalue and qvalue (adjusted pvalue) are provided.",
+                                                          "For each statistical model applied (DEqMS, MSqRob, etc.), the log2 foldchange, pvalue and qvalue (pvalue adjusted for multiple testing) are provided.",
+                                                          'Note that a MS-DAP contrast for "A vs B" returns foldchanges for B/A. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group.',
                                                           "If multiple DEA models were applied, the column signif_count_<contrast> shows how many algorithms deemed each protein significant.",
                                                           "If you choose to post-hoc combine results from multiple DEA models, we recommend selecting proteins significant in at least 2 of these algorithms as a compromise between using multiple algorithms to maximize your search for proteins-of-interest and robustness against false positives (eg; proteins uniquely scoring well in one statistical model and not the others).",
                                                           "Note; if you apply multiple DEA algorithms but don't follow this selection rule (eg; protein found in N+ DEA algorithms), you should apply some form of multiple-testing-correction to compensate for running multiple hypotheses tests. Consult your local statistician.",
@@ -76,11 +79,10 @@ export_statistical_results = function(dataset, output_dir) {
 #' generated a protein-level abundance matrix for each column in dataset$peptides that starts with "intensity"
 #'
 #' @param dataset your dataset
-#' @param algo_rollup strategy for combining peptides to proteins. For valid options, see rollup_pep2prot()
+#' @param rollup_algorithm strategy for combining peptides to proteins. For valid options, see rollup_pep2prot()
 #' @param output_dir output directory where all output files are stored, must be an existing directory
-#' @importFrom openssl md5
 #' @export
-export_protein_abundance_matrix = function(dataset, algo_rollup, output_dir) {
+export_protein_abundance_matrix = function(dataset, rollup_algorithm, output_dir) {
   stopifnot(dir.exists(output_dir))
   # iterate all intensity data; input data as-is (intensity) and filtered+normalized data, if available, from all_group or by_contrast filters
   for(col_contr_intensity in sort(grep("^intensity", colnames(dataset$peptides), value = T))) {
@@ -89,7 +91,7 @@ export_protein_abundance_matrix = function(dataset, algo_rollup, output_dir) {
     m = rollup_pep2prot(dataset$peptides %>%
                           select(sample_id, protein_id, peptide_id, intensity=!!as.character(col_contr_intensity)) %>%
                           filter(is.finite(intensity)),
-                        intensity_is_log2 = T, algo_rollup = algo_rollup, return_as_matrix = T)
+                        intensity_is_log2 = T, rollup_algorithm = rollup_algorithm, return_as_matrix = T)
     # sort columns by order in sample metadata table. can safely match because each sample_id in dataset$peptides must be present in dataset$samples (provided input dataset is 'valid')
     m = m[ , order(match(colnames(m), dataset$samples$sample_id)), drop=F]
 
@@ -110,4 +112,48 @@ export_protein_abundance_matrix = function(dataset, algo_rollup, output_dir) {
     # write to TSV file. note that we enforce a dot as decimal character (so ignore user's locale)
     write.table(tib, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
   }
+}
+
+
+
+#' Export peptide-level data to TSV files
+#'
+#' Generates separate files for input data as-is (i.e. all peptides, intensity values as provided in the imported dataset)
+#' and all filtering&normalization applied to the dataset.
+#'
+#' i.e. 1 output file for every column in dataset$peptides that starts with "intensity"
+#'
+#' @param dataset your dataset
+#' @param output_dir output directory where all output files are stored, must be an existing directory
+#' @export
+export_peptide_abundance_matrix = function(dataset, output_dir) {
+  stopifnot(dir.exists(output_dir))
+  # iterate all intensity data; input data as-is (intensity) and filtered+normalized data, if available, from all_group or by_contrast filters
+  for(col_contr_intensity in sort(grep("^intensity", colnames(dataset$peptides), value = T))) {
+    # peptide-level data matrix
+    tib = dataset$peptides %>%
+      select(sample_id, protein_id, peptide_id, intensity=!!as.character(col_contr_intensity)) %>%
+      filter(is.finite(intensity))
+
+    # samples with values in current intensity column, ordered like sample metadata table
+    sid = intersect(dataset$samples$sample_id, unique(tib$sample_id))
+
+    tibw = tib %>%
+      pivot_wider(id_cols = c(protein_id, peptide_id), names_from = "sample_id", values_from = "intensity") %>%
+      # add protein metadata
+      left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by = "protein_id") %>%
+      # sort columns by order in sample metadata table
+      select(gene_symbols_or_id, protein_id, peptide_id, !!sid) %>%
+      # sort output table
+      arrange(gene_symbols_or_id!=protein_id, gene_symbols_or_id, protein_id, peptide_id) # proteins without gene symbol first, then sort by symbol
+
+    ## write to file
+    # generate filename. if very long (eg; huge contrast name + long path in output_dir), try to shorting with md5 hash
+    fname = path_append_and_check(output_dir, sprintf("peptide_abundance__%s.tsv", column_intensity_to_label(col_contr_intensity)))
+    # check if output file is writable
+    remove_file_if_exists(fname)
+    # write to TSV file. note that we enforce a dot as decimal character (so ignore user's locale)
+    write.table(tibw, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
+  }
+
 }

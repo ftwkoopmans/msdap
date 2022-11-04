@@ -2,10 +2,10 @@
 % Please edit documentation in R/util_log.R
 \name{reset_log}
 \alias{reset_log}
-\title{clear the log}
+\title{clear the log by resetting global log_ variable}
 \usage{
 reset_log()
 }
 \description{
-clear the log
+clear the log by resetting global log_ variable
 }

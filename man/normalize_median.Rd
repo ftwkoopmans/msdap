@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_normalization.R
 \name{normalize_median}
 \alias{normalize_median}
-\title{simply scale samples by median value}
+\title{scale each sample such that median abundance values are the same for all samples in the dataset}
 \usage{
 normalize_median(x_as_log2, ...)
 }
@@ -12,5 +12,5 @@ normalize_median(x_as_log2, ...)
 \item{...}{remaining parameters are ignored}
 }
 \description{
-simply scale samples by median value
+scale each sample such that median abundance values are the same for all samples in the dataset
 }

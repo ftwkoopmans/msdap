@@ -2,13 +2,13 @@
 % Please edit documentation in R/util_normalization.R
 \name{normalize_rlr}
 \alias{normalize_rlr}
-\title{placeholder title}
+\title{Wrapper function for normalize_rlr_MSqRob_implementation}
 \usage{
 normalize_rlr(x)
 }
 \arguments{
-\item{x}{todo}
+\item{x}{log2 abundance matrix}
 }
 \description{
-placeholder title
+Wrapper function for normalize_rlr_MSqRob_implementation
 }

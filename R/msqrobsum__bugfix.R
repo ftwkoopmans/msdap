@@ -66,7 +66,7 @@ msqrobsum <- function(
   parallel::clusterExport(cl, varlist = c("do_mm", "do_lmerfit", "summarizeRobust", "getVcovBetaBUnscaled", "getBetaB", "calculate_df", "getDf", "get_contrasts"), envir = parent.env(environment())) # .GlobalEnv)
   # arguments from local environment
   parallel::clusterExport(cl, varlist = c("robust_lmer_iter", "rlm_args", "lmer_args", "contrasts", "keep_model", "formulas", "mode"), envir = environment()) # environment(fun = NULL)
-  df$mm = foreach::foreach(d = df$data, .packages = c("lme4", "purrr", "dplyr", "tibble", "MASS")) %dopar% {
+  df$mm = foreach::foreach(d = df$data, .packages = c("MASS", "lme4", "purrr", "dplyr", "tibble")) %dopar% {
     fit_fun(d, robust_lmer_iter = robust_lmer_iter
             , rlm_args = rlm_args, lmer_args =lmer_args
             , contrasts = contrasts, keep_model = keep_model
@@ -156,7 +156,7 @@ do_mm <- function(d, formulas, contrasts, mode ='msqrobsum', robust_lmer_iter = 
   out <- list()
   if (mode != 'msqrob') {
     d <- mutate(d,expression = rlang::exec(summarizeRobust, expression, feature, sample, !!!rlm_args)) %>%
-      select(-feature) %>% distinct
+      dplyr::select(-feature) %>% dplyr::distinct() # FRANK: bugfix for R 4.2
     out$data_summarized <- list(d)
   }
   if (mode == 'sum') return(new_tibble(out ,nrow = 1L))

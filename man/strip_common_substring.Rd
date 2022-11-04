@@ -2,7 +2,7 @@
 % Please edit documentation in R/util_generic.R
 \name{strip_common_substring}
 \alias{strip_common_substring}
-\title{remove starting or trailing substrings that ar the same for all strings in a vector. eg; .txt in all filesnames, or <experiment data><samplename>}
+\title{remove starting or trailing substrings that ar the same for all strings in a vector}
 \usage{
 strip_common_substring(s)
 }
@@ -10,9 +10,18 @@ strip_common_substring(s)
 \item{s}{array of strings}
 }
 \description{
-strip_common_substring(s = unique(peptides$sample_id))
-strip_common_substring(s = c("sample_a.txt","sample_b1.txt","sample_xyz.txt"))
-strip_common_substring(s = c("","sample_b1.txt","sample_xyz.txt"))
-strip_common_substring(s = c("sample.txt","sample_b1.txt","sample_xyz.txt"))
-assertthat::are_equal(strip_common_substring(c("sample_a.txt","sample_b1.txt","sample_xyz.txt"), c("a","b1","xyz")))
+eg; \code{.txt} in all filesnames, or \verb{<experiment data><samplename>}
+}
+\examples{
+\dontrun{ strip_common_substring(s = unique(peptides$sample_id)) }
+\dontrun{ strip_common_substring(s = c("sample_a.txt","sample_b1.txt","sample_xyz.txt")) }
+\dontrun{ strip_common_substring(s = c("","sample_b1.txt","sample_xyz.txt")) }
+\dontrun{ strip_common_substring(s = c("sample.txt","sample_b1.txt","sample_xyz.txt")) }
+\dontrun{
+  assertthat::are_equal(
+    strip_common_substring(c("sample_a.txt","sample_b1.txt","sample_xyz.txt")),
+    c("a","b1","xyz")
+  )
+}
+
 }

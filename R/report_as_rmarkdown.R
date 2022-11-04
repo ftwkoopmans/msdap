@@ -3,11 +3,12 @@
 #'
 #' Normally used as part of the analysis_quickstart() function, refer to its implementation for example code.
 #'
-#' @param dataset a valid dataset object generated upstream by, for instance, import_dataset_skyline
+#' @param dataset your dataset
 #' @param output_dir output directory where all output files are stored, must be an existing directory
-#' @param norm_algorithm normalization algorithm(s) used to normalize the QC proportion of data. options; "", "vsn", "loess", "rlr", "msempire", "vwmb", "modebetween". Provide an array of options to run each algorithm consecutively
-#' @param pca_sample_labels see plot_sample_pca() function for params
-#' @param var_explained_sample_metadata NULL to disable (default), NA for auto, or a character array of sample metadata column names. see analysis_quickstart() function for additional details
+#' @param norm_algorithm normalization algorithm(s). See \code{\link{analysis_quickstart}} function documentation
+#' @param rollup_algorithm peptide-to-protein rollup strategy. See \code{\link{analysis_quickstart}} function documentation
+#' @param pca_sample_labels configuration for PCA plot labels. See \code{\link{analysis_quickstart}} function documentation
+#' @param var_explained_sample_metadata configuration for variance-explained analyses. See \code{\link{analysis_quickstart}} function documentation
 #'
 #' @import knitr
 #' @importFrom rmarkdown render
@@ -16,7 +17,7 @@
 #' @importFrom stringr str_wrap
 #' @importFrom devtools session_info
 #' @export
-generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca_sample_labels = "auto", var_explained_sample_metadata = NULL) {
+generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rollup_algorithm = "maxlfq", pca_sample_labels = "auto", var_explained_sample_metadata = NULL) {
 
   start_time = Sys.time()
   append_log("creating PDF report...", type = "progress")
@@ -25,7 +26,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
   isdia = is_dia_dataset(dataset)
 
   # basic filtering within each group
-  dataset = filter_peptides_by_group(dataset, colname="intensity_qc_basic", disregard_exclude_samples = FALSE, nquant=2, ndetect=1+isdia, norm_algorithm = norm_algorithm)
+  dataset = filter_peptides_by_group(dataset, colname="intensity_qc_basic", disregard_exclude_samples = FALSE, nquant=2, ndetect=1+isdia, norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm)
 
   # for DIA, we remove non-detect observations from the tibble used for RT QC plots (poor Q-value may result in large RT/intensity deviation, especially since we here filter very loosely)
   if(isdia) {
@@ -36,14 +37,14 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
   # note; cannot recycle intensity_qc_basic data since this should discard outlier samples and keep MBR intensities (eg; peptide*sample intensity values but not 'detected')
   if(!"intensity_by_group" %in% colnames(dataset$peptides)) {
     append_log(sprintf("generating 'by_group' filtered&normalized data for downstream CoV plots, filter min-detect:%d min-quant:2 ...", 1+isdia), type = "progress")
-    dataset = filter_peptides_by_group(dataset, colname="intensity_by_group", disregard_exclude_samples = TRUE, nquant=2, ndetect=1+isdia, norm_algorithm = norm_algorithm)
+    dataset = filter_peptides_by_group(dataset, colname="intensity_by_group", disregard_exclude_samples = TRUE, nquant=2, ndetect=1+isdia, norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm)
   }
 
   # need all-group filtering downstream for PCA plots
   if(!"intensity_all_group" %in% colnames(dataset$peptides)) {
     append_log(sprintf("generating 'all_group' filtered&normalized data for downstream PCA plots, filter min-detect:%d min-quant:2 ...", 0+isdia), type = "progress")
     # inefficient code, but simple / easy to read for now. Rare use-case anyway (because user didn't use standard pipeline nor filter_dataset upstream)
-    dataset2 = filter_dataset(dataset, filter_min_detect = 0+isdia, filter_min_quant = 2, norm_algorithm = norm_algorithm, by_group = F, by_contrast = F, all_group = T)
+    dataset2 = filter_dataset(dataset, filter_min_detect = 0+isdia, filter_min_quant = 2, norm_algorithm = norm_algorithm, rollup_algorithm = rollup_algorithm, by_group = F, by_contrast = F, all_group = T)
     dataset$peptides$intensity_all_group = dataset2$peptides$intensity_all_group
     rm(dataset2)
   }
@@ -78,7 +79,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
   ### variance explained
   p_varexplained = NULL
   if(length(var_explained_sample_metadata) > 0) {
-    p_varexplained = plot_variance_explained(dataset, var_explained_sample_metadata)
+    p_varexplained = plot_variance_explained(dataset, cols_metadata = var_explained_sample_metadata, rollup_algorithm = rollup_algorithm)
   }
 
   ### contrasts
@@ -98,16 +99,16 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", pca
 
       # optionally, provide thresholds for foldchange and qvalue so the volcano plot draws respective lines
       l_contrast[[contr]] = list(p_volcano_contrast = lapply(plot_volcano(stats_de = stats_contr, log2foldchange_threshold = stats_contr$signif_threshold_log2fc[1], qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle), "[[", "ggplot"),
-                                 p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = algo_de), mtitle=contr),
-                                 p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = algo_de), mtitle=contr))
+                                 p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr),
+                                 p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr))
     }
 
 
     ### summary table of all stats
     tib_report_stats_summary = de_proteins %>%
       arrange(pvalue) %>%
-      rename(algorithm = algo_de) %>%
-      # filter(signif) %>% # include this to remove contrast*algo_de entries without any significant hits
+      rename(algorithm = dea_algorithm) %>%
+      # filter(signif) %>% # include this to remove contrast*dea_algorithm entries without any significant hits
       group_by(contrast, algorithm) %>%
       summarise(`#test` = sum(is.finite(pvalue)),
                 `#hits` = sum(signif),

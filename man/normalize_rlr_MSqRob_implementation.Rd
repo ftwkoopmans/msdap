@@ -2,15 +2,18 @@
 % Please edit documentation in R/util_normalization.R
 \name{normalize_rlr_MSqRob_implementation}
 \alias{normalize_rlr_MSqRob_implementation}
-\title{sourced from MSqRob package, original code @ https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R}
+\title{Robust Linear Regression (RLR) normalization as sourced from MSqRob package}
 \usage{
 normalize_rlr_MSqRob_implementation(exprs, weights = NULL)
 }
 \arguments{
-\item{exprs}{todo}
+\item{exprs}{numerical matrix}
 
-\item{weights}{todo}
+\item{weights}{optional vector of weights (per row) to be supplied to MASS::rlm()}
 }
 \description{
-sourced from MSqRob package, original code @ https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R
+copy/paste of code @ https://github.com/statOmics/MSqRob/blob/MSqRob0.7.6/R/preprocess_MaxQuant.R
+}
+\details{
+For each sample s, perform a robust linear regression of all values (peptide intensities) against overall median values (e.g. median value of each peptide over all samples) to obtain the normalization factor for sample s.
 }

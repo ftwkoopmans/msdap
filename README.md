@@ -5,34 +5,44 @@
 <img align="left" alt="MS-DAP logo" hspace="20" vspace="10" src="doc/logo/msdap_logo_small.png">
  
 
-The Mass Spectrometry Downstream Analysis Pipeline is an all-in-one tool
-for the interpretation of label-free proteomics datasets. Its main
-features are extensive quality control, integration of state-of-the-art
-algorithms for differential testing and intuitive visualization and
-reporting.
+The Mass Spectrometry Downstream Analysis Pipeline (MS-DAP) is an
+open-source R package for analyzing and interpreting label-free
+proteomics datasets, and is compatible with various upstream
+raw-data-processing software (e.g. MaxQuant, DIA-NN, FragPipe,
+Spectronaut, etc). It provides a user-friendly interface for data
+processing steps such as feature selection (peptide filtering),
+normalization of quantitative values and differential expression
+analysis (DEA). Many commonly used normalization and DEA algorithms are
+integrated and users can provide custom functions (plugins) for
+normalization and DEA. A comprehensive quality control report can be
+generated that provides extensive data visualizations for quality and
+reproducibility metrics, identification of potential batch-effects and
+interpretation of statistical results (this PDF includes documentation
+and information needed to reproduce results).
 
  
 
-We are currently preparing a manuscript for publication, feel free to
-explore the documentation and test the beta-version of MS-DAP in this
-GitHub repository meanwhile !
+Our manuscript is currently under review, we’ll add a reference here
+after publication
 
 ## Overview
 
-![MS-DAP overview](doc/images/msdap-fig1-overview.png)
+<figure>
+<img src="doc/images/msdap-overview.png" style="width:80.0%"
+alt="MS-DAP workflow" />
+<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
+</figure>
 
-[Check this introduction to MS-DAP](doc/intro.md) for an overview of
-data visualizations (example PDF reports are available at this link,
-bottom of the page).
+[This introduction to MS-DAP](doc/intro.md) provides a complete overview
+of main features and example data visualizations.
 
 ## Quickstart
 
-Installation of the R package in brief, assuming
+Installation of the R package in RStudio (assuming
 [R](https://cran.r-project.org),
-[RTools](https://cran.r-project.org/bin/windows/Rtools/history.html)
-(v3.5 for R 3.6, v4 for R 4.0 and up) and
-[RStudio](https://www.rstudio.com/products/rstudio/) have been installed
-(documentation references @ next section)
+[RTools](https://cran.r-project.org/bin/windows/Rtools/history.html) and
+[RStudio](https://www.rstudio.com/products/rstudio/) have been
+installed)
 
 ``` r
 install.packages(c("devtools", "tidyverse", "tinytex", "BiocManager"))
@@ -77,9 +87,9 @@ dataset = import_sample_metadata(dataset, filename = "sample_metadata.xlsx")
 dataset = setup_contrasts(dataset, contrast_list = list(  c("WT","KO")  ) )
 
 # 6) Main function that runs the entire pipeline
-# for DIA, recommended settings are defined below, selecting only peptides that were confidently detected in most samples
+# for DIA, recommended settings are defined below, selecting only peptides that were confidently detected/identified in most samples
 # for DDA, 'confident detection' relies on MS/MS which may be more rare (relying on match-between-runs instead)
-# following benchmarks in the MS-DAP manuscript, for DDA we recommend to set no or minimal requirements on 'detect' parameters; "filter_fraction_detect = 0" and "filter_min_detect = 0" (or 1 if you want at least 1 MS/MS detect per peptide per sample group)
+# so for DDA we recommend to set no or minimal requirements on 'detect' parameters; "filter_fraction_detect = 0" and "filter_min_detect = 0" (or 1 if you want at least 1 MS/MS detect per peptide per sample group)
 dataset = analysis_quickstart(
   dataset,
   filter_min_detect = 3,         # each peptide must have a good confidence score in at least N samples per group
@@ -91,10 +101,11 @@ dataset = analysis_quickstart(
   dea_algorithm = c("deqms", "msempire", "msqrob"), # statistics; apply multiple methods in parallel/independently
   dea_qvalue_threshold = 0.01,                      # threshold for significance of adjusted p-values in figures and output tables
   dea_log2foldchange_threshold = NA,                # threshold for significance of log2 foldchanges. 0 = disable, NA = automatically infer through bootstrapping
-  output_qc_report = TRUE,                          # optionally, set to FALSE to skip the creation of the QC report (not recommended for first-time use)
-  output_abundance_tables = TRUE,                   # optionally, disable the creation of abundance table output files
-  output_dir = "msdap_results",                    # output directory, here set to "msdap_results" within your working directory. Alternatively provide a full path, eg; output_dir="C:/path/to/myproject",
+  output_qc_report = TRUE,                          # optionally, set to FALSE to skip the QC report (not recommended for first-time use)
+  output_abundance_tables = TRUE,                   # optionally, set to FALSE to skip the peptide- and protein-abundance table output files
+  output_dir = "msdap_results",                     # output directory, here set to "msdap_results" within your working directory. Alternatively provide a full path, eg; output_dir="C:/path/to/myproject",
   output_within_timestamped_subdirectory = TRUE )
+
 # print a short summary of results at the end
 print_dataset_summary(dataset)
 
@@ -110,7 +121,7 @@ bioinformatics workflow.
 
 ![MS-DAP docker](doc/images/msdap_docker_cartoon.png)
 
-1.  Installing the dockerized version of MS-DAP is trivialized to first
+1)  Installing the dockerized version of MS-DAP is trivialized to first
     installing the Docker application and then pulling the MS-DAP
     container from the online Docker repository ( [as shown in this
     guide](doc/docker.md) ). Using containers guarantees the exact same
@@ -121,7 +132,7 @@ bioinformatics workflow.
     the respective container version (e.g. to repeat a previously
     published analysis).
 
-2.  Already working with R? [Click here for an installation
+2)  Already working with R? [Click here for an installation
     guide](doc/rpackage.md) to install the MS-DAP R package.
 
 ## Using MS-DAP
@@ -139,8 +150,8 @@ in the following vignettes, from a more detailed look at differential
 testing to integrating alternative algorithms for normalization or
 Differential Expression Analysis (DEA).
 
--   [introduction to MS-DAP](doc/intro.md)
--   [user guide](doc/userguide.md)
+-   [introduction to MS-DAP](doc/intro.md) (start here)
+-   [user guide: details the main R functions](doc/userguide.md)
 -   [bioinformatics: differential expression analysis
     (DEA)](doc/differential_expression_analysis.md)
 -   [bioinformatics: differential
@@ -150,9 +161,17 @@ Differential Expression Analysis (DEA).
 
 ## Roadmap
 
--   expand upstream software support (e.g. maintain compatibility
-    throughout future releases of upstream software such as MaxQuant,
-    FragPipe, DIA-NN, etc.)
--   please contact us if you can share datasets that should work with
-    MS-DAP but don’t (e.g. some workflow with non-free software that we
-    don’t have access too such as ProteomeDiscoverer)
+-   currently working on;
+    -   additional data visualization for the PDF report
+    -   advanced experimental designs for eBayes/DEqMS (i.e. more
+        flexibility in creating design matrices for limma)
+    -   implement various imputation approaches, and apply extensive
+        benchmarking evaluation
+-   planned
+    -   plugins for more statistical methods & extensive benchmarking
+        evaluation
+        -   e.g. existing methods / new tools currently in development
+            in other labs (write plugin to help beta-test and benchmark)
+            / port methods currently not available in R
+    -   approaches for combining test statistics when applying multiple
+        independent DEA methods

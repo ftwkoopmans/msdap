@@ -14,8 +14,9 @@ if you run these code snippets on your computer
 
 ## load dataset
 
-1.  load the Skyline output of the LFQbench study (this file is bundled
-    with the MS-DAP package, you don’t have to download anything).
+1.  load the Skyline output of the LFQbench study (<PMID:27701404> \~
+    this file is bundled with the MS-DAP package, you don’t have to
+    download anything).
 
 2.  extract the respective group/condition of each sample by matching a
     regular expression against the filenames. This is just to
@@ -45,7 +46,7 @@ dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
 #> info: contrast: A vs B
 
 print(dataset$samples %>% select(sample_id, group))
-#> # A tibble: 6 x 2
+#> # A tibble: 6 × 2
 #>   sample_id           group
 #>   <chr>               <chr>
 #> 1 lgillet_L150206_007 A    
@@ -111,7 +112,7 @@ print( tib_plot %>%
          arrange(desc(abs(zscore_count_detect))) %>% 
          head(50) %>% 
          count(classification) )
-#> # A tibble: 2 x 2
+#> # A tibble: 2 × 2
 #>   classification     n
 #>   <chr>          <int>
 #> 1 human              2

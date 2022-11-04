@@ -2,13 +2,13 @@
 % Please edit documentation in R/util_generic.R
 \name{check_parameter_is_string}
 \alias{check_parameter_is_string}
-\title{placeholder title}
+\title{generic input validation; all provided arguments should be strings (not array)}
 \usage{
 check_parameter_is_string(...)
 }
 \arguments{
-\item{...}{todo}
+\item{...}{arbitrary set of parameters}
 }
 \description{
-placeholder title
+generic input validation; all provided arguments should be strings (not array)
 }

@@ -81,6 +81,7 @@ import_dataset_skyline = function(filename, acquisition_mode, confidence_thresho
 #' @param filename the full file path of the input file
 #' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
+#' @param use_irt logical indicating whether to use standardized (IRT) or the empirical (RT) retention times
 #' @param use_normalized_intensities use the abundance values as-is (recommended) or those normalized by DIA-NN
 #' @export
 import_dataset_diann = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, use_irt = TRUE, do_plot = TRUE) {
@@ -126,7 +127,7 @@ import_dataset_diann = function(filename, confidence_threshold = 0.01, use_norma
 #' @param use_irt logical indicating whether to use standardized (IRT, EG.iRTEmpirical) or the empirical (EG.RTEmpirical) retention times
 #' @param remove_shared_spectronaut_proteingroups if the peptide-to-proteingroup assignments from Spectronaut are used as is (eg; you're not mapping the peptides to some spectral library downstream), you can remove peptides that map to multiple proteingroups
 #'
-#' @importFrom data.table chmatch
+#' @importFrom data.table chmatch "%chin%"
 #' @export
 import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use_normalized_intensities = FALSE, use_irt = TRUE,
                                       return_decoys = FALSE, remove_shared_spectronaut_proteingroups = FALSE, do_plot = TRUE) {
@@ -286,22 +287,29 @@ update_protein_mapping = function(tib, pep2prot) {
 #' @param select_unique_precursor_per_modseq if multiple precursors are available for a modified sequence (eg; charge 2 and 3), should we make an effort to select the best or just return all of them ?
 #' @param custom_func_manipulate_DT_onload !expert use only! (there is intricate interplay between such pre-filtering and the code in this function); provide a function that manipulates the data.table after load. example implementation in the fragpipe parser.
 #'
-#' @importFrom data.table as.data.table fread chmatch setkey setorder
+#' @importFrom data.table as.data.table chmatch setkey setorder
 #' @export
 import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_required=list(), attributes_optional = list(), confidence_threshold = 0.01,
                                          remove_peptides_never_above_confidence_threshold = TRUE, select_unique_precursor_per_modseq = TRUE,
                                          custom_func_manipulate_DT_onload = NULL,
                                          return_decoys = TRUE, do_plot = TRUE) {
   ### sanity check on input parameters
-  if ((length(filename) != 1 && length(x) == 0) || (length(filename) == 1 && length(x) > 0)) {
+  if((length(filename) != 1 && length(x) == 0) || (length(filename) == 1 && length(x) > 0)) {
     append_log(paste("'filename' OR 'x' parameter is required (but don't supply both):", filename), type = "error")
   }
+
   # if filename is supplied, check if it's valid
-  if (length(filename) == 1 && (!is(filename, "character") || nchar(filename) < 3 || !file.exists(filename))) {
-    append_log(paste("'filename' parameter is not an existing file:", filename), type = "error")
+  if(length(filename) == 1) {
+    if(!is(filename, "character") || nchar(filename) < 3) {
+      append_log(paste("'filename' parameter is not valid:", filename), type = "error")
+    }
+
+    filename = path_exists(filename, NULL, try_compressed = TRUE)
+    append_log(paste("input file:", filename), type = "info")
   }
+
   # if data table is supplied, check if it's valid
-  if (length(x) > 0 && !is.data.frame(x)) {
+  if(length(x) > 0 && !is.data.frame(x)) {
     append_log("'x' parameter must be of type: data.frame, tibble or data.table):", type = "error")
   }
   if(length(attributes_required) == 0 || !is(attributes_required, "list")) {
@@ -322,8 +330,9 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
   is_file = length(filename) == 1
   if (is_file) {
-    # read just the first line and find indices of expected columns (named array where value = column index at input file, name = target column name)
-    headers = unlist(strsplit(readLines(filename, n = 1), "\t"))
+    # read first line from file; read 1 line into data.frame without colnames with first row having all values, then convert to character array
+    # this leverages data.table to infer what character was used to delimit columns
+    headers = as.character( read_textfile_compressed(filename, as_table = T, nrow = 1, header = F, data.table = F) )
   } else {
     headers = colnames(x)
   }
@@ -333,88 +342,105 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
 
   if (is_file) {
-    ## try to detect data tables with a comma as decimal separation character (seems common on windows for some software * system language combinations)
-    # TODO: perhaps we should just parse data.table as is with downstream code and fix commas post-hoc. Probably more efficient
-    dec_char = "."
-    # select only the intensity column from the data table, read the first 100 lines
-    DT_numeric = as.data.frame(data.table::fread(filename, select = as.numeric(map_required[c("rt", "intensity")]), check.names = T, stringsAsFactors = F, nrows = 100, dec = dec_char))
-    # flatten into an array
-    x = unlist(DT_numeric, recursive = T, use.names = F)
-    # if there are any character strings with a comma, parsing the input file with a dot as decimal separation character failed to yield numerics -->> try to parse with alternative separation character downstream
-    if(any(!is.na(x) & is.character(x) & grepl(",", x, fixed = T))) {
-      append_log("The input data table seems to use a comma as decimal separation characters. Trying to fix this this now...", type="warning")
+    ### try to detect data tables with a comma as decimal separation character
+    # (not uncommon when using upstream raw data processing software on Windows systems for some software * system language combinations)
+    dec_char = "." # initial guess
+    # select two numeric columns from the data table that are guaranteed to be present, then read the first N lines of only those columns
+    df_test_numeric = read_textfile_compressed(filename, nrow = 1000, skip_empty_rows = F, as_table = T, header = F, skip = 1, select = as.numeric(map_required[c("rt", "intensity")]), stringsAsFactors = F, dec = dec_char, data.table = F)
+    df_test_numeric__fail = sapply(df_test_numeric, class, simplify = T) != "numeric"
+    # if any column was parsed as non-numeric with current separation char -->> try to parse with alternative separation character downstream
+    if(any(df_test_numeric__fail)) {
+      append_log("The input data table does not seem to use '.' for decimal notation. Trying to parse file with ',' as decimal specification instead...", type = "warning")
       dec_char = ","
     }
-    rm(DT_numeric, x)
+    rm(df_test_numeric, df_test_numeric__fail)
 
+
+    ### read table
+    # collect all column indices and their desired names
+    col_indices = c(map_required, map_optional)
+    col_indices_dupe = duplicated(as.integer(col_indices))
+    col_indices_unique = col_indices[!col_indices_dupe] # don't use unique(), it'll drop the names
 
     # only read columns of interest to speed up file parsing
-    col_indices = c(map_required, map_optional)
-    DT = data.table::fread(filename, select = unique(col_indices), check.names = T, stringsAsFactors = F, dec = dec_char)
-    colnames(DT) = names(col_indices)[!duplicated(col_indices)]
+    # don't parse first row as header and then skip it to avoid issues with tables that have mismatched headers (e.g. MetaMorpheus files that have extra trailing tab on header row)
+    DT = read_textfile_compressed(filename, skip_empty_rows = F, as_table = T, select = as.integer(col_indices_unique), header = F, skip = 1, stringsAsFactors = F, data.table = T)
+    colnames(DT) = names(col_indices_unique) # overwrite column names from file with the desired names from column specification
+
     # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
     # j = index in 'col_indices' where we should borrow content from other column
-    for(j in which(duplicated(as.numeric(col_indices)))) {
-      j_source_column = names(col_indices)[col_indices == col_indices[j]][1]
-      DT[,names(col_indices)[j]] = DT[[j_source_column]]
+    for(j in which(col_indices_dupe)) {
+      j_source_column = names(col_indices_unique)[as.integer(col_indices_unique) == as.integer(col_indices[j])]
+      DT[,names(col_indices)[j]] = DT[[j_source_column]] # use column names !
     }
 
+
     ### inject function for custom manipulation of DT. example; for some input format, repair a column. for FragPipe, the modified peptide column is empty for peptides without a modification, so there is no column with proper modseq available. have to 'manually repair', but other than that we want to maintain this generic function
-    if(length(custom_func_manipulate_DT_onload) == 1 && !is.null(custom_func_manipulate_DT_onload) && is.function(custom_func_manipulate_DT_onload)) {
+    if(length(custom_func_manipulate_DT_onload) == 1 && is.function(custom_func_manipulate_DT_onload)) {
       DT = custom_func_manipulate_DT_onload(DT)
     }
   } else {
-    DT = data.table::as.data.table(x)
+    DT = data.table::as.data.table(x) # cast input table to data.table type
   }
 
-  ### first, see what data we can remove, and perform more expensive operations after
+
+  ### decoys
   if("isdecoy" %in% colnames(DT)) {
-    DT$isdecoy = DT$isdecoy %in% c(TRUE, 1, "decoy", "true", "True", "TRUE")
+    DT[ , isdecoy := isdecoy %in% c(TRUE, 1, "decoy", "true", "True", "TRUE"), by=isdecoy]
+    ## apply type casting to all rows is slower than first using data.table grouping;
+    # DT$isdecoy = DT$isdecoy %in% c(TRUE, 1, "decoy", "true", "True", "TRUE")
   } else {
     DT$isdecoy = FALSE
   }
 
+
+  ### confidence
   # no confidence scores in the input table, assume all are 'detected'. otherwise, test confidence score vs threshold
   if(!"confidence" %in% colnames(DT)) {
     append_log("input dataset lacks peptide confidence scores, thus assuming all peptides are 'detected'", type = "warning")
-    DT$detect = TRUE
+    DT[ , detect := TRUE ]
   } else {
     # define detect using a threshold on confidence scores
     DT[ , detect := is.finite(confidence) & confidence <= confidence_threshold ]
   }
 
 
-  # remove entries that lack crucial data
-  # remove target peptides that don't have intensity value. for decoys, intensity values are not required
-  DT = DT[sample_id != "" & protein_id != "" & sequence_modified  != "" & (isdecoy | (is.finite(intensity) & intensity > 0))]
+  ### remove entries that lack crucial data
+  # 'remove' target peptides that don't have intensity >= 1. For decoys, intensity values are not required but must be >= 1
+  DT[ , rows_remove := sample_id == "" | protein_id == "" | sequence_modified  == "" | (isdecoy & is.finite(intensity) & intensity < 1) | (!isdecoy & (!is.finite(intensity) | intensity < 1))]
 
 
-  # remove path and extension from filename. using grouping, we only have to apply the regex on unique elements (making this very fast)
-  DT[ , sample_id := gsub("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia)(\\.gz|\\.dia){0,1}$)", "", sample_id, ignore.case=T), by=sample_id]
-  ## benchmarks show why we use data.table for all downstream string manipulations; good combination of readable code and computational performance
-  # rbenchmark::benchmark(naive={s = gsub("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia)(\\.gz|\\.dia){0,1}$)", "", tib$sample_id, ignore.case=T)},
-  #                       hardcoded={
-  #                         sid = unique(DT$sample_id)
-  #                         sid_new = gsub("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia)(\\.gz|\\.dia){0,1}$)", "", sid, ignore.case=T)
-  #                         i = data.table::chmatch(DT$sample_id, sid)
-  #                       },
-  #                       datatable={DT[ , sample_id := gsub("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia)(\\.gz|\\.dia){0,1}$)", "", sample_id, ignore.case=T), by=sample_id]} )
+  ### format sample_id; strip path and whitelisted extensions from filename. using grouping, we only have to apply the regex on unique elements
+  regex_strip_msrawfile = "(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4)$)"
+  DT[ , sample_id := gsub(regex_strip_msrawfile, "", sample_id, ignore.case=T), by=sample_id]
 
 
+  ### format charge
   # assume the charge is either provided as a plain number, or as trailing character in a string (eg; FragmentGroup ID @ spectronaut)
   if(typeof(DT$charge) == "character") { # if input data is not numeric... (data.table::fread() should have automatically recognise it)
-    DT[ , charge := sub(".*\\D(\\d+)$", "\\1", charge), by=charge]
+    DT[ , charge := replace_na(suppressWarnings(as.integer( sub(".*\\D(\\d+)$", "\\1", charge) )), 0), by=charge]
+  } else {
+    DT[ , charge := replace_na(suppressWarnings(as.integer(charge)), 0), by=charge]
   }
-  DT[ , charge := replace_na(suppressWarnings(as.integer(charge)), 0), by=charge]
 
+  ### format modified sequence
   # remove leading and trailing annotations from modified sequence, such as underscores or charge states. regex; start with non-character or opening bracking (modification), and analogous for trailing
-  DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", sequence_modified, perl = TRUE), by=sequence_modified]
-  # test input for regex;    gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", c("ABC", "_ABC", "_(n)ABC", "[n]ABC", "ABC.", "ABC.3", "ABCn3", "aa", "aa_", "_aa", "_(b)aa(c)_", "(b)aa(c)..", "_[b]aa[c]_", "2.[b]aa[c]", "_[c(unimod:1)]aaa"), perl = TRUE)
+  DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^]a-zA-Z)]+$)", "", sequence_modified), by=sequence_modified] # relatively slow, but probably not much to be gained
+  ## test data and comparison of regular expressions  +  benchmarks
+  # mock = c("ABC", "_ABC", "_(n)ABC", "[n]ABC", "ABC.", "ABC.3", "ABCn3", "aa", "aa_", "_aa", "_(b)aa(c)_", "(b)aa(c)..", "_[b]aa[c]_", "2.[b]aa[c]", "_[c(unimod:1)]aaa")
+  # cbind(mock, gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", mock, perl = TRUE), gsub("(^[^a-zA-Z([]+)|([^]a-zA-Z)]+$)", "", mock, perl = F) )
+  # microbenchmark::microbenchmark(
+  #   a = {DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^a-zA-Z)\\]]+$)", "", sequence_modified, perl = TRUE), by=sequence_modified]},
+  #   b = {DT[ , sequence_modified := gsub("(^[^a-zA-Z([]+)|([^]a-zA-Z)]+$)", "", sequence_modified, perl = F), by=sequence_modified]},
+  #   c = {DT[ , sequence_modified := sub("[^a-zA-Z([]*(.*)[^]a-zA-Z)]*", "\\1", sequence_modified, perl = F), by=sequence_modified]},
+  #   times = 25
+  # )
+
 
   # if no plain sequence is available in input table, extract it from the modified sequence by removing everything between brackets. either [] or ()
   # note that above we validated sequence_modified is never empty. so if there the provided sequence_plain has any empty values, default back to a manipulation of modified sequences
   if (!"sequence_plain" %in% colnames(DT) || any(DT$sequence_plain == "")) {
-    DT[ , sequence_plain := gsub("(\\[[^]]*\\])|(\\([^)]*\\))", "", sequence_modified), by=sequence_modified]
+    DT[ , sequence_plain := gsub("(\\[[^]]*\\])|(\\([^)]*\\))", "", sequence_modified), by=sequence_modified] # slow !
   }
 
   # peptide_id = modified sequence + charge (eg. unique precursors) + spectral library (so we can support scenario's where the raw data was matched to multiple spectral libraries)
@@ -430,71 +456,76 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
-  if(any(!is.na(DT$intensity) & !is.numeric(DT$intensity))) {
-    append_log("error: intensity values must be either numerical or NA values (empty string is accepted as NA as well)", type = "error")
-  }
-  DT$intensity = log2(DT$intensity)
-  DT$intensity[!is.finite(DT$intensity)] = NA
-  DT$intensity[is.finite(DT$intensity) & DT$intensity < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
-  if("intensity_norm" %in% colnames(DT)) {
-    DT$intensity_norm = log2(DT$intensity_norm)
-    DT$intensity_norm[!is.finite(DT$intensity_norm)] = NA
-    DT$intensity_norm[is.finite(DT$intensity_norm) & DT$intensity_norm < 0] = 0 # note; we already removed zero intensity values when importing. here, we threshold extremely low values
+  # note that above, we already removed values below 1
+  DT[ , intensity := log2(intensity) ]
+  if("intensity_norm" %in% colnames(DT) && typeof(DT$intensity_norm) == "numeric") {
+    DT[ , intensity_norm := suppressWarnings(log2(intensity_norm)) ] # update entire column
+    DT[!is.finite(intensity_norm) | intensity_norm < 0, intensity_norm := NA ] # update only rows with invalid value; threshold intensity values at 1 (but note here is log2 transformed already)
   }
 
-  # for DIA data we can compute Cscore histograms of both target and decoy peptides (which will be shown in report downstream)
+  ### for DIA data we can compute Cscore histograms of both target and decoy peptides (which will be shown in report downstream)
   plotlist = list()
   if(do_plot && "cscore" %in% colnames(DT)) {
     plotlist$ggplot_cscore_histograms = plot_dia_cscore_histograms(as_tibble(DT))
   }
 
   if(!return_decoys) {
-    DT = DT[isdecoy==FALSE]
+    DT[ , rows_remove := rows_remove | isdecoy ]
   }
 
-  # remove all target peptides that do not have a single detect (eg; DIA dataset, some peptide from the spectral library that is never confidently identified/quantified)
+
+  ### remove peptides never detected
+  # (eg; DIA dataset, some peptide from the spectral library that is never confidently identified/quantified)
   if(remove_peptides_never_above_confidence_threshold) {
-    DT_valid = DT[detect==TRUE, .(peptide_id), by=peptide_id]
-    DT = DT[isdecoy==TRUE | data.table::chmatch(peptide_id, DT_valid$peptide_id) != 0]
+    # unique set of peptide_id that have detect==TRUE at least once
+    pepid_valid = DT[rows_remove==FALSE & detect==TRUE, .(peptide_id), by=peptide_id]$peptide_id
+    # non-decoys that are not on remove list yet, but their peptide_id does not match valid list -->> remove
+    DT[rows_remove==FALSE & isdecoy==FALSE &  ! data.table::`%chin%`(peptide_id, pepid_valid), rows_remove := TRUE, by=peptide_id] # NOT peptide_id %in% pepid_valid
   }
 
 
-  # remove peptides attributed to multiple protein identifiers
-  DT_valid = DT[isdecoy==FALSE][ , .(sequence_plain), by = .(sequence_plain, protein_id)][ , .( fail = .N != 1), by = sequence_plain]
+  ### remove peptides attributed to multiple protein identifiers
+  DT_valid = DT[rows_remove==FALSE & isdecoy==FALSE][ , .(sequence_plain), by = .(sequence_plain, protein_id)][ , .( fail = .N != 1), by = sequence_plain]
   if(any(DT_valid$fail)) {
+    # array of plain sequences to remove
+    pseq_invalid = DT_valid[fail==TRUE, .(sequence_plain), by=sequence_plain]$sequence_plain
     append_log(sprintf("%d unique target (plain)sequences ambiguously mapped to multiple proteins and thus removed. Examples; %s",
-                       sum(DT_valid$fail), paste(head(DT_valid$sequence_plain[DT_valid$fail], 5), collapse=", ")), type = "info")
-    # keep entries that are either decoys or their plain sequence matches the subset that did NOT fail the above uniqueness test
-    DT = DT[isdecoy==TRUE | data.table::chmatch(sequence_plain, (DT_valid[fail==FALSE])$sequence_plain) != 0]
+                       length(pseq_invalid), paste(head(pseq_invalid, 5), collapse=", ")), type = "info")
+    # remove non-decoy where plain sequence matches the subset that failed the above uniqueness test
+    DT[rows_remove==FALSE & isdecoy==FALSE & data.table::`%chin%`(sequence_plain, pseq_invalid), rows_remove := TRUE, by=sequence_plain] # sequence_plain %chin% pseq_invalid
   }
 
-  # select 'best' peptide_id for each sequence_modified, in case there are multiple data points provided due to multiple charges, spectral libraries, etc.
+
+  ### select 'best' peptide_id for each sequence_modified, in case there are multiple data points provided due to multiple charges, spectral libraries, etc.
   if(select_unique_precursor_per_modseq) {
-    # select 'best' peptide_id for each sequence_modified, in case there are multiple data points provided due to multiple charges, spectral libraries, etc.
-    data.table::setkey(DT, peptide_id)
+    # # select 'best' peptide_id for each sequence_modified, in case there are multiple data points provided due to multiple charges, spectral libraries, etc.
+    # data.table::setkey(DT, peptide_id)
     # simple summary statistics per peptide_id
-    x = DT[isdecoy==FALSE][ , .(sequence_modified=sequence_modified[1], ndetect=sum(detect==TRUE), abundance=mean(intensity)), by=peptide_id]
-    nprecursor = nrow(x)
+    x = DT[rows_remove==FALSE & isdecoy==FALSE][ , .(sequence_modified=sequence_modified[1], ndetect=sum(detect==TRUE), abundance=mean(intensity)), by=peptide_id]
+    npepid_pre = nrow(x)
     # sort such that the desireable sequence_modified for each peptide_id comes out on top
     data.table::setorder(x, -ndetect, -abundance, na.last = TRUE)
     # simply select first entry
     x = x[ , index := seq_len(.N), by = sequence_modified][index == 1]
-    nmodseq = nrow(x)
+    npepid_post = nrow(x)
     # debug; x[sequence_modified=="KNPDSQYGELIEK"]; y[sequence_modified=="KNPDSQYGELIEK"]
+    # flag for removal of peptide_id not present in subsetted table x
+    DT[rows_remove==FALSE & isdecoy==FALSE & ! data.table::`%chin%`(peptide_id, x$peptide_id), rows_remove := TRUE, by=peptide_id] # NOT peptide_id %in% x$peptide_id
 
-    DT = DT[isdecoy==TRUE | data.table::chmatch(peptide_id, x$peptide_id) != 0]
-    if(nprecursor != nmodseq) {
-      append_log(sprintf("%d/%d precursors remain after selecting the 'best' precursor for each modified sequence", nmodseq, nprecursor), type = "info")
+    if(npepid_pre != npepid_post) {
+      append_log(sprintf("%d/%d precursors remain after selecting the 'best' precursor for each modified sequence", npepid_post, npepid_pre), type = "info")
     }
   }
 
+  ### finally, subset DT (do once = no garbage collection overhead)
+  result = tibble_peptides_reorder(as_tibble(DT[rows_remove == FALSE]) %>% select(-rows_remove))
 
-  if(!any(DT$isdecoy == FALSE)) {
+  if(!any(result$isdecoy == FALSE)) {
     append_log("there must be target peptides (eg; not a decoy and intensity value > 0) in the peptides tibble", type = "error")
   }
 
-  proteins = empty_protein_tibble(DT)
+  proteins = empty_protein_tibble(result)
 
-  # TODO: log_peptide_tibble_pep_prot_counts(tib)
-  return(list(peptides=tibble_peptides_reorder(as_tibble(DT)), proteins=proteins, plots=plotlist))
+  # optional: log_peptide_tibble_pep_prot_counts(tib)
+  return(list(peptides=result, proteins=proteins, plots=plotlist))
 }

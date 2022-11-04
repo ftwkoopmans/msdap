@@ -57,11 +57,28 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
 
 
 
-#' placeholder title
-#' @param peptides todo
-#' @param samples todo
+#' Plot within-group foldchange distributions to assess outlier samples
+#'
+#' @examples
+#' \dontrun{
+#'   dataset = filter_peptides_by_group(
+#'     dataset,
+#'     colname="intensity_qc_basic",
+#'     disregard_exclude_samples = FALSE,
+#'     nquant=2,
+#'     ndetect=1+is_dia_dataset(dataset),
+#'     norm_algorithm = c("vsn", "modebetween_protein"),
+#'     rollup_algorithm = "maxlfq"
+#'   )
+#'   l = plot_foldchange_distribution_among_replicates(mypeptides, dataset$samples)
+#'   for(p in l$plotlist) print(p)
+#'   print(l$tib_scores)
+#' }
+#' @param peptides peptide tibble, e.g. dataset$peptides, which must hold raw intensity data in "intensity" column and filtered and normalized data in the column "intensity_qc_basic"
+#' @param samples sample tibble, e.g. dataset$samples
 plot_foldchange_distribution_among_replicates = function(peptides, samples) {
   plotlist = list()
+  tib_scores = NULL
   ugrp = unique(samples$group)
   for (g in ugrp) { # g = ugrp[1]
     # g_key = samples$key_group[match(g, samples$group)]
@@ -118,6 +135,8 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
       # flag bottom N samples
       mutate(has_color = dplyr::row_number()  >  n() - nrow(clr_ref),
              color = clr_default)
+
+    tib_scores = bind_rows(tib_scores, tib_sample_score %>% mutate(group = g) %>% arrange(desc(sd)))
 
     # assign color to samples that need to be color-coded
     # note that this code works in tandem with above 'has_color' definition; the number of flagged samples is always <= number of available colors in clr_ref
@@ -195,7 +214,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     # }
   }
 
-  return(plotlist)
+  return(list(plotlist = plotlist, tib_scores = tib_scores))
 }
 
 
@@ -233,7 +252,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     # from tibble to matrix
     mat_grp_intensities = as_matrix_except_first_column(tibw_grp_intensities)
     # # normalize by mode (normalization should have been done upstream already, but only takes a few seconds per group anyway)
-    # mat_grp_intensities = normalize_matrix(mat_grp_intensities, mask_sample_groups = rep(1, ncol(mat_grp_intensities)), algorithm = "vwmb")
+    # mat_grp_intensities = normalize_matrix(mat_grp_intensities, group_by_cols = rep(1L, ncol(mat_grp_intensities)), algorithm = "vwmb")
 
     dropcols = NULL
     mat_loo_cov = matrix(NA, nrow=nrow(tibw_grp_intensities), ncol=length(sid), dimnames = list(tibw_grp_intensities$peptide_id, sid))
@@ -249,7 +268,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
       }
       m_subset_norm = m[!rows_fail, ]
       # optionally, normalize by mode after removing sample s. This significantly slows down the analysis! For a dataset of N samples, we'd have to normalize the dataset N times (so 200 sample dataset = ~30 minutes for this step alone on a fast workstation and fast vwmb normalization)
-      # m_subset_norm = normalize_matrix(m[!rows_fail, ], mask_sample_groups = rep(1, ncol(m)), algorithm = "vwmb")
+      # m_subset_norm = normalize_matrix(m[!rows_fail, ], group_by_cols = rep(1L, ncol(m)), algorithm = "vwmb")
 
       mat_loo_cov[!rows_fail, sid_exclude] = coefficient_of_variation_vectorized(log2_to_ln(m_subset_norm))
     }

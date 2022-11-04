@@ -19,6 +19,8 @@ import_dataset_diann(
 
 \item{use_normalized_intensities}{use the abundance values as-is (recommended) or those normalized by DIA-NN}
 
+\item{use_irt}{logical indicating whether to use standardized (IRT) or the empirical (RT) retention times}
+
 \item{do_plot}{logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)}
 }
 \description{

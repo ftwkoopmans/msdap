@@ -474,7 +474,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 #'       scale_shape_manual(values = c(16, 15)) +
 #'       scale_y_continuous("", sec.axis = dup_axis(name = ifelse(tib_sample_long$exclude, "EXCLUDED SAMPLE", paste("group:", tib_sample_long$group)))) + # add an axis on the right-hand side with some custom label
 #'       labs(x = "retention time (min)") +
-#'       guides(colour = F, shape = guide_legend(title = "detected?")) +
+#'       guides(colour = "none", shape = guide_legend(title = "detected?")) +
 #'       facet_grid(~key) +
 #'       # facet_wrap(. ~ key, scales="free_y") +
 #'       theme_bw() +
@@ -494,7 +494,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 #'     #   scale_y_continuous("", sec.axis = sec_axis(~., labels = NULL, breaks = NULL,
 #'     #                                              name = ifelse(tib_sample_long$exclude, "EXCLUDED SAMPLE", paste("group:", tib_sample_long$group)))) + # trick to add an axis on the right-hand side with some custom label
 #'     #   labs(x = "retention time (min)") +
-#'     #   guides(colour = F, shape = guide_legend(title = "detected?")) +
+#'     #   guides(colour = "none", shape = guide_legend(title = "detected?")) +
 #'     #   facet_grid(~key) +
 #'     #   theme_bw() +
 #'     #   theme(legend.position = "none")
