@@ -26,7 +26,7 @@ Our manuscript is currently under review, we'll add a reference here after publi
 
 ## Overview
 
-![MS-DAP workflow](doc/images/msdap-overview.png){width=80%}
+![MS-DAP workflow](doc/images/msdap-overview.png){width=50%}
 
 [This introduction to MS-DAP](doc/intro.md) provides a complete overview of main features and example data visualizations.
 

@@ -77,7 +77,7 @@ innovations.
 ## Features
 
 <figure>
-<img src="images/msdap-overview.png" style="width:80.0%"
+<img src="images/msdap-overview.png" style="width:50.0%"
 alt="MS-DAP workflow" />
 <figcaption aria-hidden="true">MS-DAP workflow</figcaption>
 </figure>

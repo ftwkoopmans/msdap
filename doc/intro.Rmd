@@ -26,7 +26,7 @@ Essential steps in the interpretation of any mass spectrometry based proteomics 
 
 ## Features
 
-![MS-DAP workflow](images/msdap-overview.png){width=80%}
+![MS-DAP workflow](images/msdap-overview.png){width=50%}
 
 MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 
