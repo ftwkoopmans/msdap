@@ -406,8 +406,8 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
 
   ### remove entries that lack crucial data
-  # 'remove' target peptides that don't have intensity >= 1. For decoys, intensity values are not required but must be >= 1
-  DT[ , rows_remove := sample_id == "" | protein_id == "" | sequence_modified  == "" | (isdecoy & is.finite(intensity) & intensity < 1) | (!isdecoy & (!is.finite(intensity) | intensity < 1))]
+  # 'remove' target peptides that don't have intensity >= 1. For decoys, intensity values are not required
+  DT[ , rows_remove := sample_id == "" | protein_id == "" | sequence_modified  == "" | (!isdecoy & (!is.finite(intensity) | intensity < 1))]
 
 
   ### format sample_id; strip path and whitelisted extensions from filename. using grouping, we only have to apply the regex on unique elements
@@ -417,7 +417,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
   ### format charge
   # assume the charge is either provided as a plain number, or as trailing character in a string (eg; FragmentGroup ID @ spectronaut)
-  if(typeof(DT$charge) == "character") { # if input data is not numeric... (data.table::fread() should have automatically recognise it)
+  if(typeof(DT$charge) == "character") { # if input data in 'charge' column is not numeric...
     DT[ , charge := replace_na(suppressWarnings(as.integer( sub(".*\\D(\\d+)$", "\\1", charge) )), 0), by=charge]
   } else {
     DT[ , charge := replace_na(suppressWarnings(as.integer(charge)), 0), by=charge]
@@ -451,13 +451,14 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
   }
 
   # peptide_id is a key, it must be unique per sample
-  if(anyDuplicated(DT[isdecoy==FALSE], by=c("peptide_id", "sample_id")) != 0) {
+  if(anyDuplicated(DT[isdecoy==FALSE & rows_remove==FALSE], by=c("peptide_id", "sample_id")) != 0) {
     append_log("error: peptide_id*sample_id combinations are not unique (eg; same peptide_id occurs multiple times per sample_id). If multiple data points per precursor*sample are available in your dataset, make sure to provide proper columns with the modified sequence, charge and spectral library that each data points originates from!", type = "error")
   }
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
-  # note that above, we already removed values below 1
-  DT[ , intensity := log2(intensity) ]
+  # note that above, we already removed (i.e. flagged as 'rows_remove') non-decoy rows where intensity values are below 1
+  DT[ , intensity := suppressWarnings(log2(intensity)) ]
+  DT[!is.finite(intensity) | intensity < 0, intensity := NA ] # update only rows with invalid value; threshold intensity values at 1 (but note here is log2 transformed already)
   if("intensity_norm" %in% colnames(DT) && typeof(DT$intensity_norm) == "numeric") {
     DT[ , intensity_norm := suppressWarnings(log2(intensity_norm)) ] # update entire column
     DT[!is.finite(intensity_norm) | intensity_norm < 0, intensity_norm := NA ] # update only rows with invalid value; threshold intensity values at 1 (but note here is log2 transformed already)

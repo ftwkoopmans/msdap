@@ -22,8 +22,15 @@ and information needed to reproduce results).
 
  
 
-Our manuscript is currently under review, we’ll add a reference here
-after publication
+**Citation:**
+
+*Koopmans, F., Li, K.W., Klaassen, R.V., Smit, A.B. (2022). MS-DAP
+platform for downstream data analysis of label-free proteomics uncovers
+optimal workflows in benchmark datasets and increased sensitivity in
+analysis of Alzheimer’s biomarker. Journal of Proteome Research.*
+<https://doi.org/10.1021/acs.jproteome.2c00513>
+
+ 
 
 ## Overview
 
@@ -31,6 +38,8 @@ after publication
 
 [This introduction to MS-DAP](doc/intro.md) provides a complete overview
 of main features and example data visualizations.
+
+MS-DAP
 
 ## Quickstart
 
@@ -146,28 +155,28 @@ in the following vignettes, from a more detailed look at differential
 testing to integrating alternative algorithms for normalization or
 Differential Expression Analysis (DEA).
 
--   [introduction to MS-DAP](doc/intro.md) (start here)
--   [user guide: details the main R functions](doc/userguide.md)
--   [bioinformatics: differential expression analysis
-    (DEA)](doc/differential_expression_analysis.md)
--   [bioinformatics: differential
-    detection](doc/differential_detection.md)
--   [bioinformatics: plugin custom normalization or
-    DEA](doc/custom_norm_dea.md)
+- [introduction to MS-DAP](doc/intro.md) (start here)
+- [user guide: details the main R functions](doc/userguide.md)
+- [bioinformatics: differential expression analysis
+  (DEA)](doc/differential_expression_analysis.md)
+- [bioinformatics: differential
+  detection](doc/differential_detection.md)
+- [bioinformatics: plugin custom normalization or
+  DEA](doc/custom_norm_dea.md)
 
 ## Roadmap
 
--   currently working on;
-    -   additional data visualization for the PDF report
-    -   advanced experimental designs for eBayes/DEqMS (i.e. more
-        flexibility in creating design matrices for limma)
-    -   implement various imputation approaches, and apply extensive
-        benchmarking evaluation
--   planned
-    -   plugins for more statistical methods & extensive benchmarking
-        evaluation
-        -   e.g. existing methods / new tools currently in development
-            in other labs (write plugin to help beta-test and benchmark)
-            / port methods currently not available in R
-    -   approaches for combining test statistics when applying multiple
-        independent DEA methods
+- currently working on;
+  - additional data visualization for the PDF report
+  - advanced experimental designs for eBayes/DEqMS (i.e. more
+    flexibility in creating design matrices for limma)
+  - implement various imputation approaches, and apply extensive
+    benchmarking evaluation
+- planned
+  - plugins for more statistical methods & extensive benchmarking
+    evaluation
+    - e.g. existing methods / new tools currently in development in
+      other labs (write plugin to help beta-test and benchmark) / port
+      methods currently not available in R
+  - approaches for combining test statistics when applying multiple
+    independent DEA methods

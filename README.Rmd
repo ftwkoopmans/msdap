@@ -17,12 +17,14 @@ The Mass Spectrometry Downstream Analysis Pipeline (MS-DAP) is an open-source R 
 It provides a user-friendly interface for data processing steps such as feature selection (peptide filtering), normalization of quantitative values and differential expression analysis (DEA). 
 Many commonly used normalization and DEA algorithms are integrated and users can provide custom functions (plugins) for normalization and DEA.
 A comprehensive quality control report can be generated that provides extensive data visualizations for quality and reproducibility metrics, identification of potential batch-effects and interpretation of statistical results (this PDF includes documentation and information needed to reproduce results).
- 
 
- &nbsp; 
+ &nbsp;
 
-Our manuscript is currently under review, we'll add a reference here after publication
+**Citation:**
 
+_Koopmans, F., Li, K.W., Klaassen, R.V., Smit, A.B. (2022). MS-DAP platform for downstream data analysis of label-free proteomics uncovers optimal workflows in benchmark datasets and increased sensitivity in analysis of Alzheimer's biomarker. Journal of Proteome Research._ https://doi.org/10.1021/acs.jproteome.2c00513
+
+ &nbsp;
 
 ## Overview
 
@@ -31,6 +33,7 @@ Our manuscript is currently under review, we'll add a reference here after publi
 [This introduction to MS-DAP](doc/intro.md) provides a complete overview of main features and example data visualizations.
 
 
+MS-DAP
 
 
 ## Quickstart
