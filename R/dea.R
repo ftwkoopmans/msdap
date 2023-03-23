@@ -138,7 +138,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
   for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
     append_log(paste("differential expression analysis for", col_contr), type = "info")
 
-    # returns named variable variable (label=column_name) indicating which type of intensity data is used
+    # returns named variable (label=column_name) indicating which type of intensity data is used
     col_contr_intensity = get_column_intensity(dataset$peptides, col_contr)
     append_log(paste("using data from peptide filter:", names(col_contr_intensity)), type = "info")
 
@@ -151,7 +151,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
     # select the current contrast as column 'condition' and remove irrelevant samples (when defining our contrasts in upstream code, irrelevant samples were designated a 0)
     # ! sorting by 'condition' here is important, as it aligns the samples by the groups specified by the user. if we don't enforce this, an intended WT-vs-KO might actually be analyzed as KO-vs-WT depending on the input data's sample ordering
     samples_for_contrast = dataset$samples %>%
-      select(sample_id, shortname, group, condition = !!col_contr, everything()) %>%
+      select(sample_id, shortname, group, condition = !!col_contr, tidyselect::everything()) %>%
       filter(condition != 0) %>%
       arrange(condition)
 
@@ -213,7 +213,11 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
     m = m[,match(colnames(Biobase::exprs(eset_peptides)), colnames(m)),drop=F] # use match() instead of direct key/string-based indexing because some samples may have names like 1,2,3,4 (eg; if key_sample is used for column names instead of sample_id, as we do in filter_dataset() )
     # protein ExpressionSet
     eset_proteins = protein_eset_from_data(m, eset = eset_peptides)
-    rm(m)
+    # count the number of unique peptides per protein and add it to the ExpressionSet protein metadata data.frame ('fData')
+    prot_pep_count = peptides_for_contrast %>% distinct(protein_id, peptide_id) %>% count(protein_id)
+    Biobase::fData(eset_proteins) = Biobase::fData(eset_proteins) %>% mutate(npep = prot_pep_count$n[match(protein_id, prot_pep_count$protein_id)])
+    # cleanup
+    rm(m, prot_pep_count)
 
     # if a directory for file storage was provided, store eset in a .RData file
     if(length(output_dir_for_eset) == 1 && !is.na(output_dir_for_eset) && nchar(output_dir_for_eset)>0 && dir.exists(output_dir_for_eset)) {
@@ -239,7 +243,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
         if(alg == "ebayes") {
           alg_result = de_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
         } else if(alg == "deqms") {
-          alg_result = de_deqms(eset_proteins=eset_proteins, peptides=peptides_for_contrast, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = de_deqms(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
         } else if(alg == "msempire") {
           # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
           alg_result = de_msempire(eset_peptides, input_intensities_are_log2 = T)

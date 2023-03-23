@@ -6,16 +6,13 @@
 \usage{
 de_deqms(
   eset_proteins,
-  peptides,
   input_intensities_are_log2 = TRUE,
   random_variables = NULL,
   doplot = FALSE
 )
 }
 \arguments{
-\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet}
-
-\item{peptides}{peptide-level data tibble, must contain a protein_id and peptide_id column, used to count the number of unique peptides per protein}
+\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet. Note that it must contain protein metadata column 'npep' that holds integer peptide counts and sample metadata column 'condition'}
 
 \item{input_intensities_are_log2}{boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)}
 

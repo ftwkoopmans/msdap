@@ -1,12 +1,14 @@
 
-#' Import a label-free proteomics dataset from FragPipe presented in MSstats CSV format
+#' THIS FUNCTION SHOULD ONLY BE USED FOR LEGACY FRAGPIPE DATASETS THAT PRODUCED 'mbr_ion.tsv' OUTPUT FILES (e.g. FragPipe v15)
 #'
 #' To generate output files that we here require in MS-DAP, configure FragPipe as follows:
 #' - assign Experiment IDs in the workflow tab (you may simply set these all to 1)
 #' - enable IonQuant ("Quant (MS1)" tab, as of FragPipe v15)
 #' - optionally, enable match-between-runs
 #'
-#' This function will merge data from various FragPipe output files to construct a MS-DAP dataset
+#' This function will merge data from various FragPipe output files to construct a MS-DAP dataset by
+#' parsing PSM hits from "psm.tsv" files, collecting IonQuant peptide abundance values
+#' from "MSstats.csv" and "mbr_ion.tsv", and finally fetching protein-group information from "combined_protein.tsv".
 #'
 #' @param path the full file path to the fragpipe output directory
 #' @param acquisition_mode the type of experiment, should be a string. options: "dda" or "dia"
@@ -14,9 +16,9 @@
 #' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
 #' @importFrom stringi stri_sub_replace
 #' @export
-import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified") {
+import_dataset_fragpipe_ionquant__legacy = function(path, acquisition_mode, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified") {
   reset_log()
-  append_log("reading IonQuant data from FragPipe output folder...", type = "info")
+  append_log("using the legacy function for importing FragPipe data; import_dataset_fragpipe_ionquant__legacy(). If you have a legacy dataset from e.g. FragPipe v15, this is fine. But for more recent FragPipe datasets (e.g. that have 'combined_peptide.tsv' files in FragPipe output) you should use import_dataset_fragpipe_ionquant() instead", type = "warning")
 
   stopifnot(acquisition_mode %in% c("dda","dia"))
   # input validation; locate expected input files
@@ -94,7 +96,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
     tib_result$mz = tib_mbr$mz[i]
     tib_result$is_mbr = !is.na(i)
   } else {
-    append_log(sprintf('no match-between-runs data found (this file is missing: "%s"")', file_mbr), type = "info")
+    append_log(sprintf('no match-between-runs data found. If you configured MBR in FragPipe, be aware that this data was NOT imported into MS-DAP because the "mbr_ion.tsv" file could not be found at: "%s"', path), type = "warning")
   }
 
 
@@ -157,7 +159,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 
     if(nrow(modseq_update) > 0) {
       # 2) from a modification in FragPipe to a standardized instruction for updating the plain sequence such that it matches modified sequences in MSstats.csv
-      tib_modification_instructions = fragpipe_modification_to_instruction(unique(modseq_update$modifications))
+      tib_modification_instructions = fragpipe_modification_to_instruction__legacy(unique(modseq_update$modifications))
       # debug; tib_modification_instructions %>% filter(grepl("N-", input, fixed = T))
 
       # 3) string manipulations; translate every sequence + set of N modifications to an ordered list of substrings, then join them all (e.g. collapse with paste)
@@ -198,7 +200,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
   tib_result$detect = is.finite(tib_result$confidence) & tib_result$confidence <= confidence_threshold
 
   ###### 4) update protein identifiers, from protein table include the "Indistinguishable Proteins"
-  tib_prot = parse_fragpipe_proteins(file_proteins)
+  tib_prot = parse_fragpipe_proteins__legacy(file_proteins)
   # map data back to main peptide table
   i = data.table::chmatch(tib_result$protein_id, tib_prot$protein_asis)
   if(any(is.na(i))) {
@@ -225,7 +227,10 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 
 
 
-fragpipe_modification_to_instruction = function(modifications) {
+#' THIS FUNCTION SHOULD ONLY BE USED FOR LEGACY FRAGPIPE DATASETS; HELPER FOR EXTRACTING PROTEIN MODIFICATIONS
+#'
+#' @param modifications characer vector
+fragpipe_modification_to_instruction__legacy = function(modifications) {
   if(length(modifications) == 0) {
     return(tibble())
   }
@@ -249,134 +254,19 @@ fragpipe_modification_to_instruction = function(modifications) {
 
 
 
-#' Alternative FragPipe workflow, operates directly on psm.tsv file
+#' THIS FUNCTION SHOULD ONLY BE USED FOR LEGACY FRAGPIPE DATASETS; PARSER FOR PROTEIN TABLES
 #'
-#' For typical FragPipe workflows, import_dataset_fragpipe_ionquant() should be used
-#' instead of this function.
-#'
-#' This function directly parses data from the psm.tsv and doesn't use MBR data
-#' presented in other files. The most abundant PSM per peptide*sample is picked to
-#' represent abundance.
-#'
-#' @param filename the full file path of the input file
-#' @param acquisition_mode the type of experiment, should be a string. options: "dda" or "dia"
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
-#' @param collapse_peptide_by if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
-#' @param return_decoys logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!
-#' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
-#' @export
-import_dataset_fragpipe_psm_file = function(filename, acquisition_mode, confidence_threshold = 0.01, collapse_peptide_by = "sequence_modified", return_decoys = FALSE, do_plot = TRUE) {
-  reset_log()
-  stopifnot(acquisition_mode %in% c("dda","dia"))
-  myfragpiperepair = function(DT) {
-    # ### debug
-    # print(head(DT))
-    # hist(DT$confidence, breaks=50)
-    # hist(log10(DT$confidence), breaks=50)
-    # print(sum(DT$confidence >= 0.99))
-    # print(sum(DT$confidence >= 0.99) / nrow(DT))
-    # print(sum(DT$confidence >= 0.95))
-    # print(sum(DT$confidence >= 0.95) / nrow(DT))
-
-    ### specifically for fragpipe; strip full path + "interact-" + ".pep.xml" extension
-    # example entry in input table; C:\DATA\fragpipe_test\interact-a05191.pep.xml
-    DT[ , sample_id := gsub("(.*(\\\\|/)interact\\-)|(^interact\\-)|(\\.pep\\.xml$)", "", sample_id, ignore.case=F), by=sample_id]
-
-    ### FragPipe output has "PeptideProphet Probability", which is 0~1 ranged score with 1 = 100% confident.
-    # In this R package we use confidence score = qvalue (or pvalue). So as a band-aid solution we use 1-probability to approximate
-    DT$confidence = 1 - DT$confidence
-
-    ### FragPipe output lacks peptide sequences in modified sequence column if a peptide has no modifications
-    rows = DT$sequence_modified == ""
-    DT$sequence_modified[rows] = DT$sequence_plain[rows]
-    DT$detect = is.finite(DT$confidence) & DT$confidence <= confidence_threshold
-
-    ### summarize peptide_id*sample*id by taking the PSM with highest abundance
-    data.table::setkey(DT, sequence_modified, charge, sample_id)
-    # sort such that the most abundant entry for each unique key comes out on top
-    data.table::setorder(DT, -intensity, na.last = TRUE)
-    # simply select first entry
-    DT = DT[ , index := seq_len(.N), by = .(sequence_modified, charge, sample_id)][index == 1]
-    DT$index = NULL
-
-    return(DT)
-  }
-
-
-  append_log("reading FragPipe PSM report...", type = "info")
-  ds = import_dataset_in_long_format(filename,
-                                     attributes_required = list(sample_id = "Spectrum.File",
-                                                                protein_id = "Protein.ID",
-                                                                sequence_modified = "Modified Peptide",
-                                                                sequence_plain = "Peptide",
-                                                                charge = "Charge",
-                                                                rt = "Retention",
-                                                                intensity = "Intensity",
-                                                                confidence = "PeptideProphet.Probability"),
-                                     select_unique_precursor_per_modseq = FALSE,
-                                     remove_peptides_never_above_confidence_threshold = TRUE,
-                                     confidence_threshold = confidence_threshold,
-                                     custom_func_manipulate_DT_onload = myfragpiperepair,
-                                     return_decoys = return_decoys,
-                                     do_plot = do_plot)
-
-  ds$acquisition_mode = acquisition_mode
-
-  # convert RT to minutes
-  ds$peptides$rt = ds$peptides$rt / 60
-
-
-  ###### update protein identifiers, from protein table include the "Indistinguishable Proteins"
-  file_proteins = paste0(dirname(filename), "/protein.tsv")
-  if(!file.exists(file_proteins)) { # fallback
-    file_proteins = paste0(dirname(filename), "/combined_protein.tsv")
-  }
-
-  if(file.exists(file_proteins)) {
-    append_log(sprintf('parsing protein table "%s" to extract "Indistinguishable Proteins"', basename(file_proteins)), type = "info")
-
-    tib_prot = parse_fragpipe_proteins(file_proteins)
-    # map data back to main peptide table. Note that above we selected the `Protein ID` column as proteingroup definition. here, map to exact same column
-    i = data.table::chmatch(ds$peptides$protein_id, tib_prot$protein_id_asis)
-    if(any(is.na(i))) {
-      append_log(sprintf('input data consistency problem; not all proteins in column "Protein ID" in %s are found in column "Protein" in %s', basename(filename), basename(file_proteins)), type = "error")
-    }
-    ds$peptides$protein_id = tib_prot$protein_id[i]
-  } else {
-    append_log('no protein table (protein.tsv or combined_protein.tsv) available in same dir as psm.tsv, cannot retrieve "Indistinguishable Proteins" (ambiguous protein IDs for each proteinGroup)', type = "warning")
-    # if using the protein IDs directly from the `Protein ID` column in psm.tsv, enforce formatting of delimiters
-    ds$peptides$protein_id = gsub("[, ;]+", ";", ds$peptides$protein_id)
-  }
-
-
-  ######
-
-  # collapse peptides by plain or modified sequence (eg; peptide can be observed in some sample with and without modifications, at multiple charges, etc)
-  if(collapse_peptide_by == "") {
-    # if 'no collapse' is set, at least merge by modseq and charge. eg; there may be multiple peaks for some peptide with the same charge throughout retention time
-    ds$peptides = peptides_collapse_by_sequence(ds$peptides, prop_peptide = "peptide_id")
-    append_log("NOT collapsing peptides by plain/modified-sequence, thus 2 observations of the same sequence with different charge are considered a distinct peptide_id. This is not recommended for DDA!", type = "warning")
-  } else {
-    ds$peptides = peptides_collapse_by_sequence(ds$peptides, prop_peptide = collapse_peptide_by) # alternative, collapse modified sequences; prop_peptide = "sequence_modified"
-  }
-
-  log_peptide_tibble_pep_prot_counts(ds$peptides)
-  return(ds)
-}
-
-
-
 #' parse a proteins.tsv or combined_protein.tsv from fragpipe output and return
 #' a well formatted protein_id column that includes both "leading protein ID"
 #' and "Indistinguishable Proteins"
 #'
 #' @param file_proteins full file path
-parse_fragpipe_proteins = function(file_proteins) {
+parse_fragpipe_proteins__legacy = function(file_proteins) {
   tib_prot = as_tibble(read_textfile_compressed(file_proteins, as_table = T))
   # input validation
   col_missing = setdiff(c("Protein","Protein ID","Indistinguishable Proteins"), colnames(tib_prot))
   if (length(col_missing) > 0) {
-    append_log(sprintf('Expected column names in %s table: Protein, Protein ID, Indistinguishable Proteins.\nmissing:', file_proteins, paste(col_missing, collapse = ", ")), type = "error")
+    append_log(sprintf('Expected column names in %s table: Protein, Protein ID, Indistinguishable Proteins. Missing: %s', file_proteins, paste(col_missing, collapse = ", ")), type = "error")
   }
 
   tib_prot %>%

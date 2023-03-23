@@ -1,7 +1,7 @@
 
 rm(list = ls(all.names = TRUE)) # clear everything from memory
 cat("\014") # clear terminal (send the control+L character)
-devtools::load_all() # load our R package
+library(msdap) # load MS-DAP R package
 
 dataset = import_dataset_metamorpheus(path = "C:/VU/code/R/msdap/docker/temp/exampledata/dataset_Klaassen2018_pmid26931375", protein_qval_threshold = 0.05, collapse_peptide_by = "sequence_modified")
 

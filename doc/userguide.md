@@ -1,32 +1,34 @@
 
--   <a href="#annotated-example" id="toc-annotated-example">Annotated
-    example</a>
-    -   <a href="#import-data" id="toc-import-data">Import data</a>
-    -   <a href="#sample-metadata-table" id="toc-sample-metadata-table">Sample
-        metadata table</a>
-    -   <a href="#define-contrasts" id="toc-define-contrasts">Define
-        contrasts</a>
-        -   <a href="#dealing-with-batch-effects"
-            id="toc-dealing-with-batch-effects">Dealing with batch effects</a>
-    -   <a href="#apply-pipeline" id="toc-apply-pipeline">Apply pipeline</a>
-    -   <a href="#visualize-all-peptide-level-data-per-protein"
-        id="toc-visualize-all-peptide-level-data-per-protein">Visualize all
-        peptide-level data per protein</a>
--   <a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
--   <a href="#preparing-input-data" id="toc-preparing-input-data">Preparing
-    input data</a>
-    -   <a href="#maxquant" id="toc-maxquant">MaxQuant</a>
-    -   <a href="#metamorpheus" id="toc-metamorpheus">MetaMorpheus</a>
-    -   <a href="#skyline" id="toc-skyline">Skyline</a>
-    -   <a href="#fragpipe" id="toc-fragpipe">FragPipe</a>
-    -   <a href="#dia-nn" id="toc-dia-nn">DIA-NN</a>
-    -   <a href="#openswath" id="toc-openswath">OpenSWATH</a>
-    -   <a href="#encyclopedia" id="toc-encyclopedia">EncyclopeDIA</a>
-    -   <a href="#spectronaut" id="toc-spectronaut">Spectronaut</a>
-    -   <a href="#peaks" id="toc-peaks">Peaks</a>
-    -   <a href="#openms" id="toc-openms">OpenMS</a>
-    -   <a href="#proteomediscoverer"
-        id="toc-proteomediscoverer">ProteomeDiscoverer</a>
+- <a href="#annotated-example" id="toc-annotated-example">Annotated
+  example</a>
+  - <a href="#import-data" id="toc-import-data">Import data</a>
+  - <a href="#sample-metadata-table" id="toc-sample-metadata-table">Sample
+    metadata table</a>
+  - <a href="#define-contrasts" id="toc-define-contrasts">Define
+    contrasts</a>
+    - <a href="#dealing-with-batch-effects"
+      id="toc-dealing-with-batch-effects">Dealing with batch effects</a>
+  - <a href="#apply-pipeline" id="toc-apply-pipeline">Apply pipeline</a>
+  - <a href="#visualize-all-peptide-level-data-per-protein"
+    id="toc-visualize-all-peptide-level-data-per-protein">Visualize all
+    peptide-level data per protein</a>
+- <a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
+- <a href="#preparing-input-data" id="toc-preparing-input-data">Preparing
+  input data</a>
+  - <a href="#maxquant" id="toc-maxquant">MaxQuant</a>
+  - <a href="#metamorpheus" id="toc-metamorpheus">MetaMorpheus</a>
+  - <a href="#skyline" id="toc-skyline">Skyline</a>
+  - <a href="#fragpipe" id="toc-fragpipe">FragPipe</a>
+    - <a href="#fragpipe-example" id="toc-fragpipe-example">FragPipe
+      example</a>
+  - <a href="#dia-nn" id="toc-dia-nn">DIA-NN</a>
+  - <a href="#openswath" id="toc-openswath">OpenSWATH</a>
+  - <a href="#encyclopedia" id="toc-encyclopedia">EncyclopeDIA</a>
+  - <a href="#spectronaut" id="toc-spectronaut">Spectronaut</a>
+  - <a href="#peaks" id="toc-peaks">Peaks</a>
+  - <a href="#openms" id="toc-openms">OpenMS</a>
+  - <a href="#proteomediscoverer"
+    id="toc-proteomediscoverer">ProteomeDiscoverer</a>
 
 This vignette details the main functions of the MS-DAP R package.
 
@@ -43,10 +45,10 @@ and example dataset for. You can use either of these;
 The main steps in MS-DAP analyses are:
 
 1.  prepare data
-    -   import files from MaxQuant/Skyline/Spectronaut/etc.
-    -   import fasta files
-    -   import sample metadata
-    -   define contrasts
+    - import files from MaxQuant/Skyline/Spectronaut/etc.
+    - import fasta files
+    - import sample metadata
+    - define contrasts
 2.  run pipeline
 3.  inspect QC report
 4.  optionally, adjust settings and re-run
@@ -65,29 +67,29 @@ library(msdap)
 # this example imports a DDA dataset from metamorpheus.
 # See above sections for appropriate commands to import data from other upstream software
 dataset = import_dataset_metamorpheus(
-  path = "C:/<path>/Task2-SearchTask", 
+  path = "C:/<path>/Task2-SearchTask",
   # proteins with a lower Q-value than this threshold are removed
-  protein_qval_threshold = 0.05, 
+  protein_qval_threshold = 0.05,
   # if you instead want to collapse precursors at the plain sequence level, use: collapse_peptide_by = "sequence_plain"
   collapse_peptide_by = "sequence_modified"
 )
 
 # this should be the exact same fasta files used to generate the above input data!
 dataset = import_fasta(
-  dataset, 
-  files = c("C:/<path>/fasta/UniProt_2018-05/UP000000589_10090.fasta", 
+  dataset,
+  files = c("C:/<path>/fasta/UniProt_2018-05/UP000000589_10090.fasta",
             "C:/<path>/fasta/UniProt_2018-05/UP000000589_10090_additional.fasta")
 )
 
-# optionally, remove proteins (and their respective peptides) from the dataset that match some user filters 
+# optionally, remove proteins (and their respective peptides) from the dataset that match some user filters
 # * recommend to skip this step while initially testing MS-DAP, this is not required *
-# 
+#
 # in this example, we apply a regular expression to the fasta header of each protein to remove IGGs and keratins (useful for IP experiments)
 # in DIA experiments, you may also want to auto-detect and remove the IRT peptides, provided the IRT fasta file was used while creating the spectral library and the fasta header forthe irt protein matches the built-in regex filter (case insensitive); |IRT| OR |IRT_KIT| OR "Biognosys iRT"
 # finally, one can remove known contaminants by providing an array of gene symbols (which are also matched to fasta headers)
 # note; the set of removed/filtered proteins is immediately shown in the R console
 dataset = remove_proteins_by_name(
-  dataset, 
+  dataset,
   # writing regular expressions can be daunting, either leave out this parameter or ask your local bioinformatician for help on complex queries
   regular_expression = "ig \\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)",
   remove_irt_peptides = FALSE,
@@ -125,11 +127,11 @@ Workflow:
 
 1.  after initially loading a dataset, create a sample metadata template
 2.  edit the template in Excel or LibreOffice Calc
-    -   specify the group/condition of each sample in the ‘group’ column
-    -   indicate which samples are outliers by setting ‘exclude’ entries
-        to TRUE
-    -   add additional columns with any metadata, that describe the
-        sample batch, gel, etc.
+    - specify the group/condition of each sample in the ‘group’ column
+    - indicate which samples are outliers by setting ‘exclude’ entries
+      to TRUE
+    - add additional columns with any metadata, that describe the sample
+      batch, gel, etc.
 
 <!-- -->
 
@@ -171,7 +173,7 @@ A more elaborate example that shows how to define multiple contrasts and
 define contrasts containing multiple groups;
 
 ``` r
-dataset = setup_contrasts(dataset, 
+dataset = setup_contrasts(dataset,
                           contrast_list = list(
                             # control vs cond1
                             c("control", "cond1"),
@@ -195,7 +197,7 @@ These need to be defined when setting up your statistical contrasts
 using the `random_variables` parameter. Example code:
 
 ``` r
-dataset = setup_contrasts(dataset, 
+dataset = setup_contrasts(dataset,
                           contrast_list = list(c("control", "phenotype")),
                           random_variables = "cohort")
 ```
@@ -229,7 +231,7 @@ dataset = analysis_quickstart(
   # advantage; simple and robust
   # disadvantage; potentially miss out on (group-specific) peptides/data-points that may fail filter criteria in just 1 group, particularly in large datasets with 4+ groups
   # set filter_by_contrast = FALSE for this option
-  # 
+  #
   # note; if there are just 2 sample groups (eg; WT vs KO), this point is moot as both approaches are the same
   filter_by_contrast = TRUE,
 
@@ -270,7 +272,7 @@ dataset = analysis_quickstart(
   dump_all_data = FALSE
 )
 
-## optionally, print a summary. 
+## optionally, print a summary.
 # Very convenient when quickly iterating/exploring various DEA settings. For example:
 # a) disable all output files to speed things up (output_qc_report=FALSE, output_abundance_tables=FALSE)
 # b) use only ebayes for DEA to speed things up (dea_algorithm = "ebayes"). note; we mostly use; dea_algorithm = c("ebayes", "msempire", "msqrob")
@@ -294,20 +296,19 @@ Importantly, the `norm_algorithm` parameter should list the same
 algorithm(s) as used in the pipeline previously
 
 ``` r
-plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/", 
+plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/",
                   # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
-                  show_unused_datapoints = TRUE, 
+                  show_unused_datapoints = TRUE,
                   # importantly, sync this parameter with the setting you used for analysis_quickstart()
                   norm_algorithm = c("vwmb", "modebetween_protein"))
 ```
 
 # Troubleshooting
 
--   For systems with many CPU cores that run into errors related to
-    “socketConnection” or “PSOCK”, try limiting the number of parallel
-    threads to use for MSqRob/MSqRobSum by setting
-    `analysis_quickstart()` function parameter
-    `multiprocessing_maxcores` to a low number (e.g. 8)
+- For systems with many CPU cores that run into errors related to
+  “socketConnection” or “PSOCK”, try limiting the number of parallel
+  threads to use for MSqRob/MSqRobSum by setting `analysis_quickstart()`
+  function parameter `multiprocessing_maxcores` to a low number (e.g. 8)
 
 # Preparing input data
 
@@ -364,22 +365,100 @@ MS-DAP import function: `msdap::import_dataset_skyline()`
 
 ## FragPipe
 
-To generate output files that required for MS-DAP, use FragPipe for
+To generate output files that are required for MS-DAP, use FragPipe for
 label-free quantification (MS1) as follows:
 
--   assign Experiment IDs in the workflow tab (optionally you may simply
-    set these all to 1). Replicate can be empty
--   enable IonQuant in the “Quant (MS1)” tab
--   optionally, enable match-between-runs
+1)  assign unique Experiment identifiers in the FragPipe workflow tab.
+    Importantly, Fragpipe produces output (that MS-DAP can import) for
+    each unique Experiment\*Bioreplicate combination. So if you provide
+    the same experiment ID for all input files, the output looks like 1
+    sample to MS-DAP which is not what we want; ensure all experiments
+    have unique values in the FragPipe workflow tab !
+2)  enable IonQuant in the “Quant (MS1)” tab (typically, this is already
+    done if you loaded the LFQ-MBR workflow i the FragPipe workflow
+    tab).
+3)  optionally, enable match-between-runs in the FragPipe “Quant (MS1)”
+    tab.
 
-MS-DAP import function: `msdap::import_dataset_fragpipe_ionquant()`
-combines data from the MSstats.csv file and various other FragPipe
-output files into a MS-DAP dataset.
+MS-DAP import function: `msdap::import_dataset_fragpipe_ionquant()` will
+merge data from various FragPipe output files to construct a MS-DAP
+dataset. If you followed above instructions, FragPipe should have
+generated the following files in the output directory that will be
+parsed by this function;
 
-Alternatively, you can directly import a psm.tsv file generated through
-FragPipe workflows into MS-DAP using the
-`msdap::import_dataset_fragpipe_psm_file()` function (niche use-case,
-most users will want to follow above workflow).
+- combined_protein.tsv
+- for each experiment, a folder that includes 2 MS-DAP required files:
+  ion.tsv and psm.tsv
+
+For niche use-cases only, an alternative is to load datasets from legacy
+FragPipe analyses (e.g. version 15) that produced an output folder that
+contained the file ‘mbr_ion.tsv’ using MS-DAP import function:
+`msdap::import_dataset_fragpipe_ionquant__legacy()`.
+
+For niche use-cases only where you only have 1 psm.tsv file from a
+FragPipe analysis without match-between-runs (e.g. from legacy or recent
+FragPipe version where no Experiment info was provided), use MS-DAP
+import function: `import_dataset_fragpipe_psm_file()`. This file takes a
+single FragPipe psm.tsv as input.
+
+### FragPipe example
+
+In this example we’ll apply FragPipe 19.1 with default settings on the
+DDA label-free quantification dataset from O’Connel et al. (PMID:
+29635916, www.proteomexchange.org identifier PXD007683).
+
+1)  Main configuration for this example takes place in the “Workflow”
+    tab;
+
+- select “LFQ-MBR” from the “Select a workflow” dropdown on top and
+  click “Load workflow”
+- load the raw files (e.g. click “Add files”)
+- **importantly**, we have to provide experiment information. If this is
+  left empty, some output files that are required for MS-DAP will not be
+  generated! Here we simply click ‘by file name’ so FragPipe puts the
+  filenames as experiment IDs. Alternatively, one can provide unique
+  pairs of Experiment and Bioreplicate. If your data is fractionated,
+  you can provide the same name/ID of the actual sample as ‘experiment’
+  here and FragPipe will merge the fractions for you.
+
+2)  Provide a fasta database in the “Database” tab (and add decoys if
+    you haven’t already). For this study we provide a proteome database
+    that contains both the Human and Yeast proteomes.
+
+3)  All other settings we leave to default in this example; now we can
+    go to the “Run” tab to provide an output folder and start the
+    FragPipe analysis.
+
+screenshots to confirm settings;
+
+<figure>
+<img src="misc/FragPipe_workflow_by-filename.png" style="width:100.0%"
+alt="FragPipe Workflow" />
+<figcaption aria-hidden="true">FragPipe Workflow</figcaption>
+</figure>
+
+<figure>
+<img src="misc/FragPipe_database.png" style="width:100.0%"
+alt="FragPipe Database" />
+<figcaption aria-hidden="true">FragPipe Database</figcaption>
+</figure>
+
+<figure>
+<img src="misc/FragPipe_Quant_MS1.png" style="width:100.0%"
+alt="FragPipe Quant(MS1)" />
+<figcaption aria-hidden="true">FragPipe Quant(MS1)</figcaption>
+</figure>
+
+Now that we have processed the raw data, we can import the dataset into
+MS-DAP using the following example R code;
+
+    library(msdap)
+    # make sure to update this to the path where you stored your output, as configured in the FragPipe "Run" tab
+    dataset = import_dataset_fragpipe_ionquant("C:/DATA/PXD007683_oconnel-2018/fragpipe_output", acquisition_mode = "dda", collapse_peptide_by = "sequence_modified")
+    # this should be the same fasta file as provided in the FragPipe "Database" tab
+    dataset = import_fasta(dataset, files = "C:/DATA/PXD007683_oconnel-2018/UniProt_2022-02/HUMAN_YEAST_complete.fasta")
+
+    # remaining MS-DAP steps after importing the dataset are described in the user guide and "quickstart" on the main MS-DAP GitHub page (create sample metadata file, import it, then run analysis_quickstart())
 
 ## DIA-NN
 
@@ -420,27 +499,26 @@ There’s 2 ways to set this up (you only have to do this once):
 1)  download and import a schema that we already prepared for you
     (probably easiest)
 
--   <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/master/doc/misc/MS-DAP%20Format.rs">download
-    the report schema</a>
--   in Spectronaut, open your dataset and go to the Report section
--   click “import Schema…” then select the file you just downloaded
+- <a id="raw-url" href="https://raw.githubusercontent.com/ftwkoopmans/msdap/master/doc/misc/MS-DAP%20Format.rs">download
+  the report schema</a>
+- in Spectronaut, open your dataset and go to the Report section
+- click “import Schema…” then select the file you just downloaded
 
 2)  manually create a new schema
 
--   in Spectronaut, open your dataset and go to the Report section
--   click the default report
--   select/checkbox these columns (you can uncheck everything else to
-    keep your report file small): R.FileName, PG.ProteinGroups,
-    EG.IsDecoy, EG.Library, EG.Cscore, EG.Qvalue, EG.iRTEmpirical,
-    EG.MeanApexRT (or EG.RTEmpirical if you’re on an old version),
-    FG.Id, FG.MS2Quantity (or FG.MS2PeakArea / FG.TotalPeakArea if
-    you’re on an old version), FG.MS2RawQuantity (or
-    FG.NormalizedMS2PeakArea / FG.NormalizedTotalPeakArea if you’re on
-    an old version)
--   unselect all filters (i.e. don’t remove any peptide and keep decoys
-    in the output)
--   click “Save as…” to save your new report schema (e.g. with name
-    “MS-DAP Format”)
+- in Spectronaut, open your dataset and go to the Report section
+- click the default report
+- select/checkbox these columns (you can uncheck everything else to keep
+  your report file small): R.FileName, PG.ProteinGroups, EG.IsDecoy,
+  EG.Library, EG.Cscore, EG.Qvalue, EG.iRTEmpirical, EG.MeanApexRT (or
+  EG.RTEmpirical if you’re on an old version), FG.Id, FG.MS2Quantity (or
+  FG.MS2PeakArea / FG.TotalPeakArea if you’re on an old version),
+  FG.MS2RawQuantity (or FG.NormalizedMS2PeakArea /
+  FG.NormalizedTotalPeakArea if you’re on an old version)
+- unselect all filters (i.e. don’t remove any peptide and keep decoys in
+  the output)
+- click “Save as…” to save your new report schema (e.g. with name
+  “MS-DAP Format”)
 
 Now that the report schema is setup, select the “MS-DAP Format” schema
 and click “Export Report…” to create an input file for MS-DAP.
@@ -512,14 +590,14 @@ iPRG2015 OpenMS tutorial by Hannes Rost
 
 requirements:
 
--   OpenMS 2 (our test system runs version 2.5)
--   MSGFPlus installed as OpenMS thirdparty plugin
--   Percolator installed as OpenMS thirdparty plugin
--   java runtime is required for MSGFPlus, you probably have this but in
-    case of problems/errors with MSGFPlus grab latest version from
-    www.java.com
--   after installation of the above, you may need to reboot first as we
-    found on some test systems
+- OpenMS 2 (our test system runs version 2.5)
+- MSGFPlus installed as OpenMS thirdparty plugin
+- Percolator installed as OpenMS thirdparty plugin
+- java runtime is required for MSGFPlus, you probably have this but in
+  case of problems/errors with MSGFPlus grab latest version from
+  www.java.com
+- after installation of the above, you may need to reboot first as we
+  found on some test systems
 
 1)  place this .bat file in the directory where your input files are
 2)  input: centroided mzML files + fasta files WITHOUT decoys (will be
@@ -545,19 +623,19 @@ quantification workflow is used.
 
 Example PD workflow:
 
--   Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
--   Consensus Step: CWF_Comprehensive_Enhanced
-    Annotation_LFQ_and_Precursor_Quan
--   Consensus Step: add the “result exporter” (drag&drop from side panel
-    to bottom panel)
+- Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
+- Consensus Step: CWF_Comprehensive_Enhanced
+  Annotation_LFQ_and_Precursor_Quan
+- Consensus Step: add the “result exporter” (drag&drop from side panel
+  to bottom panel)
 
 Optionally, tweak label-free data analysis settings to explore effects
 on MS-DAP assessment of your dataset:
 
--   Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
-    Confidence At Least –\>\> change to medium
--   Processing Step –\>\> change precursor quantification from peak
-    (height) to area
+- Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
+  Confidence At Least –\>\> change to medium
+- Processing Step –\>\> change precursor quantification from peak
+  (height) to area
 
 MS-DAP was tested with the results of the above workflow applied to the
 PXD007683 dataset.

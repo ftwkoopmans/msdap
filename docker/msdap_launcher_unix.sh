@@ -3,7 +3,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 
 ### OS
@@ -67,7 +67,7 @@ fi
 
 ### open browser after an N second delay
 URL_RSTUDIO="http://localhost:3839"
-echo -e $'\e[32m' "\nRStudio & MS-DAP will be available at: ${URL_RSTUDIO}\n" $'\e[0m' 
+echo -e $'\e[32m' "\nRStudio & MS-DAP will be available at: ${URL_RSTUDIO}\n" $'\e[0m'
 
 if [ ! -z "$ISMACOS" ]; then
   sleep 3 && open "${URL_RSTUDIO}" &

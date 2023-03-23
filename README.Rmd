@@ -49,6 +49,13 @@ Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
 devtools::install_github("ftwkoopmans/msdap", upgrade = "never") # don't update dependencies if not needed
 ```
 
+to update an existing MS-DAP installation to the latest version (without updating other packages);
+```{r gh-update, eval = FALSE}
+Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
+devtools::install_github("ftwkoopmans/msdap", upgrade = "never")
+```
+
+
 
 Example for analyzing a DIA dataset processed by DIA-NN (check the [user guide](doc/userguide.md) for replacing DIA-NN input with Spectronaut, MaxQuant, etc.)
 

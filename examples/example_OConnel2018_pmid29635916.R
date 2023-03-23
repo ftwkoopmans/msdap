@@ -1,7 +1,7 @@
 
 rm(list = ls(all.names = TRUE)) # clear everything from memory
 cat("\014") # clear terminal (send the control+L character)
-devtools::load_all() # load our R package
+library(msdap) # load MS-DAP R package
 
 dataset = import_dataset_maxquant_evidencetxt(path = "E:/DATA/PXD007683/txt_mbr")
 
