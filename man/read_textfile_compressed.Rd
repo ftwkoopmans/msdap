@@ -33,4 +33,9 @@ Using this function with other compression formats, or any of these formats but 
 \details{
 note; the archive R package has some bugs still so we try to use the readr package for common compression formats
 e.g. bug while reading ZIP files; "Error: The size of the connection buffer (131072) was not large enough". Related bugreport @ https://github.com/tidyverse/vroom/issues/361
+
+note; another bug is with reading Zstd archives compressed with --long
+decompressing with current implementation results in;
+Error: archive_read.cpp:102 archive_read_open1(): Zstd decompression failed: Frame requires too much memory for decoding
+Related bugreport @ https://github.com/libarchive/libarchive/issues/1795
 }

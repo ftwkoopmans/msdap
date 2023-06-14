@@ -2,23 +2,53 @@
 % Please edit documentation in R/parse_proteomediscoverer_txt.R
 \name{import_dataset_proteomediscoverer_txt}
 \alias{import_dataset_proteomediscoverer_txt}
-\title{Import a label-free DDA proteomics dataset from ProteomeDiscoverer, experimental feature !}
+\title{Import a label-free DDA proteomics dataset from a ProteomeDiscoverer PSM result file}
 \usage{
-import_dataset_proteomediscoverer_txt(filename)
+import_dataset_proteomediscoverer_txt(
+  filename,
+  confidence_threshold = 0.01,
+  remove_lowconf = TRUE,
+  one_psm_per_precursor = "",
+  collapse_peptide_by = "sequence_modified"
+)
 }
 \arguments{
-\item{filename}{full path to the _PSMs.txt file}
+\item{filename}{full path to the ProteomeDiscoverer _PSMs.txt file}
+
+\item{confidence_threshold}{confidence score threshold ('Percolator q-Value' column in the PSM file) at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)}
+
+\item{remove_lowconf}{boolean value indicating whether peptides classified as 'low confidence' by ProteomeDiscoverer should be removed from the results}
+
+\item{one_psm_per_precursor}{optionally, retain for each precursor in each sample only the peakarea for 1 PSM.
+This parameter allows you to control how abundance values from precursors matched by multiple PSM are handled, as this might depend on your ProteomeDiscoverer settings.
+If ProteomeDiscoverer performed peak integration and reports the same (redundant) peak intensity for each PSM of the same precursor, we suggest to use \code{one_psm_per_precursor = "intensity"}.
+Note that relevant statitics for your dataset will be printed to the console/log (e.g. fraction of redundant PSM that contain unique intensity values).
+Set to "" to disable this filtering and use the sum of all PSM intensity values per precursor*sample (default).
+Use \code{one_psm_per_precursor = "intensity"} to select the highest intensity value (within the subset of PSM where \code{confidence < confidence_threshold}).
+Use \code{one_psm_per_precursor = "confidence"} to select the intensity value from the PSM with best/lowest confidence value}
+
+\item{collapse_peptide_by}{if multiple data points are available for a peptide sequence in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""}
 }
 \description{
-Input data must contain Percolator PEP scores for each PSM, so after search engine (eg; Sequest HT) make sure to connect the Percolator node.
-}
-\details{
-Example PD workflow:
-Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
-Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
-Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
+ProteomeDiscoverer workflow must include Percolator so MS-DAP can parse peptide confidence scores.
 
-Optionally, you can relax the output filter criteria somewhat, thereby relying on MS-DAP filtering a bit more and potentially gaining some extra (MBR)hits, as follows;
-Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
-While you're making changes there, you can problably set "Remove Peptides Without Proteins" to "True"
+Example ProteomeDiscoverer workflow:
+\itemize{
+\item Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
+\item Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
+\item Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
+}
+
+Optionally, you can relax the output filter criteria somewhat and use MS-DAP filtering as follows;
+\itemize{
+\item Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
+\item While you're making changes there, you can also set "Remove Peptides Without Proteins" to "True"
+}
+
+Besides validating the input data table and reformatting table columns for MS-DAP, this function;
+\enumerate{
+\item for each precursor (modified peptide sequence + charge state), the best PSM confidence score is retained.
+\item modified peptide sequences are reformatted from input table where sequence and modifications are stored separately.
+e.g. Annotated Sequence = "AAGLATmISTmRPDIDNmDEYVR" and Modifications = "M7(Oxidation); M11(Oxidation); M18(Oxidation)" in input becomes modified_sequence in MS-DAP; "AAGLATM(Oxidation)ISTM(Oxidation)RPDIDNM(Oxidation)DEYVR"
+}
 }

@@ -14,7 +14,7 @@ import_dataset_openswath(
 \arguments{
 \item{filename}{the full file path of the input file}
 
-\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)}
+\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)}
 
 \item{return_decoys}{logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!}
 

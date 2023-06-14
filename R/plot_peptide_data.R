@@ -6,11 +6,12 @@
 #' @param select_diffdetect_candidates todo
 #' @param select_dea_signif todo
 #' @param filter_protein_ids todo
+#' @param filter_genes todo
 #' @param output_dir todo
 #' @param show_unused_datapoints todo
 #' @param norm_algorithm todo
 #' @export
-plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, filter_protein_ids = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm = NA) {
+plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, filter_protein_ids = NA, filter_genes = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm = NA) {
   pid = NULL
 
   ## if requested to plot all proteins, just take the unique set from peptide tibble and don't bother with other selection parameters
@@ -20,6 +21,17 @@ plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffde
     ## gather protein identifiers from user params
     # custom list of protein_id's
     pid = na.omit(filter_protein_ids)
+
+    filter_genes = na.omit(filter_genes)
+    if(length(filter_genes) > 0) {
+      flag_fail = grepl("[^a-zA-Z0-9\\-]", filter_genes)
+      if(any(flag_fail)) {
+        append_log("gene symbols should only contain letters, numbers, dash or backslash", type = "error")
+      }
+      gene_regex = sprintf("(^|;)%s(;|$)", paste(toupper(filter_genes), collapse = "|")) # toupper so we don't have to regex case-insensitive
+      gene_to_pid = dataset$proteins %>% filter(grepl(gene_regex, gene_symbols_or_id)) %>% pull(protein_id)
+      pid = c(pid, intersect(dataset$peptides$protein_id, gene_to_pid))
+    }
 
     if(select_dea_signif) {
       if(!"de_proteins" %in% names(dataset)) {

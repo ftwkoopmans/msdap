@@ -2,7 +2,7 @@
 #' Import a label-free proteomics dataset from OpenSWATH
 #'
 #' @param filename the full file path of the input file
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
+#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)
 #' @param return_decoys logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @export
@@ -34,7 +34,7 @@ import_dataset_openswath = function(filename, confidence_threshold = 0.01, retur
 #'
 #' @param filename the full file path of the input file
 #' @param acquisition_mode the type of experiment, should be a string. options: "dda" or "dia"
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
+#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)
 #' @param collapse_peptide_by FOR DDA ONLY (acquisition_mode='dda'): if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""
 #' @param return_decoys logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
@@ -79,7 +79,7 @@ import_dataset_skyline = function(filename, acquisition_mode, confidence_thresho
 #' Import a label-free proteomics dataset from DIA-NN
 #'
 #' @param filename the full file path of the input file
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
+#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @param use_irt logical indicating whether to use standardized (IRT) or the empirical (RT) retention times
 #' @param use_normalized_intensities use the abundance values as-is (recommended) or those normalized by DIA-NN
@@ -120,7 +120,7 @@ import_dataset_diann = function(filename, confidence_threshold = 0.01, use_norma
 #'
 #'
 #' @param filename the full file path of the input file
-#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)
+#' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)
 #' @param return_decoys logical indicating whether to return decoy peptides. Should be set to FALSE, and if enabled, make sure to manually remove the decoys from the peptides tibble before running the quickstart function!
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @param use_normalized_intensities use the abundance values as-is (recommended) or those normalized by Spectronaut
@@ -168,21 +168,6 @@ import_dataset_spectronaut = function(filename, confidence_threshold = 0.01, use
   # remove normalized intensity column, whether we used it or not, to prevent column name conflicts downstream
   ds$peptides$intensity_norm = NULL
 
-  ## obsolete, as we now check for unique sequence_modified in upstream code
-  # # if multiple spectral libraries were used, select 'best' match for each precursor using the overall cscore
-  # is_multi_library = "spectral_library" %in% colnames(tib) && length(unique(tib$spectral_library)) > 1
-  # if(is_multi_library) {
-  #   append_log("multiple spectral libraries are present in the Spectronaut report, using best matching library for each precursor (measured by overall cscore).", type = "info")
-  #   x = tib %>%
-  #     group_by(peptide_id) %>%
-  #     summarise(cscore=sum(cscore)) %>%
-  #     arrange(desc(cscore))
-  #   # strip spectral library from peptide_id to obtain modifiedsequence_charge (ID for precursor)
-  #   x$precursor_id = gsub("##.*", "", x$peptide_id)
-  #   # since we ordered from 'best' to worst', we can want to use the first occurrence of each precursor
-  #   x = x[ ! duplicated(x$precursor_id), ]
-  #   tib = tib %>% filter(peptide_id %in% x$peptide_id)
-  # }
 
   ### repair uniprot protein IDs, common issue in Spectronaut reports
   # if we find a "sp " or "tr " in the protein_id column, Spectronaut replaced pipe symbols in uniprot IDs with spaces and used a pipe symbol for separating multiple proteingroups @ shared peptides
@@ -365,6 +350,9 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
     # only read columns of interest to speed up file parsing
     # don't parse first row as header and then skip it to avoid issues with tables that have mismatched headers (e.g. MetaMorpheus files that have extra trailing tab on header row)
     DT = read_textfile_compressed(filename, skip_empty_rows = F, as_table = T, select = as.integer(col_indices_unique), header = F, skip = 1, stringsAsFactors = F, dec = dec_char, data.table = T)
+    if(is.null(DT)) {
+      append_log("failed to read data table from file", type = "error")
+    }
     colnames(DT) = names(col_indices_unique) # overwrite column names from file with the desired names from column specification
 
     # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
@@ -411,8 +399,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
 
 
   ### format sample_id; strip path and whitelisted extensions from filename. using grouping, we only have to apply the regex on unique elements
-  regex_strip_msrawfile = "(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4)$)"
-  DT[ , sample_id := gsub(regex_strip_msrawfile, "", sample_id, ignore.case=T), by=sample_id]
+  DT[ , sample_id := gsub(regex_rawfile_strip_extension(), "", sample_id, ignore.case=T), by=sample_id]
 
 
   ### format charge
@@ -443,17 +430,41 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
     DT[ , sequence_plain := gsub("(\\[[^]]*\\])|(\\([^)]*\\))", "", sequence_modified), by=sequence_modified] # slow !
   }
 
-  # peptide_id = modified sequence + charge (eg. unique precursors) + spectral library (so we can support scenario's where the raw data was matched to multiple spectral libraries)
-  if("spectral_library" %in% colnames(DT) && n_distinct(DT$spectral_library) > 1) {
-    DT[ , peptide_id := paste0(sequence_modified, "_", charge, "###", spectral_library), by= .(sequence_modified, charge)]
-  } else {
-    DT[ , peptide_id := paste0(sequence_modified, "_", charge), by= .(sequence_modified, charge)]
+
+  # peptide_id = modified sequence + charge (eg. unique precursors)
+  DT[ , peptide_id := paste0(sequence_modified, "_", charge), by= .(sequence_modified, charge)]
+
+  # there should not be any duplicate peptide_id*sample_id pairs (within the subset of non-decoy rows we intend to retain)
+  if(anyDuplicated(DT[isdecoy==FALSE & rows_remove==FALSE], by=c("peptide_id", "sample_id")) != 0) {
+    err_message = "error: Your dataset contains multiple rows of data for some peptide_id*sample_id combinations. There should always be at most 1 row in the input data table for any combination of modified sequence + charge. Perhaps some raw file is included multiple times (e.g. C:/data/sample1.wiff and c:/data/sample1.dia   or   C:/data1/sample.raw and C:/data2/sample.raw) ?"
+
+    if("spectral_library" %in% colnames(DT) && n_distinct(DT$spectral_library) > 1) {
+      # if there is a spectral library column, perhaps the upstream software presented results per spectral library ?
+      if(anyDuplicated(DT[isdecoy==FALSE & rows_remove==FALSE], by=c("peptide_id", "sample_id", "spectral_library")) != 0) {
+        # throw error if there are duplicates even within spectral_library (cannot rescue; results are ambiguous)
+        append_log(err_message, type = "error")
+      } else {
+        # otherwise, try to rescue by selecting the 'best'. Print as warning, this is unexpected input data (upstream software should decide which peptide_id to report)
+        append_log("input dataset contains ambiguous peptide_id per sample spread across spectral libraries, now selecting 1 peptide_id per sample", type = "warning")
+
+        # note; analogous to 'select_unique_precursor_per_modseq' implementation below
+        # compose temp column that includes the spectral library
+        DT[ , peptide_id_speclib := paste0(sequence_modified, "_", charge, "_", spectral_library), by= .(sequence_modified, charge, spectral_library)]
+        # simple summary statistics per peptide_id (per spectral library)
+        x = DT[rows_remove==FALSE & isdecoy==FALSE][ , .(peptide_id=peptide_id[1], ndetect=sum(detect==TRUE), abundance=mean(intensity)), by=peptide_id_speclib]
+        # sort such that the desireable sequence_modified for each peptide_id comes out on top
+        data.table::setorder(x, -ndetect, -abundance, na.last = TRUE)
+        # select first entry
+        x = x[ , index := seq_len(.N), by = peptide_id][index == 1]
+        # flag for removal of peptide_id not present in subsetted table x
+        DT[rows_remove==FALSE & isdecoy==FALSE & ! data.table::`%chin%`(peptide_id_speclib, x$peptide_id_speclib), rows_remove := TRUE, by=peptide_id_speclib]
+        DT[ , peptide_id_speclib := NULL] # remove temp column
+      }
+    } else {
+      append_log(err_message, type = "error")
+    }
   }
 
-  # peptide_id is a key, it must be unique per sample
-  if(anyDuplicated(DT[isdecoy==FALSE & rows_remove==FALSE], by=c("peptide_id", "sample_id")) != 0) {
-    append_log("error: peptide_id*sample_id combinations are not unique (eg; same peptide_id occurs multiple times per sample_id). If multiple data points per precursor*sample are available in your dataset, make sure to provide proper columns with the modified sequence, charge and spectral library that each data points originates from!", type = "error")
-  }
 
   # store intensities as log values (so we don't have to deal with integer64 downstream, which has performance issues)
   # note that above, we already removed (i.e. flagged as 'rows_remove') non-decoy rows where intensity values are below 1
@@ -506,7 +517,7 @@ import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_req
     npepid_pre = nrow(x)
     # sort such that the desireable sequence_modified for each peptide_id comes out on top
     data.table::setorder(x, -ndetect, -abundance, na.last = TRUE)
-    # simply select first entry
+    # select first entry
     x = x[ , index := seq_len(.N), by = sequence_modified][index == 1]
     npepid_post = nrow(x)
     # debug; x[sequence_modified=="KNPDSQYGELIEK"]; y[sequence_modified=="KNPDSQYGELIEK"]

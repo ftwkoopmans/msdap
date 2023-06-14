@@ -7,7 +7,8 @@
 plot_variance_explained(
   dataset,
   cols_metadata = NULL,
-  rollup_algorithm = "maxlfq"
+  rollup_algorithm = "maxlfq",
+  quiet = TRUE
 )
 }
 \arguments{
@@ -16,6 +17,8 @@ plot_variance_explained(
 \item{cols_metadata}{columns from `dataset@samples`` to be used. Set to NA or NULL to automatically infer (default)}
 
 \item{rollup_algorithm}{algorithm for combining peptides to proteins as used in DEA algorithms that require a priori rollup from peptides to a protein-level abundance matrix before applying statistics (e.g. ebayes, deqms). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each}
+
+\item{quiet}{boolean value, passed to variancePartition package}
 }
 \description{
 precondition: the input dataset$peptides tibble must have a "intensity_all_group" column,

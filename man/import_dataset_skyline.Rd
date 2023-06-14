@@ -18,7 +18,7 @@ import_dataset_skyline(
 
 \item{acquisition_mode}{the type of experiment, should be a string. options: "dda" or "dia"}
 
-\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)}
+\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)}
 
 \item{collapse_peptide_by}{FOR DDA ONLY (acquisition_mode='dda'): if multiple data points are available for a peptide in a sample, at what level should these be combined? options: "sequence_modified" (recommended default), "sequence_plain", ""}
 

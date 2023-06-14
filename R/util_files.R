@@ -94,24 +94,35 @@ path_exists = function(path, file = NULL, try_compressed = FALSE, silent = FALSE
   }
 
   if(try_compressed) {
+    query_filename = basename(f)
     # directory to search files in
     query_dir = dirname(f)
     if(query_dir == f) {
       query_dir = getwd()
     }
-    # regex search for filenames with supported compression extensions appended
-    query_file = basename(f)
-    query_file_pattern = sprintf("^%s\\.(zip|gz|bz2|xz|7z|zst|lz4)$", query_file) # strict matching includes begin/end of string checks
-    query_result = dir(path = query_dir, pattern = query_file_pattern, full.names = T, recursive = F, ignore.case = T, include.dirs = F)
-    if(length(query_result) > 0) {
-      return(query_result[1]) # return first match (i.e. we don't favor a particular type of file extension)
-    }
-    # analogous, but try with the original file extension removed as some compression tools situationally shorten output filename
-    # e.g. C:/temp/test.tsv -->> ZIP -->> C:/temp/test.zip instead of C:/temp/test.tsv.zip
-    query_file_pattern = sprintf("^%s\\.(zip|gz|bz2|xz|7z|zst|lz4)$", remove_file_extension_from_path(query_file))
-    query_result = dir(path = query_dir, pattern = query_file_pattern, full.names = T, recursive = F, ignore.case = T, include.dirs = F)
-    if(length(query_result) > 0) {
-      return(query_result[1])
+
+    # candidate files in target directory
+    candidates = data.frame(files = dir(path = query_dir, full.names = T, recursive = F, ignore.case = T, include.dirs = F), stringsAsFactors = F) %>%
+      mutate(
+        filenames = basename(files),
+        # regex search for filenames with supported compression extensions appended
+        filenames_noext_archive = sub("\\.(zip|gz|bz2|xz|7z|zst|lz4)$", "", filenames, ignore.case = T)
+      ) %>%
+      # only files that actually have compression file extension; if regex remove of extension failed, not a candidate file
+      filter(filenames != filenames_noext_archive)
+
+    if(nrow(candidates) > 0) {
+      # match user's query file
+      if(query_filename %in% candidates$filenames_noext_archive) {
+        return(candidates$files[match(query_filename, candidates$filenames_noext_archive)[1]])
+      }
+
+      # analogous, but try with the original file extension removed as some compression tools situationally shorten output filename
+      # e.g. C:/temp/test.tsv -->> ZIP -->> C:/temp/test.zip  (instead of C:/temp/test.tsv.zip)
+      query_filename_noext = remove_file_extension_from_path(query_filename)
+      if(query_filename_noext %in% candidates$filenames_noext_archive) {
+        return(candidates$files[match(query_filename_noext, candidates$filenames_noext_archive)[1]])
+      }
     }
   }
 
@@ -132,6 +143,16 @@ path_exists = function(path, file = NULL, try_compressed = FALSE, silent = FALSE
 #' @param f f can either be a filename or a full path, and optionally carry a file extension. eg; remove_file_extension_from_path("file.txt"); remove_file_extension_from_path("C:/temp/file")
 remove_file_extension_from_path = function(f) {
   sub("\\.[a-zA-Z0-9]{0,5}$", "", f) # use sub, not gsub, to match exactly once
+}
+
+
+
+#' returns a regex string that can be used to remove extensions from mass-spec raw files
+#'
+regex_rawfile_strip_extension = function() {
+  # update; greedy replace of extensions (e.g. ".wiff.dia" -> "")
+  return("(.*(\\\\|/))|((\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4))+$)")
+  # return("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4)$)")
 }
 
 
@@ -200,6 +221,11 @@ filename_strip_illegal_characters = function(f, strict = FALSE, replacement = "_
 #' note; the archive R package has some bugs still so we try to use the readr package for common compression formats
 #' e.g. bug while reading ZIP files; "Error: The size of the connection buffer (131072) was not large enough". Related bugreport @ https://github.com/tidyverse/vroom/issues/361
 #'
+#' note; another bug is with reading Zstd archives compressed with --long
+#' decompressing with current implementation results in;
+#' Error: archive_read.cpp:102 archive_read_open1(): Zstd decompression failed: Frame requires too much memory for decoding
+#' Related bugreport @ https://github.com/libarchive/libarchive/issues/1795
+#'
 #' @param file path to input file
 #' @param as_table boolean, TRUE = results from data.table::fread(), FALSE = results from readr::read_lines() (default)
 #' @param skip_empty_rows ignore empty rows (default: FALSE)
@@ -215,17 +241,18 @@ read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FA
   if(length(file) != 1 || !is.character(file) || !file.exists(file)) {
     return(NULL)
   }
+  success = FALSE
   x = con = NULL
   # file extensions
   file_len = nchar(file)
   ext2 = tolower(substring(file, file_len-2, file_len))
   ext3 = tolower(substring(file, file_len-3, file_len))
-  ext_use_archive = ext2 %in% c(".7z",".lz4") || ext3 == ".zst" # extensions we need to use libarchive
-  ext_use_readr = ext2 %in% c(".gz",".xz") || ext3 %in% c(".zip", ".bz2") # supported by readr::read_lines()
+  ext_use_archive = any(c(ext2, ext3) %in% c(".7z",".lz4", ".zst")) # extensions we need to use libarchive
+  ext_use_readr = any(c(ext2, ext3) %in% c(".gz",".xz", ".zip", ".bz2")) # supported by readr::read_lines()
   ext_assume_compressed = ext_use_archive || ext_use_readr
 
-  suppressWarnings(tryCatch({
 
+  suppressWarnings(tryCatch({
     ### read lines
     # if not a table, or we need a table but the file is compressed; x = read lines @ file
     if(!as_table || ext_assume_compressed) {
@@ -240,7 +267,11 @@ read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FA
           con = archive::file_read(file, mode = "r", filter = NULL, options = character())
         }
         # read libarchive text connection. seems less error prone when setting lazy=F and no threading when using libarchive connections
-        x = readr::read_lines(con, n_max = nrow, skip_empty_rows = skip_empty_rows, progress = FALSE, num_threads = 1, lazy = F)
+        tryCatch({
+          x = readr::read_lines(con, n_max = nrow, skip_empty_rows = skip_empty_rows, progress = FALSE, num_threads = 1, lazy = F)
+        }, error = function(e) {
+          append_log(paste0("failed to read file in read_textfile_compressed():\n", conditionMessage(e)), type = "error")
+        })
       }
     }
 
@@ -259,14 +290,18 @@ read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FA
       }
     }
 
+    success = TRUE
   },
-  error = function(e) NULL,
+  error = function(e) {
+    append_log(paste0("failed to read file in read_textfile_compressed():\n", conditionMessage(e)), type = "error")
+  },
   # read_line should've closed the file connection, but check anyway  (trycatch to deal with closed or NULL connections)
   finally = tryCatch({if(length(con)!=0) close(con)}, error = function(e) NULL)
   ))
 
-  # ref code; reading ZSTD requires format set to raw in archive_read; con = archive::archive_read(f, format = "raw", filter = "zstd")
-  return(x)
+  if(success == TRUE) {
+    return(x)
+  }
 }
 
 
@@ -291,11 +326,22 @@ map_headers = function(headers, l, error_on_missing = FALSE, allow_multiple = FA
   l_match = lapply(l_clean, match, headers_clean)
   l_match = lapply(l_match, na.omit)
 
+  log_quote_fields = function(x) paste(sapply(x, function(y) paste0('"',y,'"'), simplify = T), collapse = ", ")
   if(error_on_missing && any(lengths(l_match) == 0)) {
-    append_log(paste('No matches for required columns;', paste(names(l)[lengths(l_match) == 0], collapse = ", ")), type = "error")
+    err = NULL
+    for(i in which(lengths(l_match) == 0)) {
+      err = c(err, sprintf('field: "%s" -> could not find respective column names: %s', names(l)[i], log_quote_fields(l[[i]]) ))
+    }
+    append_log(paste0('Error while parsing headers of input table;\n', err), type = "error")
+    # append_log(paste('No matches for required columns;', paste(names(l)[lengths(l_match) == 0], collapse = ", ")), type = "error")
   }
   if(!allow_multiple && any(lengths(l_match) > 1)) {
-    append_log(paste('Multiple items match for columns;', paste(names(l)[lengths(l_match) > 1], collapse = ", ")), type = "error")
+    err = NULL
+    for(i in which(lengths(l_match) > 1)) {
+      err = c(err, sprintf('field: "%s" -> searched for column names: %s -> found: %s', names(l)[i], log_quote_fields(l[[i]]), log_quote_fields(l_match[[i]]) ))
+    }
+    append_log(paste0('Ambiguous matching of column names in the input table;\n', err), type = "error")
+    # append_log(paste('Multiple items match for columns;', paste(names(l)[lengths(l_match) > 1], collapse = ", ")), type = "error")
   }
 
   # automatically removes elements that have no matches

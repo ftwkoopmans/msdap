@@ -1,34 +1,26 @@
 
-- <a href="#annotated-example" id="toc-annotated-example">Annotated
-  example</a>
-  - <a href="#import-data" id="toc-import-data">Import data</a>
-  - <a href="#sample-metadata-table" id="toc-sample-metadata-table">Sample
-    metadata table</a>
-  - <a href="#define-contrasts" id="toc-define-contrasts">Define
-    contrasts</a>
-    - <a href="#dealing-with-batch-effects"
-      id="toc-dealing-with-batch-effects">Dealing with batch effects</a>
-  - <a href="#apply-pipeline" id="toc-apply-pipeline">Apply pipeline</a>
-  - <a href="#visualize-all-peptide-level-data-per-protein"
-    id="toc-visualize-all-peptide-level-data-per-protein">Visualize all
-    peptide-level data per protein</a>
-- <a href="#troubleshooting" id="toc-troubleshooting">Troubleshooting</a>
-- <a href="#preparing-input-data" id="toc-preparing-input-data">Preparing
-  input data</a>
-  - <a href="#maxquant" id="toc-maxquant">MaxQuant</a>
-  - <a href="#metamorpheus" id="toc-metamorpheus">MetaMorpheus</a>
-  - <a href="#skyline" id="toc-skyline">Skyline</a>
-  - <a href="#fragpipe" id="toc-fragpipe">FragPipe</a>
-    - <a href="#fragpipe-example" id="toc-fragpipe-example">FragPipe
-      example</a>
-  - <a href="#dia-nn" id="toc-dia-nn">DIA-NN</a>
-  - <a href="#openswath" id="toc-openswath">OpenSWATH</a>
-  - <a href="#encyclopedia" id="toc-encyclopedia">EncyclopeDIA</a>
-  - <a href="#spectronaut" id="toc-spectronaut">Spectronaut</a>
-  - <a href="#peaks" id="toc-peaks">Peaks</a>
-  - <a href="#openms" id="toc-openms">OpenMS</a>
-  - <a href="#proteomediscoverer"
-    id="toc-proteomediscoverer">ProteomeDiscoverer</a>
+- [Annotated example](#annotated-example)
+  - [Import data](#import-data)
+  - [Sample metadata table](#sample-metadata-table)
+  - [Define contrasts](#define-contrasts)
+    - [Dealing with batch effects](#dealing-with-batch-effects)
+  - [Apply pipeline](#apply-pipeline)
+  - [Visualize all peptide-level data per
+    protein](#visualize-all-peptide-level-data-per-protein)
+- [Troubleshooting](#troubleshooting)
+- [Preparing input data](#preparing-input-data)
+  - [MaxQuant](#maxquant)
+  - [MetaMorpheus](#metamorpheus)
+  - [Skyline](#skyline)
+  - [FragPipe](#fragpipe)
+    - [FragPipe example](#fragpipe-example)
+  - [DIA-NN](#dia-nn)
+  - [OpenSWATH](#openswath)
+  - [EncyclopeDIA](#encyclopedia)
+  - [Spectronaut](#spectronaut)
+  - [ProteomeDiscoverer](#proteomediscoverer)
+  - [Peaks](#peaks)
+  - [OpenMS](#openms)
 
 This vignette details the main functions of the MS-DAP R package.
 
@@ -296,11 +288,25 @@ Importantly, the `norm_algorithm` parameter should list the same
 algorithm(s) as used in the pipeline previously
 
 ``` r
-plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/",
-                  # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
-                  show_unused_datapoints = TRUE,
-                  # importantly, sync this parameter with the setting you used for analysis_quickstart()
-                  norm_algorithm = c("vwmb", "modebetween_protein"))
+plot_peptide_data(
+  dataset,
+  # set this to TRUE if you want to plot _all_ proteins (will take quite some time), FALSE to disable
+  select_all_proteins = FALSE, 
+  # set this to TRUE if you want to plot all proteins with a strong 'differential detection z-score', FALSE to disable
+  select_diffdetect_candidates = TRUE, 
+  # set this to TRUE if you want to plot all proteins that were significant in DEA, FALSE to disable
+  select_dea_signif = TRUE,
+  # here you can provide a select set of proteingroup identifiers (protein_id) as an array. e.g. filter_protein_ids = c("P23819", "Q5SVI1;Q5SVJ1;Q68EG2")
+  filter_protein_ids = NA,
+  # here you can provide a set of gene symbols as an array (not case sensitive). e.g. filter_genes = c("CAMK2B", "gria1", "gria2")
+  filter_genes = NA,
+  # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
+  show_unused_datapoints = TRUE,
+  # importantly, sync this parameter with the setting you used for analysis_quickstart()
+  norm_algorithm = c("vwmb", "modebetween_protein"),
+  # output directory
+  output_dir = "C:/<path>/"
+)
 ```
 
 # Troubleshooting
@@ -375,7 +381,7 @@ label-free quantification (MS1) as follows:
     sample to MS-DAP which is not what we want; ensure all experiments
     have unique values in the FragPipe workflow tab !
 2)  enable IonQuant in the “Quant (MS1)” tab (typically, this is already
-    done if you loaded the LFQ-MBR workflow i the FragPipe workflow
+    done if you loaded the LFQ-MBR workflow in the FragPipe workflow
     tab).
 3)  optionally, enable match-between-runs in the FragPipe “Quant (MS1)”
     tab.
@@ -540,6 +546,36 @@ alt="Spectronaut config" />
 <figcaption aria-hidden="true">Spectronaut config</figcaption>
 </figure>
 
+## ProteomeDiscoverer
+
+Input data must contain Percolator PEP scores for each PSM, so after the
+search engine node (eg; Sequest HT) make sure to connect the Percolator
+node.
+
+As input for MS-DAP, the PSMs.txt file from a PD label-free
+quantification workflow is used.
+
+Example PD workflow:
+
+- Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
+- Consensus Step: CWF_Comprehensive_Enhanced
+  Annotation_LFQ_and_Precursor_Quan
+- Consensus Step: add the “result exporter” (drag&drop from side panel
+  to bottom panel)
+
+Optionally, tweak label-free data analysis settings to explore effects
+on MS-DAP assessment of your dataset:
+
+- Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
+  Confidence At Least –\>\> change to medium
+- Processing Step –\>\> change precursor quantification from peak
+  (height) to area
+
+MS-DAP was tested with the results of the above workflow applied to the
+PXD007683 dataset.
+
+MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`
+
 ## Peaks
 
 *Support is experimental, additional user testing and test datasets are
@@ -606,38 +642,3 @@ requirements:
     (optional) further processing by OpenMS
 
 MS-DAP import function: `msdap::import_dataset_openms_mztab()`
-
-## ProteomeDiscoverer
-
-*Support is experimental, we have tested some PD workflows. Additional
-user testing and test datasets are most welcome. Our lab doesn’t have a
-PD licence, so if you have suitable label-free test dataset to
-contribute please contact us*.
-
-Input data must contain Percolator PEP scores for each PSM, so after the
-search engine node (eg; Sequest HT) make sure to connect the Percolator
-node.
-
-As input for MS-DAP, the PSMs.txt file from a PD label-free
-quantification workflow is used.
-
-Example PD workflow:
-
-- Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
-- Consensus Step: CWF_Comprehensive_Enhanced
-  Annotation_LFQ_and_Precursor_Quan
-- Consensus Step: add the “result exporter” (drag&drop from side panel
-  to bottom panel)
-
-Optionally, tweak label-free data analysis settings to explore effects
-on MS-DAP assessment of your dataset:
-
-- Consensus step –\>\> “peptide and protein filter” –\>\> Peptide
-  Confidence At Least –\>\> change to medium
-- Processing Step –\>\> change precursor quantification from peak
-  (height) to area
-
-MS-DAP was tested with the results of the above workflow applied to the
-PXD007683 dataset.
-
-MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`

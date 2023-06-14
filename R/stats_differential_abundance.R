@@ -308,17 +308,34 @@ de_msempire = function(eset, input_intensities_are_log2 = F) {
   capture.output(result <- suppressWarnings(suppressMessages(msEmpiRe::de.ana(eset))))
   append_log_timestamp("MS-EmpiRe", start_time)
 
-  return(tibble(
-    protein_id = as.character(result$prot.id),
-    pvalue = as.numeric(result$p.val),
-    qvalue = as.numeric(result$p.adj),
-    foldchange.log2 = as.numeric(result$log2FC),
-    effectsize = as.numeric(result$log2FC) / as.numeric(result$prot.sd),
-    tstatistic = NA,
-    standarddeviation = as.numeric(result$prot.sd),
-    standarderror = NA,
-    dea_algorithm = "msempire"
-  ))
+  return(
+    tibble(
+      protein_id = as.character(result$prot.id), # enforce type to be robust against upstream R package changes (e.g. prot.id as a factor)
+      pvalue = as.numeric(result$p.val),
+      qvalue = as.numeric(result$p.adj),
+      foldchange.log2 = as.numeric(result$log2FC),
+      # update;
+      # In MS-EmpiRe, 'prot.sd' is the standard deviation of 'prot.s' (which underwent shrinkage),
+      # not of the protein foldchange. So here we compute the effectsize based on prot.s/prot.sd analogous to
+      # MS-EmpiRe's protein p-value computation.
+      #
+      # However, there seems to be a bug in MS-EmpiRe where the sign of prot.s does not always agree with log2FC !
+      # So this simple test fails on several datasets;
+      # stopifnot( (result$log2FC >= 0) == (result$prot.s / result$prot.sd >= 0) )
+      #
+      # As a workaround, we compute absolute effectsize and then apply the sign of log2FC
+      effectsize = abs(as.numeric(result$prot.s) / as.numeric(result$prot.sd)) * ifelse(foldchange.log2 < 0, -1, 1),
+      #previous# effectsize = as.numeric(result$log2FC) / as.numeric(result$prot.sd),
+      tstatistic = NA,
+      # approximate standard deviation for the log2FC from the standardized effectsize
+      standarddeviation = abs(foldchange.log2 / effectsize),
+      #previous# standarddeviation = as.numeric(result$prot.sd),
+      standarderror = NA,
+      dea_algorithm = "msempire"
+    ) %>%
+      # if either log2FC or p.val is invalid, remove the protein from results
+      filter(is.finite(foldchange.log2) & is.finite(pvalue))
+  )
 }
 
 

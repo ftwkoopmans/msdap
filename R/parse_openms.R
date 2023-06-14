@@ -81,8 +81,8 @@ import_dataset_openms_mztab = function(filename) {
     any(grepl("peptide_search_engine_score\\[1\\]\t.*(q-value|Percolator).*", raw_mtd, ignore.case = T))
   # example msTab line: MTD ms_run[11]-location  file:///home/sachsenb/OpenMS/openms-build/iPRG2015/JD_06232014_sample2_A.mzML
   filenames = tib_mtd %>% filter(grepl("ms_run\\[\\d+\\].{0,2}location", V2, ignore.case = T)) %>% pull(V3)
-  # regex from msdap::import_dataset_in_long_format()
-  filenames = gsub("(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia)(\\.gz|\\.dia){0,1}$)", "", filenames, ignore.case=T)
+  # strip path and whitelisted extensions from filename
+  filenames = gsub(regex_rawfile_strip_extension(), "", filenames, ignore.case=T)
 
 
   ###

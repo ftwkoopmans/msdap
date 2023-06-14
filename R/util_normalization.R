@@ -123,8 +123,15 @@ normalize_matrix = function(x_as_log2, algorithm, group_by_cols = NA, group_by_r
   }
 
   # guess if the user provided some custom function for normalization
-  if (algorithm %in% ls(envir=.GlobalEnv)) {
-    f = match.fun(algorithm)
+  f = tryCatch(match.fun(algorithm, descend = FALSE), error = function(...) NULL)
+  if(!is.function(f)) {
+    if(grepl("::", algorithm, fixed = T)) {
+      f = tryCatch(getFromNamespace(gsub(".*::", "", algorithm), gsub("::.*", "", algorithm), envir = .GlobalEnv), error = function(...) NULL)
+    } else {
+      f = tryCatch(getFromNamespace(algorithm, "msdap", envir = .GlobalEnv), error = function(...) NULL)
+    }
+  }
+  if(is.function(f)) {
     result = f(x_as_log2 = x_as_log2, group_by_cols = group_by_cols, group_by_rows = group_by_rows, rollup_algorithm = rollup_algorithm)
     # validation checks on expected output, to facilitate debugging/feedback for custom implementations
     if(!is.matrix(result) || nrow(result) != nrow(x_as_log2) || ncol(result) != ncol(x_as_log2) || any(colnames(result) != colnames(x_as_log2)) || mode(result) != "numeric") {

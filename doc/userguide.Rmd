@@ -248,11 +248,25 @@ This is relatively time consuming, especially when you select to print _all_ pro
 Importantly, the `norm_algorithm` parameter should list the same algorithm(s) as used in the pipeline previously
 
 ```{r eval=FALSE}
-plot_peptide_data(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = TRUE, select_dea_signif = TRUE, output_dir = "C:/<path>/",
-                  # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
-                  show_unused_datapoints = TRUE,
-                  # importantly, sync this parameter with the setting you used for analysis_quickstart()
-                  norm_algorithm = c("vwmb", "modebetween_protein"))
+plot_peptide_data(
+  dataset,
+  # set this to TRUE if you want to plot _all_ proteins (will take quite some time), FALSE to disable
+  select_all_proteins = FALSE, 
+  # set this to TRUE if you want to plot all proteins with a strong 'differential detection z-score', FALSE to disable
+  select_diffdetect_candidates = TRUE, 
+  # set this to TRUE if you want to plot all proteins that were significant in DEA, FALSE to disable
+  select_dea_signif = TRUE,
+  # here you can provide a select set of proteingroup identifiers (protein_id) as an array. e.g. filter_protein_ids = c("P23819", "Q5SVI1;Q5SVJ1;Q68EG2")
+  filter_protein_ids = NA,
+  # here you can provide a set of gene symbols as an array (not case sensitive). e.g. filter_genes = c("CAMK2B", "gria1", "gria2")
+  filter_genes = NA,
+  # do you want to visualize peptide*sample data points that did not pass the filtering criteria for DEA ?
+  show_unused_datapoints = TRUE,
+  # importantly, sync this parameter with the setting you used for analysis_quickstart()
+  norm_algorithm = c("vwmb", "modebetween_protein"),
+  # output directory
+  output_dir = "C:/<path>/"
+)
 ```
 
 
@@ -401,6 +415,29 @@ The screenshot below shows the "MS-DAP Format" schema, with the data preview (ri
 
 ![Spectronaut config](misc/Spectronaut_report.png){width=100%}
 
+
+## ProteomeDiscoverer
+
+Input data must contain Percolator PEP scores for each PSM, so after the search engine node (eg; Sequest HT) make sure to connect the Percolator node.
+
+As input for MS-DAP, the PSMs.txt file from a PD label-free quantification workflow is used.
+
+Example PD workflow:
+
+- Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
+- Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
+- Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
+
+Optionally, tweak label-free data analysis settings to explore effects on MS-DAP assessment of your dataset:
+
+- Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
+- Processing Step -->> change precursor quantification from peak (height) to area
+
+MS-DAP was tested with the results of the above workflow applied to the PXD007683 dataset.
+
+MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`
+
+
 ## Peaks
 _Support is experimental, additional user testing and test datasets are most welcome. Our lab doesn't have a Peaks licences, so if you have a suitable label-free test dataset to contribute please contact us_.
 
@@ -439,26 +476,3 @@ requirements:
 3) output: mzTab output file compatible with MS-DAP  +  consensusXML for (optional) further processing by OpenMS
 
 MS-DAP import function: `msdap::import_dataset_openms_mztab()`
-
-
-## ProteomeDiscoverer
-_Support is experimental, we have tested some PD workflows. Additional user testing and test datasets are most welcome. Our lab doesn't have a PD licence, so if you have suitable label-free test dataset to contribute please contact us_.
-
-Input data must contain Percolator PEP scores for each PSM, so after the search engine node (eg; Sequest HT) make sure to connect the Percolator node.
-
-As input for MS-DAP, the PSMs.txt file from a PD label-free quantification workflow is used.
-
-Example PD workflow:
-
-- Processing Step: PWF_QE_Precursor_Quan_and_LFQ_SequestHT_Percolator
-- Consensus Step: CWF_Comprehensive_Enhanced Annotation_LFQ_and_Precursor_Quan
-- Consensus Step: add the "result exporter" (drag&drop from side panel to bottom panel)
-
-Optionally, tweak label-free data analysis settings to explore effects on MS-DAP assessment of your dataset:
-
-- Consensus step -->> "peptide and protein filter" -->> Peptide Confidence At Least -->> change to medium
-- Processing Step -->> change precursor quantification from peak (height) to area
-
-MS-DAP was tested with the results of the above workflow applied to the PXD007683 dataset.
-
-MS-DAP import function: `msdap::import_dataset_proteomediscoverer_txt()`

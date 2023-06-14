@@ -17,7 +17,7 @@ import_dataset_spectronaut(
 \arguments{
 \item{filename}{the full file path of the input file}
 
-\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified' (target value must be lesser than or equals)}
+\item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)}
 
 \item{use_normalized_intensities}{use the abundance values as-is (recommended) or those normalized by Spectronaut}
 

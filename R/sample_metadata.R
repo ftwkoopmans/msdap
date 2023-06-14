@@ -251,8 +251,8 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
   # maybe the table we read from file contains file extensions that we stripped out in (newer versions of) MS-DAP
   # so e.g. "sample1.wiff" in `df$sample_id` is present in `sample_id` parameter as "sample1"
   # solution: update `df` for elements that do not match currently, and have exactly 1 match after regex
-  regex_strip_msrawfile = "(.*(\\\\|/))|(\\.(mzML|mzXML|WIFF|RAW|htrms|dia|d|zip|gz|bz2|xz|7z|zst|lz4)$)"
-  df_sid_strip = gsub(regex_strip_msrawfile, "", df$sample_id, ignore.case = T)
+  # strip path and whitelisted extensions from filename
+  df_sid_strip = gsub(regex_rawfile_strip_extension(), "", df$sample_id, ignore.case = T)
   sample_id__matched = sample_id %in% df$sample_id
   for(i in which(df$sample_id != "")) {
     if(!any(df$sample_id[i] == sample_id)) { # df element i is unmatched
@@ -272,7 +272,7 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
     append_log(paste0("sample metadata table must contain all samples from this dataset. Missing samples:\n", paste(samples_missing, collapse="\n")), type = "error")
   }
   if (length(samples_extra) > 0) {
-    append_log(paste("sample metadata table must contain only samples from this dataset. Additional samples that should be removed from metadata table:", paste(samples_extra, collapse=", ")), type = "error")
+    append_log(paste0("sample metadata table must contain only samples from this dataset. Additional samples that should be removed from metadata table:\n", paste(samples_extra, collapse="\n")), type = "error")
   }
 
   if(length(group_order) == 0 || any(!is.na(group_order))) {
@@ -635,6 +635,7 @@ peptide_and_protein_counts_per_sample = function(peptides, samples, isdia) {
 #' computed metadata like peptide or protein counts
 #'
 #' @param samples e.g. dataset$samples
+#' @export
 user_provided_metadata = function(samples) {
   grep("^(sample_index|sample_id|shortname|exclude|contrast:.*|key_[a-z]+|((detected|quantified|all)_(peptides|proteins)))$", colnames(samples), value = T, invert = T, ignore.case = T)
 }
