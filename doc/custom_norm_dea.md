@@ -1,13 +1,10 @@
 
--   <a href="#load-dataset" id="toc-load-dataset">load dataset</a>
--   <a href="#custom-normalization-function"
-    id="toc-custom-normalization-function">custom normalization function</a>
-    -   <a href="#implementation" id="toc-implementation">implementation</a>
--   <a href="#custom-dea-function" id="toc-custom-dea-function">custom DEA
-    function</a>
-    -   <a href="#implementation-1" id="toc-implementation-1">implementation</a>
--   <a href="#lets-run-ms-dap-" id="toc-lets-run-ms-dap-">let’s run MS-DAP
-    !</a>
+- [load dataset](#load-dataset)
+- [custom normalization function](#custom-normalization-function)
+  - [implementation](#implementation)
+- [custom DEA function](#custom-dea-function)
+  - [implementation](#implementation-1)
+- [let’s run MS-DAP !](#lets-run-ms-dap-)
 
 This vignette demonstrates how you can plug custom functions into the
 MS-DAP pipeline.
@@ -18,7 +15,7 @@ if you run these code snippets on your computer
 
 ## load dataset
 
-1.  load the Skyline output of the LFQbench study (<PMID:27701404> \~
+1.  load the Skyline output of the LFQbench study (<PMID:27701404> ~
     this file is bundled with the MS-DAP package, you don’t have to
     download anything).
 
@@ -41,6 +38,7 @@ library(msdap)
 f <- system.file("extdata", "Skyline_HYE124_TTOF5600_64var_it2.tsv.gz", package = "msdap")
 dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys = F, acquisition_mode = "dia")
 #> info: reading Skyline report...
+#> info: input file: C:/VU/code/R/msdap/inst/extdata/Skyline_HYE124_TTOF5600_64var_it2.tsv.gz
 #> info: 4 unique target (plain)sequences ambiguously mapped to multiple proteins and thus removed. Examples; TTDVTGTIELPEGVEMVMPGDNIK, LNIISNLDCVNEVIGIR, LMDLSINK, EVDEQMLNVQNK
 #> info: 34263/35943 precursors remain after selecting the 'best' precursor for each modified sequence
 
@@ -87,14 +85,14 @@ The requirements to make your custom normalization function work are:
 List of parameters that are currently passed to custom normalization
 functions, add these to your function to work with the respective data:
 
--   `x_as_log2` = log2 transformed peptide intensity data matrix, where
-    each row is a peptide and each column a sample
--   `group_by_cols` = array of characters that describe the sample
-    grouping (which columns belong to the same sample group)
--   `group_by_rows` = array of characters that describe the peptide
-    grouping (which rows belong to the same protein)
--   `rollup_algorithm` = user’s preferred peptide-to-protein rollup
-    algorithm
+- `x_as_log2` = log2 transformed peptide intensity data matrix, where
+  each row is a peptide and each column a sample
+- `group_by_cols` = array of characters that describe the sample
+  grouping (which columns belong to the same sample group)
+- `group_by_rows` = array of characters that describe the peptide
+  grouping (which rows belong to the same protein)
+- `rollup_algorithm` = user’s preferred peptide-to-protein rollup
+  algorithm
 
 3)  return data has to be of the *exact* same format as x_as_log2 (but
     with normalized abundance values)
@@ -160,36 +158,35 @@ Below we have implemented a simplified DEA function that applies a
 List of parameters that are currently passed to custom dea functions,
 add these to your function to work with the respective data:
 
--   `peptides` = long-format tibble of peptide data. For simple
-    use-cases, you might first consider the peptide- or protein-level
-    ExpressionSet (these hold simple data matrices to operate on, see
-    example code block below)
--   `samples` = wide-format tibble with sample metadata, take note of
-    the columns ‘sample_id’ and ‘condition’ so you can classify samples
-    into conditions while A/B testing
--   `eset_peptides` = ExpressionSet for peptides. Holds a
-    peptide\*sample log2 intensity matrix as well as row- and
-    column-level sample data
--   `eset_proteins` = ExpressionSet for proteins, analogous to
-    `eset_peptides` but peptide-to-protein rollup was already performed.
--   `input_intensities_are_log2` = boolean that tells you whether the
-    intensities are log2 transformed (they are by default, but could
-    change in future, so implement a check like below)
--   `random_variables` = array of column names in the samples table
+- `peptides` = long-format tibble of peptide data. For simple use-cases,
+  you might first consider the peptide- or protein-level ExpressionSet
+  (these hold simple data matrices to operate on, see example code block
+  below)
+- `samples` = wide-format tibble with sample metadata, take note of the
+  columns ‘sample_id’ and ‘condition’ so you can classify samples into
+  conditions while A/B testing
+- `eset_peptides` = ExpressionSet for peptides. Holds a peptide\*sample
+  log2 intensity matrix as well as row- and column-level sample data
+- `eset_proteins` = ExpressionSet for proteins, analogous to
+  `eset_peptides` but peptide-to-protein rollup was already performed.
+- `input_intensities_are_log2` = boolean that tells you whether the
+  intensities are log2 transformed (they are by default, but could
+  change in future, so implement a check like below)
+- `random_variables` = array of column names in the samples table
 
 The return data must be a tibble with these columns;
 
--   `protein_id` = character column with the protein identifiers
-    provided in the input data (peptides tibble or metadata from
-    peptide/protein ExpressionSet). These must be unique values
--   `pvalue` = numeric column with p-values
--   `qvalue` = numeric column with p-values adjusted for multiple
-    testing correction (e.g. after applying FDR to your p-values)
--   `foldchange.log2` = numeric column with log2 foldchanges
--   `dea_algorithm` = name of your algorithm. must be a non-empty
-    character string uniquely indicating the name/label of your method.
-    DO NOT use names already used by other methods in this pipeline,
-    like ‘ebayes’
+- `protein_id` = character column with the protein identifiers provided
+  in the input data (peptides tibble or metadata from peptide/protein
+  ExpressionSet). These must be unique values
+- `pvalue` = numeric column with p-values
+- `qvalue` = numeric column with p-values adjusted for multiple testing
+  correction (e.g. after applying FDR to your p-values)
+- `foldchange.log2` = numeric column with log2 foldchanges
+- `dea_algorithm` = name of your algorithm. must be a non-empty
+  character string uniquely indicating the name/label of your method. DO
+  NOT use names already used by other methods in this pipeline, like
+  ‘ebayes’
 
 ### implementation
 
@@ -261,7 +258,7 @@ dataset = analysis_quickstart(
   output_dir = NA # in this example, we disable the generation of all output files
 )
 #> info: no output files will be generated, output_dir was set to NA
-#> progress: caching filter data took 1 seconds
+#> progress: caching filter data took 2 seconds
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> info: filter dataset with settings: min_detect = 2; min_quant = 3; norm_algorithm = 'my_norm'; rollup_algorithm = 'maxlfq'
@@ -273,6 +270,7 @@ dataset = analysis_quickstart(
 #> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> progress: eBayes took 1 seconds
 #> Example custom DEA implementation, my_dea_stats(), yielded 720 hits at qvalue<=0.01
+#> warning: differential detection parameters set to NA, this analysis is cancelled
 ```
 
 Print the number of significant proteins

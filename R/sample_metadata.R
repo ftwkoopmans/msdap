@@ -570,7 +570,7 @@ setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
       append_log(paste("the same group cannot be on both sides of the", lbl), type = "error")
     }
     if (any(!groups_a %in% tib$group) || any(!groups_b %in% tib$group)) {
-      append_log(paste("all groups in a contrast must be part of your dataset,", lbl), type = "error")
+      append_log(paste("contrast definition contains a sample group that is not part of your dataset (i.e. not present in sample metadata table dataset$samples) @ ", lbl), type = "error")
     }
 
     # conditions are stored as integers

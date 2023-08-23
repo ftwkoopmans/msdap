@@ -453,7 +453,7 @@ MS-DAP import function: `msdap::import_dataset_peaks()`
 ## OpenMS
 _Support is experimental, we are currently extending the OpenMS workflows supported by MS-DAP. Additional user testing and test datasets are most welcome_.
 
-For now, label-free DDA data processed by OpenMS are only compatible with MS-DAP if a workflow was used analogous to the tutorial by Hannes Rost  @  https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
+For now, label-free DDA data processed by OpenMS are only compatible with MS-DAP if a workflow was used analogous to the tutorial by Hannes Rost  @  https://abibuilder.cs.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
 
 To make it easier for MS-DAP users to get started with a compatible OpenMS workflow, and construct a standardized script for integrated testing of OpenMS + MS-DAP, we created a .bat script for Windows computers that performs the suggested workflow, available for download here: - [openms_lfq_workflow_v0.2.bat](misc/openms_lfq_workflow_v0.2.bat)
 

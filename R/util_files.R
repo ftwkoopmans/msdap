@@ -6,6 +6,7 @@
 #' @param path a directory on this computer. eg; "C:/temp" on windows or "/home/user1" on unix
 #' @param file filename that should be appended to the path
 #' @param strict boolean indicating 'strict mode' for checking the filename, if TRUE; only allow alphanumeric, underscore and '-'
+#' @export
 path_append_and_check = function(path, file, strict = FALSE) {
   file_check(paste(c(path, file), collapse = "/"), strict = strict)
 }
@@ -31,6 +32,7 @@ path_append_and_check = function(path, file, strict = FALSE) {
 #' @param file filename to check (may include a path)
 #' @param strict boolean indicating 'strict mode' for checking the filename, if TRUE; only allow alphanumeric, underscore and '-'
 #' @importFrom openssl md5
+#' @export
 file_check = function(file, strict = FALSE) {
   file_asis = file
   file = path_clean_slashes(file)
@@ -85,6 +87,7 @@ remove_file_if_exists = function(f) {
 #' @param file filename within the 'path'
 #' @param try_compressed if the requested filename is not available, try again with added file extensions known for compression (default: FALSE). See `read_textfile_compressed()` function docs for supported extensions
 #' @param silent on error, return an empty string instead of throwing an error (default: FALSE)
+#' @export
 path_exists = function(path, file = NULL, try_compressed = FALSE, silent = FALSE) {
   stopifnot(length(path) == 1 && length(file) <= 1)
   f = paste(c(path, file), collapse = "/") # f = full path to test
@@ -194,6 +197,7 @@ path_clean_slashes = function(f) {
 #' @param f f can either be a filename or a full path
 #' @param strict boolean, if TRUE; only allow alphanumeric, underscore and '-'
 #' @param replacement string replacement value for removed characters
+#' @export
 filename_strip_illegal_characters = function(f, strict = FALSE, replacement = "_") {
   f_file = basename(f) # actual filename, in case f is a path
   f_dir = dirname(f)
@@ -424,4 +428,38 @@ pdf_combine_chunks = function(input, output) {
   # finally, combine chunks and remove temp files
   pdftools::pdf_combine(output_temp, output)
   res = file.remove(output_temp)
+}
+
+
+
+#' robust matching of column names to a data.frame, returns the matched subset of columns
+#'
+#' @param x a data.frame
+#' @param column_spec named list where names are the target column names and values are vectors of column names to search for in parameter x
+#' @param columns_required a vector of columns that are required (i.e. throw error if any of these are missing). Should match the names in column_spec
+robust_header_matching = function(x, column_spec, columns_required) {
+  stopifnot(is.data.frame(x))
+  stopifnot(length(column_spec) > 0 && is.list(column_spec) && !is.null(names(column_spec)))
+  stopifnot(length(columns_required) == 0 || all(columns_required %in% names(column_spec)))
+
+  colnames_simplified = gsub("[^a-zA-Z0-9]", "", tolower(colnames(x)))
+
+  # iterate column alias/mappings
+  cols_retain = NULL
+  for(i in seq_along(column_spec)) {
+    # robust matching of desired column names to input table
+    col = na.omit(match(gsub("[^a-zA-Z0-9]", "", tolower(column_spec[[i]])), colnames_simplified))
+    # halt if required columns are missing
+    if(length(col) == 0 && names(column_spec)[i] %in% columns_required) {
+      append_log(sprintf("invalid data table; cannot find column '%s' while testing for column names %s",
+                         names(column_spec)[1], paste(cols[[i]], collapse = ", ")), type = "error")
+    }
+    if(length(col) > 0) {
+      col = col[1] # in case of multiple matches, take the first
+      colnames(x)[col] = names(column_spec)[i] # update header in the input table
+      cols_retain = c(cols_retain, names(column_spec)[i]) # include this column in results
+    }
+  }
+
+  return(x[,colnames(x) %in% cols_retain])
 }

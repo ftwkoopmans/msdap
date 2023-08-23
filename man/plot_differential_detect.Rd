@@ -2,13 +2,16 @@
 % Please edit documentation in R/plot_differential_detect.R
 \name{plot_differential_detect}
 \alias{plot_differential_detect}
-\title{placeholder title}
+\title{Plot differential detection results as a histogram}
 \usage{
 plot_differential_detect(dataset)
 }
 \arguments{
 \item{dataset}{dataset object}
 }
+\value{
+list of ggplot objects with 1 plot per contrast. If no differential detection data is available, returns an empty list
+}
 \description{
-placeholder title
+Plot differential detection results as a histogram
 }

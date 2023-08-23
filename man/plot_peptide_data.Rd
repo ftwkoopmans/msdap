@@ -10,6 +10,7 @@ plot_peptide_data(
   select_diffdetect_candidates = TRUE,
   select_dea_signif = TRUE,
   filter_protein_ids = NA,
+  filter_genes = NA,
   output_dir,
   show_unused_datapoints = FALSE,
   norm_algorithm = NA
@@ -25,6 +26,8 @@ plot_peptide_data(
 \item{select_dea_signif}{todo}
 
 \item{filter_protein_ids}{todo}
+
+\item{filter_genes}{todo}
 
 \item{output_dir}{todo}
 

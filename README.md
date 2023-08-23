@@ -34,7 +34,10 @@ analysis of Alzheimer’s biomarker. Journal of Proteome Research.*
 
 ## Overview
 
-![MS-DAP workflow](doc/images/msdap-overview.png)
+<figure>
+<img src="doc/images/msdap-overview.png" alt="MS-DAP workflow" />
+<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
+</figure>
 
 [This introduction to MS-DAP](doc/intro.md) provides a complete overview
 of main features and example data visualizations.
@@ -105,19 +108,24 @@ dataset = setup_contrasts(dataset, contrast_list = list(  c("WT","KO")  ) )
 # so for DDA we recommend to set no or minimal requirements on 'detect' parameters; "filter_fraction_detect = 0" and "filter_min_detect = 0" (or 1 if you want at least 1 MS/MS detect per peptide per sample group)
 dataset = analysis_quickstart(
   dataset,
-  filter_min_detect = 3,         # each peptide must have a good confidence score in at least N samples per group
-  filter_min_quant = 3,          # similarly, the number of reps where the peptide must have a quantitative value
-  filter_fraction_detect = 0.75, # each peptide must have a good confidence score in at least 75% of samples per group
-  filter_fraction_quant = 0.75,  # analogous for quantitative values
-  filter_by_contrast = TRUE,     # only relevant if dataset has 3+ groups. For DEA at each contrast, filters and normalization are applied on the subset of relevant samples within the contrast for efficiency, see further MS-DAP manuscript. Set to FALSE to disable and use traditional "global filtering" (filters are applied to all sample groups, same data table used in all statistics)
+  filter_min_detect = 3,            # each peptide must have a good confidence score in at least N samples per group
+  filter_min_quant = 3,             # similarly, the number of reps where the peptide must have a quantitative value
+  filter_fraction_detect = 0.75,    # each peptide must have a good confidence score in at least 75% of samples per group
+  filter_fraction_quant = 0.75,     # analogous for quantitative values
+  filter_min_peptide_per_prot = 1,  # minimum number of peptides per protein (after applying above filters) required for DEA. Set this to 2 to increase robustness, but note that'll discard approximately 25% of proteins in typical datasets (i.e. that many proteins are only quantified by 1 peptide)
+  filter_by_contrast = TRUE,        # only relevant if dataset has 3+ groups. For DEA at each contrast, filters and normalization are applied on the subset of relevant samples within the contrast for efficiency, see further MS-DAP manuscript. Set to FALSE to disable and use traditional "global filtering" (filters are applied to all sample groups, same data table used in all statistics)
   norm_algorithm = c("vsn", "modebetween_protein"), # normalization; first vsn, then modebetween on protein-level (applied sequentially so the MS-DAP modebetween algorithm corrects scaling/balance between-sample-groups)
   dea_algorithm = c("deqms", "msempire", "msqrob"), # statistics; apply multiple methods in parallel/independently
   dea_qvalue_threshold = 0.01,                      # threshold for significance of adjusted p-values in figures and output tables
   dea_log2foldchange_threshold = NA,                # threshold for significance of log2 foldchanges. 0 = disable, NA = automatically infer through bootstrapping
+  diffdetect_min_peptides_observed = 2,             # 'differential detection' only for proteins with at least 2 peptides. The differential detection metric is a niche usecase and mostly serves to identify proteins identified near-exclusively in 1 sample group and not the other
+  diffdetect_min_samples_observed = 3,              # 'differential detection' only for proteins observed in at least 3 samples per group
+  diffdetect_min_fraction_observed = 0.5,           # 'differential detection' only for proteins observed in 50% of samples per group
   output_qc_report = TRUE,                          # optionally, set to FALSE to skip the QC report (not recommended for first-time use)
   output_abundance_tables = TRUE,                   # optionally, set to FALSE to skip the peptide- and protein-abundance table output files
   output_dir = "msdap_results",                     # output directory, here set to "msdap_results" within your working directory. Alternatively provide a full path, eg; output_dir="C:/path/to/myproject",
-  output_within_timestamped_subdirectory = TRUE )
+  output_within_timestamped_subdirectory = TRUE
+)
 
 # print a short summary of results at the end
 print_dataset_summary(dataset)
@@ -132,7 +140,10 @@ everything required to get starting right away, and as a [R
 package](doc/rpackage.md) that may be installed into a preexisting
 bioinformatics workflow.
 
-![MS-DAP docker](doc/images/msdap_docker_cartoon.png)
+<figure>
+<img src="doc/images/msdap_docker_cartoon.png" alt="MS-DAP docker" />
+<figcaption aria-hidden="true">MS-DAP docker</figcaption>
+</figure>
 
 1)  Installing the dockerized version of MS-DAP is trivialized to first
     installing the Docker application and then pulling the MS-DAP
@@ -165,6 +176,8 @@ Differential Expression Analysis (DEA).
 
 - [introduction to MS-DAP](doc/intro.md) (start here)
 - [user guide: details the main R functions](doc/userguide.md)
+- [summarizing results from statistics + gene ID
+  mapping](doc/stats_summary.md)
 - [bioinformatics: differential expression analysis
   (DEA)](doc/differential_expression_analysis.md)
 - [bioinformatics: differential

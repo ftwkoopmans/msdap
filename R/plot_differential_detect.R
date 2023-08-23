@@ -1,6 +1,9 @@
 
-#' placeholder title
+#' Plot differential detection results as a histogram
+#'
 #' @param dataset dataset object
+#' @returns list of ggplot objects with 1 plot per contrast. If no differential detection data is available, returns an empty list
+#' @export
 plot_differential_detect = function(dataset) {
   result = list()
   if(!"dd_proteins" %in% names(dataset) || nrow(dataset$dd_proteins) == 0) {
@@ -8,17 +11,30 @@ plot_differential_detect = function(dataset) {
   }
 
   for(contr in dataset_contrasts(dataset)) {
-    tib_contr = dataset$dd_proteins %>% filter(contrast == contr & !is.na(zscore_count_detect))
-    if(nrow(tib_contr) == 0) next
+    tib_contr = dataset$dd_proteins %>% filter(contrast == contr & is.finite(zscore))
+    if(nrow(tib_contr) == 0) {
+      next
+    }
 
-    p_hist = ggplot(tib_contr, aes(zscore_count_detect)) +
-      geom_histogram(bins=25, boundary = 0, colour = "white", fill="darkgrey", na.rm=T) +
-      geom_vline(xintercept = c(-3, 3), colour = "red") +
-      labs(x="differential detect z-score", y="number of proteins", colour = "", title = contr,
-           subtitle = sprintf("#proteins tested: %d  #abs(zscore) >= 3: %d", nrow(tib_contr), sum(abs(tib_contr$zscore_count_detect)>=3, na.rm = T))) +
+    tib_contr = tib_contr %>% filter(type %in% c("detect", "quant"))
+    tib_contr_detect = tib_contr %>% filter(type == "detect")
+    tib_contr_quant = tib_contr %>% filter(type == "quant")
+    lbl_detect = sprintf("only detected peptides; #proteins tested: %d  #abs(zscore) >= 4: %d", nrow(tib_contr_detect), sum(abs(tib_contr_detect$zscore) >= 4))
+    lbl_quant = sprintf("all quantified peptides; #proteins tested: %d  #abs(zscore) >= 4: %d", nrow(tib_contr_quant), sum(abs(tib_contr_quant$zscore) >= 4))
+
+    tib_contr = tib_contr %>%
+      arrange(type) %>%
+      mutate(type_label = ifelse(type == "detect", lbl_detect, lbl_quant),
+             type_label = factor(type_label, levels = unique(type_label)))
+
+    p_hist = ggplot(tib_contr, aes(zscore)) +
+      geom_histogram(bins=25, boundary = 0, colour = "black", fill="lightgrey", na.rm=T) +
+      geom_vline(xintercept = c(-4, 4), colour = "red") +
+      facet_wrap(.~type_label, ncol = 1) +
+      labs(x="Differential z-score for observed peptides", y="Protein count", colour = "", title = contr) +
       theme_bw() +
-      theme(plot.title = element_text(hjust = 0.5, size=8),
-            plot.subtitle = element_text(hjust = 0.5, size=8),
+      theme(plot.title = element_text(hjust = 0.5, size=9),
+            plot.subtitle = element_text(hjust = 0.5, size=9),
             legend.position = "none")
 
     result[[contr]] = p_hist

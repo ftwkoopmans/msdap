@@ -228,11 +228,6 @@ The 'input' panel is based on the peptide intensities as-is (i.e. the user-provi
 # returns a list (names are the sample groups), each contains 3 ggplot objects; mono, highlight, legend
 l_fc_distr = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
 p_group_mean_foldchange = l_fc_distr$plotlist
-tib_group_mean_foldchange = l_fc_distr$tib_scores %>%
-    mutate(sd = sprintf("%.3f", sd)) %>%
-    select(Group = group, Sample = shortname, `Standard Deviation` = sd)
-
-
 
 i = 0 # counter for unique chunk IDs
 for(plotlist in p_group_mean_foldchange) {
@@ -245,11 +240,17 @@ for(plotlist in p_group_mean_foldchange) {
 }
 
 # generate a table for each group. Only top10 worst samples per group, otherwise with large datasets it'll be 10 pages of tables...
-cat('\n\\newpage \n')
-cat('**top10 outliers per sample group** \n\n ')
-for(g in unique(tib_group_mean_foldchange$Group)) { # note capital G
-  rmarkdown_xtable_custom(tib_group_mean_foldchange %>% filter(Group == g) %>% tail(n=10L), caption = "sd() of within-group foldchange distributions")
-  cat('\n\n') 
+if(length(l_fc_distr$tib_scores) > 0) {
+  tib_group_mean_foldchange = l_fc_distr$tib_scores %>%
+    mutate(sd = sprintf("%.3f", sd)) %>%
+    select(Group = group, Sample = shortname, `Standard Deviation` = sd)
+
+  cat('\n\\newpage \n')
+  cat('**top10 outliers per sample group** \n\n ')
+  for(g in unique(tib_group_mean_foldchange$Group)) { # note capital G
+    rmarkdown_xtable_custom(tib_group_mean_foldchange %>% filter(Group == g) %>% tail(n=10L), caption = "sd() of within-group foldchange distributions")
+    cat('\n\n') 
+  }
 }
 ``` 
 
@@ -406,8 +407,10 @@ if(any(dataset$samples$exclude) && "intensity_all_group_withexclude" %in% colnam
     pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group_withexclude)
 
   # note that we select only the color-coding for sample groups for the PCA that includes outliers
-  p_pca__incl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_withexclude), dataset$samples, samples_colors %>% select(sample_id, shortname, group), sample_label_property = pca_sample_labels))
-  p_pca__incl_outliers__npep = nrow(tibw_withexclude)
+  if(ncol(tibw_withexclude) > 2) {
+    p_pca__incl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_withexclude), dataset$samples, samples_colors %>% select(sample_id, shortname, group), sample_label_property = pca_sample_labels))
+    p_pca__incl_outliers__npep = nrow(tibw_withexclude)
+  }
 }
 
 
@@ -415,8 +418,10 @@ if("intensity_all_group" %in% colnames(dataset$peptides) && any(!is.na(dataset$p
   tibw_noexclude = dataset$peptides %>% select(key_peptide, sample_id, intensity_all_group) %>% filter(!is.na(intensity_all_group)) %>%
     pivot_wider(id_cols = key_peptide, names_from = sample_id, values_from = intensity_all_group)
 
-  p_pca__excl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_noexclude), dataset$samples, samples_colors, sample_label_property = pca_sample_labels))
-  p_pca__excl_outliers__npep = nrow(tibw_noexclude)
+  if(ncol(tibw_noexclude) > 2) {
+    p_pca__excl_outliers = suppressWarnings(plot_sample_pca(as_matrix_except_first_column(tibw_noexclude), dataset$samples, samples_colors, sample_label_property = pca_sample_labels))
+    p_pca__excl_outliers__npep = nrow(tibw_noexclude)
+  }
 }
 ```
 
@@ -502,7 +507,9 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob model tends to assign zero (log)foldchange for proteins with minor difference between conditions where the model is very sure the null hypothesis cannot be rejected (shrinkage by the ridge regression model). As a result, many foldchanges will be zero and the density plot for MSqRob may look like a spike instead of the expected Gaussian shape observed in other models* \n\n") 
     }
 
-    subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_foldchange_density)), unique_chunk_id = paste0("foldchange_density_", contr_index), fig_height = 7, fig_width = 7)
+    if(length(l_contrast[[contr_index]]$p_foldchange_density) > 0) {
+      subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_foldchange_density)), unique_chunk_id = paste0("foldchange_density_", contr_index), fig_height = 7, fig_width = 7)
+    }
 
     cat('\n\\newpage \n')
     cat('\n### p-value distribution \n\n') 
@@ -514,20 +521,33 @@ if(length(l_contrast) > 0) {
       cat("*note; the MSqRob and MS-EmpiRe models often yield p-value distributions that show a large peak at p-value 1, these are typically proteins with estimated log foldchanges at/near zero where these models are very sure the null hypothesis cannot be rejected* \n\n") 
     }
 
-    subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_pvalue_hist)), unique_chunk_id = paste0("pvalue_hist_", contr_index), fig_height = 7, fig_width = 7)
+    if(length(l_contrast[[contr_index]]$p_pvalue_hist) > 0) {
+      subchunkify(suppressWarnings(print(l_contrast[[contr_index]]$p_pvalue_hist)), unique_chunk_id = paste0("pvalue_hist_", contr_index), fig_height = 7, fig_width = 7)
+    }
 
 
     ## differential detect
-    if(exists("dd_plots") && contr %in% names(dd_plots)) {
+    if(exists("dd_plots") && contr %in% names(dd_plots) && length(dd_plots[[contr]]) > 0) {
       cat('\n\\newpage \n')
       cat('\n### differential detect \n\n')
-      cat('Some proteins may not have peptides with sufficient data points over samples to be used for differential expression analysis (depending on the user-defined filtering criteria in how many replicates peptides should be observed), but do show a strong difference in the number of detected peptides between sample groups. In some proteomics experimental designs, for example a wildtype-knockout APMS study, those are interesting proteins. The DEA based on peptide abundance values (volcano plots above) are the main result for differential testing in MS-DAP but as a situationally useful tool MS-DAP also includes a \'protein detection\' z-score, based on the number of times a peptide for each protein was detected per sample group (/experimental condition), as an alternative means of differential testing. \n\n')
-      cat('Below figure shows the distribution of these scores with thresholds at 3 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
+      cat('Some proteins may not have peptides with sufficient data points over samples to be used for differential expression 
+analysis (DEA), but do show a strong difference in the number of detected peptides between sample groups. 
+In some proteomics experimental designs, for example a wildtype-knockout study, those are interesting proteins. 
+For this purpose, a basic metric for differential testing based on observed peptide counts is provided in MS-DAP as 
+a situational tool. Importantly, this approach is less robust than DEA and the criteria to find a reliable set of 
+differentially expressed proteins (by differential testing) might differ between real-world datasets. \n\n
+
+As general guidelines for differential detection, the recommended default setting is to filter for proteins that 
+were observed with at least 2 peptides in at least 3 replicates (or 50% of replicates, whichever number is greater). 
+Use the plots of differential detection z-score histograms to observe the overall distribution and start your data 
+exploration at proteins with the strongest z-scores to find desired z-score cutoffs (typically an absolute z-score 
+of 4~5, but this is not set in stone for all datasets). This works best for DDA experiments, for DIA only the most 
+extreme values are informative in many cases (e.g. proteins exclusively identified in condition A & found in nearly 
+all replicates of condition A). \n\n')
+      cat('Below figure shows the distribution of these scores with thresholds at 4 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
       
       # !! index by name. Order may be different from l_contrasts !!
-      subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 4, fig_width = 4)
-      # cat('\n\n **top10 candidate genes:** \n\n')
-      # cat(paste(head(dd_plots[[contr_index]]$genes, 10), collapse = ", "), "\n")
+      subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 5, fig_width = 5)
     }
 
 
@@ -541,12 +561,11 @@ if(length(l_contrast) > 0) {
 
 
 ```{r, echo=F, message=F, warning=F, results="asis"} 
-if(exists("tib_report_stats_summary") && nrow(tib_report_stats_summary) > 0) {
+if(exists("tib_report_stats_summary") && is.data.frame(tib_report_stats_summary) && nrow(tib_report_stats_summary) > 0) {
   cat("\n\\newpage \n# Summary of differential testing \n\n")
-  cat("Differential Expression Analysis: number of proteins found statistically significant. \n\n")
-  #  The number of hits after optional post-hoc filtering by (absolute) foldchange is also shown.
-  
-  rmarkdown_xtable_custom(tib_report_stats_summary, caption = "Significant hits", align="lp{2in}lllp{3in}", scalebox = 0.9)
+  cat('Differential expression analysis (DEA): summary of significant proteins. The "signif" column indicates the number of significant hits at user-provided thresholds for adjusted p-value and foldchange. Columns "q<0.01" and "q<0.05" show the number of significant hits at 1% and 5% FDR cutoffs, respectively. The top10 proteingroups with strongest p-value per contrast and DEA algorithm is shown in the last column (note that these may include non-significant proteins, i.e. even if there are no significant hits the top10 is still shown). \n\n')
+
+  rmarkdown_xtable_custom(tib_report_stats_summary, caption = "Significant hits", align="lp{2in}lllllp{3in}", scalebox = 0.9)
   # print(xtable::xtable(tib_report_stats_summary, caption = "Significant hits", scalebox = 0.8), floating = FALSE, include.rownames = FALSE, comment=FALSE)
   #knitr::kable(tib_report_stats_summary, caption = "Significant hits", format="latex", booktabs=TRUE) %>% kable_styling(latex_options="scale_down")
   cat('\n\n')
@@ -555,14 +574,21 @@ if(exists("tib_report_stats_summary") && nrow(tib_report_stats_summary) > 0) {
   ## differential detect
   cat('\\bigskip \n\n')
   cat('\\bigskip \n\n')
-  cat("Differential Detection: prioritize proteins with more peptide detections in some group. A simple metric to complement results from DEA, which is the main result (eg; consider proteins with too few data points for DEA). \n\n")
-  if(exists("tib_report_diffdetects_summary") && nrow(tib_report_diffdetects_summary) > 0) {
-    rmarkdown_xtable_custom(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", align="lp{2in}llp{3.5in}", scalebox = 0.9)
+  cat("Differential detection: summary of proteins with extreme differences in observed peptides. A simple metric to complement results from DEA, which is the main result, for peptides that lack data to perform DEA. \n\nDifferential detection scores based only on 'detected' peptides; \n\n")
+  if(exists("tib_report_diffdetects_summary") && is.data.frame(tib_report_diffdetects_summary) && nrow(tib_report_diffdetects_summary) > 0) {
+    rmarkdown_xtable_custom(tib_report_diffdetects_summary, caption = "Differential Detection @ only 'detected' peptides", align="lp{2in}llp{3.5in}", scalebox = 0.9)
     # print(kableExtra::column_spec(knitr::kable(tib_report_diffdetects_summary, format="latex", row.names = FALSE), 4, width = "4in"))
     # print(xtable::xtable(tib_report_diffdetects_summary, caption = "Differential Detection, candidate proteins", scalebox = 0.8, floating = FALSE), include.rownames = FALSE, comment=FALSE)
     cat('\n\n')
   }
-
+  if(exists("tib_report_diffdetects_summary_quant") && is.data.frame(tib_report_diffdetects_summary_quant) && nrow(tib_report_diffdetects_summary_quant) > 0) {
+    cat("Differential detection scores based only on all quantified peptides; \n\n")
+    rmarkdown_xtable_custom(tib_report_diffdetects_summary_quant, caption = "Differential Detection @ all quantified peptides", align="lp{2in}llp{3.5in}", scalebox = 0.9)
+    # print(kableExtra::column_spec(knitr::kable(tib_report_diffdetects_summary_quant, format="latex", row.names = FALSE), 4, width = "4in"))
+    # print(xtable::xtable(tib_report_diffdetects_summary_quant, caption = "Differential Detection, candidate proteins", scalebox = 0.8, floating = FALSE), include.rownames = FALSE, comment=FALSE)
+    cat('\n\n')
+  }
+  
 }
 ``` 
 

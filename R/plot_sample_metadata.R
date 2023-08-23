@@ -68,7 +68,7 @@ sample_color_coding = function(samples) {
     prop_is_numeric = !prop %in% c("group", "exclude") && suppressWarnings(all(is.finite(as.numeric(uval)))) # since NA's are already removed from 'uval', true numeric array will contain finite values after as.numeric() conversion
     prop_is_boolean = all(toupper(uval) %in% c("0","1","TRUE", "FALSE"))
     if(prop_is_numeric && !prop_is_boolean) {
-      val = as.numeric(val)
+      val = suppressWarnings(as.numeric(val))
       ## create continuous color gradient between lowest and highest value
       # cycle through color palettes; special rule for peptide/protein counts -->> hardcoded palette name
       if(grepl("(detected|all)_(peptides|proteins)", prop)) {

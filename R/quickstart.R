@@ -105,7 +105,9 @@ NULL
 #' @param dea_algorithm algorithm for differential expression analysis (provide an array of strings to run multiple, in parallel). Refer to `dea_algorithms()` function documentation for available options and a brief description of each. To use a custom DEA function, provide the respective R function name as a string (see GitHub documentation on custom DEA functions for more details)
 #' @param dea_qvalue_threshold threshold for significance of adjusted p-values in figures and output tables. Output tables will also include all q-values as-is
 #' @param dea_log2foldchange_threshold threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA
-#' @param diffdetect_min_samples_observed for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable
+#' @param diffdetect_min_peptides_observed for differential detection only; minimum number of peptides that a protein must be detected with in either group (within at least `diffdetect_min_samples_observed`) in order to be included in the differential detection z-score results. Set to NA to disable differential detection
+#' @param diffdetect_min_samples_observed for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable differential detection
+#' @param diffdetect_min_fraction_observed for differential detection only; analogous to `diffdetect_min_samples_observed`, but here you can specify the fraction of samples where a protein needs to be detected in either group (within the respective contrast). default; 0.5 (50% of samples)
 #' @param pca_sample_labels whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)
 #' @param var_explained_sample_metadata optionally, enable variance-explained analysis. This is slow, even for small datasets, and even moreso as the number of experiment metadata grows (so to save time in routine analyses, this is disabled by default). Set to NULL to disable (default), NA to automatically infer column names from `dataset@samples` to be used, or provide an array of column names from `dataset@samples` to be used (e.g. `c("group","batch","sex")`)
 #' @param multiprocessing_maxcores optionally, integer parameter to set the maximum number of cores to use when running MSqRob/MSqRobSum DEA algorithms. If other DEA methods are used, this setting doesn't do anything. Set to NA (default) to automatically select all available CPU cores minus 1. For systems with many CPU cores that run into errors related to "socketConnection" or "PSOCK", try limiting this to a lower number (e.g. 8)
@@ -135,7 +137,9 @@ analysis_quickstart = function(dataset,
                                dea_qvalue_threshold = 0.01,
                                dea_log2foldchange_threshold = 0, # if NA, infer from bootstrap
                                # differential detection
+                               diffdetect_min_peptides_observed = 2,
                                diffdetect_min_samples_observed = 3,
+                               diffdetect_min_fraction_observed = 0.5,
                                # plot options
                                pca_sample_labels = "auto",
                                var_explained_sample_metadata = NULL,
@@ -256,9 +260,7 @@ analysis_quickstart = function(dataset,
   # debug; print(dataset$de_proteins %>% filter(signif) %>% left_join(dataset$proteins))
 
   # qualitative analysis
-  if(!is.na(diffdetect_min_samples_observed)) {
-    dataset = differential_detect(dataset, min_samples_observed = diffdetect_min_samples_observed)
-  }
+  dataset = differential_detect(dataset, min_peptides_observed = diffdetect_min_peptides_observed, min_samples_observed = diffdetect_min_samples_observed, min_fraction_observed = diffdetect_min_fraction_observed, count_mode = "auto", rescale_counts_per_sample = TRUE, return_wide_format = FALSE)
 
 
   #####  export data tables to file
@@ -270,9 +272,11 @@ analysis_quickstart = function(dataset,
       export_peptide_abundance_matrix(dataset, output_dir = output_dir)
     }
 
+    # since version 1.6 we always store the dataset RData object in the output folder
+    save(dataset, file = path_append_and_check(output_dir, "dataset.RData"), compress = T)
+
     # write all data tables to compressed .tsv files
     if(dump_all_data) {
-      save(dataset, file = path_append_and_check(output_dir, "dataset.RData"), compress = T)
       data.table::fwrite(dataset$peptides, path_append_and_check(output_dir, "peptides.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
       data.table::fwrite(dataset$proteins, path_append_and_check(output_dir, "proteins.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
       data.table::fwrite(dataset$samples, path_append_and_check(output_dir, "samples.tsv.gz"), sep="\t", col.names = T, row.names = F, quote = F, na = "")
@@ -292,5 +296,6 @@ analysis_quickstart = function(dataset,
     append_log(paste("output directory;", output_dir), type = "info")
   }
 
+  dataset$output_dir = output_dir
   return(dataset)
 }

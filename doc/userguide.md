@@ -608,7 +608,7 @@ are most welcome*.
 For now, label-free DDA data processed by OpenMS are only compatible
 with MS-DAP if a workflow was used analogous to the tutorial by Hannes
 Rost @
-<https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/>
+<https://abibuilder.cs.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/>
 
 To make it easier for MS-DAP users to get started with a compatible
 OpenMS workflow, and construct a standardized script for integrated

@@ -84,8 +84,11 @@ ggplot_peptide_detect_frequency_distribution = function(peptides, samples, inclu
 
 
   # base ggplot
-  p = ggplot(tib_plot, aes(count, n_frac, colour=type)) +
-    geom_line() +
+  p = ggplot(tib_plot, aes(count, n_frac, colour=type))
+  if(nrow(tib_plot) > 1) {
+    p = p + geom_line()
+  }
+  p = p +
     geom_point() +
     scale_y_continuous(labels = scales::percent_format(), limits=c(0,1),
                        # sec.axis = dup_axis(name = "Number of samples", labels = function(x) {x * max(tib_plot$n)} )) +

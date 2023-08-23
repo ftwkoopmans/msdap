@@ -2,7 +2,7 @@
 
 #' Import a label-free DDA proteomics dataset from OpenMS, experimental feature !
 #'
-#' This parser is based on output we generated with OpenMS 2.5 using input data and parameters/instructions from: https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
+#' This parser is based on output we generated with OpenMS 2.5 using input data and parameters/instructions from: https://abibuilder.cs.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
 #'
 #' Check the file "run_lfq.sh" in the above instructions (from OpenMS team) for exact workflow and settings used.
 #'

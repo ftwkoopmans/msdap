@@ -15,7 +15,7 @@ if you run these code snippets on your computer
 
 ## load dataset
 
-1.  load the Skyline output of the LFQbench study (<PMID:27701404> \~
+1.  load the Skyline output of the LFQbench study (<PMID:27701404> ~
     this file is bundled with the MS-DAP package, you don’t have to
     download anything).
 
@@ -38,6 +38,7 @@ library(msdap)
 f <- system.file("extdata", "Skyline_HYE124_TTOF5600_64var_it2.tsv.gz", package = "msdap")
 dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys = F, acquisition_mode = "dia")
 #> info: reading Skyline report...
+#> info: input file: C:/VU/code/R/msdap/inst/extdata/Skyline_HYE124_TTOF5600_64var_it2.tsv.gz
 #> info: 4 unique target (plain)sequences ambiguously mapped to multiple proteins and thus removed. Examples; TTDVTGTIELPEGVEMVMPGDNIK, LNIISNLDCVNEVIGIR, LMDLSINK, EVDEQMLNVQNK
 #> info: 34263/35943 precursors remain after selecting the 'best' precursor for each modified sequence
 
@@ -97,7 +98,7 @@ dataset = filter_dataset(dataset,
 #> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> info: filter dataset with settings: min_detect = 3; norm_algorithm = 'vwmb&modebetween_protein'; rollup_algorithm = 'maxlfq'
 #> 12756/34263 peptides were retained after filtering over all groups
-#> progress: peptide filtering and normalization took 2 seconds
+#> progress: peptide filtering and normalization took 3 seconds
 
 # if you want to run the "msqrob" DEA algorithm instead of "ebayes" (and not use the analysis_quickstart() convenience function), you should first initialize multiprocessing by uncommending the following line;
 # cl = initialize_multiprocessing(n_thread = 4)

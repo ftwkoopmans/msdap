@@ -98,6 +98,9 @@
 #' @importFrom ggrepel geom_text_repel
 #' @export
 plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshold = NA, mtitle = "", label_mode = "topn_pvalue", label_target = 25, label_avoid_overlap = TRUE) {
+  if(!is.data.frame(stats_de) || nrow(stats_de) == 0) {
+    return(list())
+  }
 
   # input validation
   stopifnot(length(label_mode) == 1 && label_mode %in% c("topn_pvalue", "signif", "protein_id"))
@@ -269,6 +272,10 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
 #' @param tib pre-define color_code column
 #' @param mtitle todo
 plot_foldchanges = function(tib, mtitle="") {
+  if(!is.data.frame(tib) || nrow(tib) == 0) {
+    return(NULL)
+  }
+
   ggplot(tib, aes(foldchange.log2, colour = color_code)) +
     geom_vline(xintercept=0) +
     # same density function as default in base R's stats::density()
@@ -296,6 +303,9 @@ plot_foldchanges = function(tib, mtitle="") {
 #' @param tib todo
 #' @param mtitle todo
 plot_pvalue_histogram = function(tib, mtitle="") {
+  if(!is.data.frame(tib) || nrow(tib) == 0) {
+    return(NULL)
+  }
   # debug_tib_pvalue_hist <<- tib
   binwidth = 0.05
   tib_summ = tib %>% filter(is.finite(pvalue)) %>% group_by(dea_algorithm) %>% summarise(yintercept_line = binwidth * n())

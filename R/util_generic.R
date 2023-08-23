@@ -531,16 +531,16 @@ subset_relevant_code_snippet_for_report = function(rcode_lines) {
 #' @importFrom stringr str_split_fixed str_sub
 strip_common_substring = function(s) {
   s_nchar = nchar(s)
-  if(any(s_nchar <= 1)) return(s)
+  if(any(s_nchar <= 1) || length(s) < 2) return(s)
 
   ## find common prefix; convert string vector to character matrix, then check which columns are identical
   # character matrix + find similarity across vector s
   m = stringr::str_split_fixed(s, "", n = max(s_nchar))
   m_uniqueN = apply(m, 2, data.table::uniqueN)
 
-  position_first_unique = which(m_uniqueN != 1)[1]
-  if(length(position_first_unique) == 1) {
-    s = stringr::str_sub(s, position_first_unique)
+  position_first_unique = which(m_uniqueN != 1)
+  if(length(position_first_unique) > 0) {
+    s = stringr::str_sub(s, position_first_unique[1])
   }
 
 
@@ -560,4 +560,44 @@ strip_common_substring = function(s) {
   }
 
   return(s)
+}
+
+
+
+#' use optim() to fit a t-distribution with fixed mu=0
+#' @examples
+#' \dontrun{
+#' # fit normal
+#' x = rnorm(1000, sd = 2)
+#' fit = suppressWarnings(fit_t_dist_fixed_mu(x))
+#' h = hist(x, breaks = 25, freq = F)
+#' curve(dt(x / fit[1], df=fit[2]) / fit[1], col = 2, add = T)
+#' }
+#' \dontrun{
+#' # fit t-distribution
+#' x = rt(1000, df = 3)
+#' fit = suppressWarnings(fit_t_dist_fixed_mu(x))
+#' h = hist(x, breaks = 25, freq = F)
+#' curve(dt(x / fit[1], df=fit[2]) / fit[1], col = 2, add = T)
+#' }
+#' @param x numeric vector of at least 10 finite values
+fit_t_dist_fixed_mu = function(x) {
+  mydt = function(par) {
+    s = par[1]
+    df = par[2]
+    -sum(dt((x - 0)/s, df, log = TRUE) - log(s))
+  }
+
+  x = x[is.finite(x)]
+  if(length(x) < 10) return(NULL)
+
+  fit = tryCatch(
+    {
+      x_sd = sd(x)
+      x_mad = mad(x)
+      optim(par = c(x_sd*0.5, 10), fn = mydt, method = "L-BFGS-B", lower = c(x_mad*0.5, 1), upper = c(x_sd*1.5, 20))
+    },
+    error = function(x) NULL
+  )
+  if(!is.null(fit)) return(c(sigma=fit$par[1], df=fit$par[2]))
 }

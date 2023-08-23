@@ -10,7 +10,7 @@ import_dataset_openms_mztab(filename)
 \item{filename}{full path to the mzTab file}
 }
 \description{
-This parser is based on output we generated with OpenMS 2.5 using input data and parameters/instructions from: https://abibuilder.informatik.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
+This parser is based on output we generated with OpenMS 2.5 using input data and parameters/instructions from: https://abibuilder.cs.uni-tuebingen.de/archive/openms/Tutorials/Data/iPRG2015_Hannes/
 }
 \details{
 Check the file "run_lfq.sh" in the above instructions (from OpenMS team) for exact workflow and settings used.

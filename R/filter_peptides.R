@@ -630,6 +630,7 @@ filter_peptides_by_group = function(dataset, colname="intensity_temp", disregard
 #' @param norm_algorithm array of normalization algorithm character IDs
 #' @param rollup_algorithm the algorithm for combining peptides to proteins as used in normalization algorithms that require a priori rollup from peptides to a protein-level abundance matrix (e.g. modebetween_protein). Refer to \code{\link{rollup_pep2prot}} function documentation for available options and a brief description of each
 #' @importFrom data.table data.table is.data.table setorder dcast
+#' @export
 normalize_peptide_intensity_column = function(dataset, col_intensity, norm_algorithm, rollup_algorithm ) {
   if(length(col_intensity) != 1 || !is.character(col_intensity) || ! col_intensity %in% colnames(dataset$peptides)) {
     append_log(sprintf("invalid dataset$peptides column provided to normalize_peptide_intensity_column(). Provided value: %s", paste(col_intensity, collapse = ",")), type = "error")

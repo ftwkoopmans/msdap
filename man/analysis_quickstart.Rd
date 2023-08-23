@@ -18,7 +18,9 @@ analysis_quickstart(
   dea_algorithm = c("deqms", "msqrob", "msempire"),
   dea_qvalue_threshold = 0.01,
   dea_log2foldchange_threshold = 0,
+  diffdetect_min_peptides_observed = 2,
   diffdetect_min_samples_observed = 3,
+  diffdetect_min_fraction_observed = 0.5,
   pca_sample_labels = "auto",
   var_explained_sample_metadata = NULL,
   multiprocessing_maxcores = NA,
@@ -56,7 +58,11 @@ analysis_quickstart(
 
 \item{dea_log2foldchange_threshold}{threshold for significance of log2 foldchanges. Set to zero to disregard or a positive value to apply a cutoff to absolute log2 foldchanges. MS-DAP can also perform a bootstrap analyses to infer a reasonable threshold by setting this parameter to NA}
 
-\item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable}
+\item{diffdetect_min_peptides_observed}{for differential detection only; minimum number of peptides that a protein must be detected with in either group (within at least \code{diffdetect_min_samples_observed}) in order to be included in the differential detection z-score results. Set to NA to disable differential detection}
+
+\item{diffdetect_min_samples_observed}{for differential detection only; minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B. Set to NA to disable differential detection}
+
+\item{diffdetect_min_fraction_observed}{for differential detection only; analogous to \code{diffdetect_min_samples_observed}, but here you can specify the fraction of samples where a protein needs to be detected in either group (within the respective contrast). default; 0.5 (50\% of samples)}
 
 \item{pca_sample_labels}{whether to use sample names or a numeric ID as labels in the PCA plot. options: "auto" (let code decide, default), "shortname" (use sample shortnames), "index" (auto-generated numeric ID), "index_asis" (same as index option and specifically disable label overlap reduction)}
 

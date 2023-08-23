@@ -24,16 +24,23 @@ metadata_matrix_from_filenames = function(x) {
   } else {
     m = stringr::str_split_fixed(x, split_chars$char_regex[1], n=Inf)
     m = shift_empty(m)
+
+    if(nrow(split_chars) > 1) {
+      m = split_recursively(m, alt_sep_chars = split_chars$char_regex[-1])
+      m = shift_empty(m)
+    }
   }
 
-  m = split_recursively(m, alt_sep_chars = split_chars$char_regex[-1])
-  m = shift_empty(m)
-  m = m[,apply(m, 2, n_distinct) > 1,drop=F] # remove columns without unique values
-  # recognize dates formatted as 8 consecutive integers and rewrite them as "-" delimited
-  m = apply(m, 2, reformat_date)
+  m = m[ , apply(m, 2, n_distinct) > 1, drop=F] # remove columns without unique values
 
-  colnames(m) = paste0("x",1:ncol(m))
-  return(m)
+  if(ncol(m) > 0) {
+    # recognize dates formatted as 8 consecutive integers and rewrite them as "-" delimited
+    m = apply(m, 2, reformat_date)
+    colnames(m) = paste0("x", 1:ncol(m))
+    return(m)
+  }
+
+  # fallthrough; return NULL by default
 
   ## various test data;
   # x = c("KO1","KO2","KO3","WT01","WT02","WT03")

@@ -4,18 +4,31 @@
 \alias{differential_detect}
 \title{Compare the number of peptide detection counts between groups}
 \usage{
-differential_detect(dataset, min_samples_observed = 3)
+differential_detect(
+  dataset,
+  min_peptides_observed = 1L,
+  min_samples_observed = 3,
+  min_fraction_observed = 0.5,
+  count_mode = "auto",
+  rescale_counts_per_sample = TRUE,
+  return_wide_format = FALSE
+)
 }
 \arguments{
 \item{dataset}{a valid dataset}
 
-\item{min_samples_observed}{minimum number of samples where a protein should be observed at least once by any of its peptides (in either group) when comparing a contrast of group A vs B}
+\item{min_peptides_observed}{minimum number of peptides for a protein to pass filtering rules (i.e. otherwise, no z-score is computed)}
+
+\item{min_samples_observed}{minimum number of samples where a protein should be observed with at least \code{min_peptides_observed} peptides (in either group) when comparing a contrast of group A vs B}
+
+\item{min_fraction_observed}{for differential detection only; analogous to \code{diffdetect_min_samples_observed}, but here you can specify the fraction of samples where a protein needs to be detected in either group (within the respective contrast). default; 0.5 (50\% of samples)}
+
+\item{count_mode}{whether z-scores for only detected peptides, or all observed peptides, should be computed. options; "auto", "detect", "quant"}
+
+\item{rescale_counts_per_sample}{boolean, indicating whether per sample, detect counts should be rescaled (i.e. to normalize across samples for the number of detected peptides)}
+
+\item{return_wide_format}{boolean, return table in simplified wide-format (TRUE) or return all data in long-format table (FALSE, default)}
 }
 \description{
-Compute a z-score for each protein based on the total number of detected peptides per sample group.
-}
-\details{
-To easily prioritize proteins-of-interest, some which may not have sufficient abundance values for differential expression analysis but that do have many more detects in one sample group than the other, we provide a simple score based on identification count data.
-
-This is a simplified approach that is intended to rank proteins for further qualitative analysis, be careful of over-interpretation and keep differences in sample group size (#replicates) and the absolute amount of peptides identified in a sample in mind !
+The computation of scores is detailed in the online vignitte for "differential testing".
 }

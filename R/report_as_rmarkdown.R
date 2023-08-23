@@ -83,14 +83,17 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rol
   }
 
   ### contrasts
-  append_log("report: constructing plots specific for each contrast", type = "progress")
   l_contrast = list()
   if(is_tibble(dataset$de_proteins) && nrow(dataset$de_proteins) > 0) {
+    append_log("report: constructing plots specific for each contrast", type = "progress")
     de_proteins = dataset$de_proteins %>% left_join(dataset$proteins, by="protein_id")
 
     column_contrasts = dataset_contrasts(dataset)
     for(contr in column_contrasts) {
       stats_contr = de_proteins %>% filter(contrast == contr)
+      if(nrow(stats_contr) == 0) {
+        next
+      }
 
       mtitle = contr
       if("contrast_ranvars" %in% colnames(stats_contr) && length(stats_contr$contrast_ranvars[1]) > 0 && !is.na(stats_contr$contrast_ranvars[1]) && stats_contr$contrast_ranvars[1] != "") {
@@ -100,55 +103,23 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rol
       # optionally, provide thresholds for foldchange and qvalue so the volcano plot draws respective lines
       l_contrast[[contr]] = list(p_volcano_contrast = lapply(plot_volcano(stats_de = stats_contr, log2foldchange_threshold = stats_contr$signif_threshold_log2fc[1], qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle), "[[", "ggplot"),
                                  p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr),
-                                 p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr))
+                                 p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr) )
     }
 
 
     ### summary table of all stats
-    tib_report_stats_summary = de_proteins %>%
-      arrange(pvalue) %>%
-      rename(algorithm = dea_algorithm) %>%
-      # filter(signif) %>% # include this to remove contrast*dea_algorithm entries without any significant hits
-      group_by(contrast, algorithm) %>%
-      summarise(`#test` = sum(is.finite(pvalue)),
-                `#hits` = sum(signif),
-                `top10 significant` = tolower(paste(head(stringr::str_trunc(gene_symbols_or_id[signif], 10, "right"), 10), collapse=", ") )) %>%
-      # summarise(`#tested` = sum(is.finite(pvalue)), `#signif` = sum(signif),
-      #           `FC>=1.1` = sum(signif & abs(foldchange.log2) >= log2(1.1), na.rm=T), `FC>=1.5` = sum(signif & abs(foldchange.log2) >= log2(1.5), na.rm=T) ) %>%
-      arrange(match(contrast, column_contrasts), algorithm) %>%
-      ungroup() %>%
-      mutate(contrast = sub("^contrast: ", "", contrast))
-
-    # optionally, limit contrast string length (evenly on each side by N characters)
-    tib_report_stats_summary$contrast = unlist(lapply(strsplit(tib_report_stats_summary$contrast, " vs ", fixed = T),
-                                                      function(x) paste(stringr::str_trunc(x, 18, "right"), collapse = " vs ")))
-
+    tib_report_stats_summary = dea_summary_prettyprint(dataset, trim_contrast_names = TRUE)
 
     ### analogous for differential detection
-    if(is_tibble(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
-      tib_report_diffdetects_summary = dataset$dd_proteins %>%
-        left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by="protein_id") %>%
-        # sort such that top hits come first
-        arrange(desc(abs(zscore_count_detect))) %>%
-        # summary stats per contrast
-        group_by(contrast) %>%
-        # note; we don't filter/remove all non-finite z-scores up front because we'd lose contrasts / tests in the summary that yield no results. Alternatively, do filter up-front and then post-hoc append entries for "contrasts that yield no results" (e.g. same number of detects in all samples = everything is NA)
-        summarise(`#proteins tested` = sum(is.finite(zscore_count_detect)),
-                  `#abs(zscore) >= 3` = sum(is.finite(zscore_count_detect) & abs(zscore_count_detect) >= 3),
-                  `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id[is.finite(zscore_count_detect)], 10), width = 10, side = "right"), collapse=", ") )) %>%
-        ungroup() %>%
-        arrange(match(contrast, column_contrasts)) %>%
-        mutate(contrast = sub("^contrast: ", "", contrast))
-
-      # optionally, limit contrast string length (evenly on each side by N characters)
-      tib_report_diffdetects_summary$contrast = unlist(lapply(strsplit(tib_report_diffdetects_summary$contrast, " vs ", fixed = T),
-                                                              function(x) paste(stringr::str_trunc(x, 18, "right"), collapse = " vs ")))
+    tib_report_diffdetects_summary = diffdetect_summary_prettyprint(dataset, use_quant = FALSE, trim_contrast_names = TRUE)
+    if(isdia == FALSE) {
+      tib_report_diffdetects_summary_quant = diffdetect_summary_prettyprint(dataset, use_quant = TRUE, trim_contrast_names = TRUE)
     }
   }
 
 
   ### differential detect
-  if("dd_proteins" %in% names(dataset) && is_tibble(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
+  if("dd_proteins" %in% names(dataset) && is.data.frame(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
     dd_plots = plot_differential_detect(dataset)
   }
 

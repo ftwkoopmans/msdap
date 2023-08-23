@@ -217,7 +217,7 @@ de_ebayes_fit = function(x, random_variables) {
     all( rownames(random_variables) == as.character(1:nrow(random_variables)) ) ||
     all( rownames(random_variables) == colnames(x) )
   )) {
-      append_log("input matrix x and random_variables seem misaligned, but the column names of x versus rownames of variables do not match", type = "error")
+      append_log("input matrix x and random_variables seem misaligned; the column names of x versus rownames of variables do not match", type = "error")
   }
 
   if(is.vector(random_variables) || is.array(random_variables)) {

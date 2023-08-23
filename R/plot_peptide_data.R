@@ -42,9 +42,9 @@ plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffde
 
     if(select_diffdetect_candidates) {
       if(!"dd_proteins" %in% names(dataset)) {
-        append_log("you requested to plot proteins tested by differential detection counting, but no this function has not been applied to this dataset yet (did you run the analysis_quickstart() function yet?  Alternatively you can simply run differential_detect() and review its outcome with print_dataset_summary() to quickly prepare this selection)", type = "error")
+        append_log("you requested to plot proteins tested by differential detection counting, but no differential detection has not been applied to this dataset yet (did you run the analysis_quickstart() function yet?  Alternatively you can simply run differential_detect() and review its outcome with print_dataset_summary() to quickly prepare this selection)", type = "error")
       }
-      pid = c(pid, dataset$dd_proteins %>% filter(is.finite(zscore_count_detect) & abs(zscore_count_detect) >= 2) %>% distinct(protein_id) %>% pull())
+      pid = c(pid, dataset$dd_proteins %>% filter(type == "detect" & is.finite(zscore) & abs(zscore) >= 4) %>% distinct(protein_id) %>% pull())
     }
   }
 
@@ -202,16 +202,13 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     }
 
     if("dd_proteins" %in% names(dataset)) {
-      tib_dd = dataset$dd_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr)
+      tib_dd = dataset$dd_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr & is.finite(zscore))
 
       # infer order in which to plot proteins
-      contr_protein_id__ordered = c(contr_protein_id__ordered, tib_dd %>% arrange(desc(abs(zscore_count_detect))) %>% pull(protein_id))
+      contr_protein_id__ordered = c(contr_protein_id__ordered, tib_dd %>% arrange(desc(abs(zscore))) %>% pull(protein_id))
 
       # gather differential detect scores in expected format
-      tib_dd_long = tib_dd %>% select(protein_id=protein_id, foldchange = zscore_count_detect) %>% mutate(algorithm="zscore detect counts")
-      if("zscore_count_quant" %in% colnames(tib_dd)) {
-        tib_dd_long = bind_rows(tib_dd_long, tib_dd %>% select(protein_id=protein_id, foldchange = zscore_count_quant) %>% mutate(algorithm="zscore quant counts") )
-      }
+      tib_dd_long = tib_dd %>% select(protein_id, foldchange = zscore) %>% mutate(algorithm = paste0("zscore", type, "counts"))
 
       # pretty-print format for downstream visualization
       tib_dd_long = tib_dd_long %>%

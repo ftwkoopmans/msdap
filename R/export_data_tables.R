@@ -18,15 +18,12 @@ export_statistical_results = function(dataset, output_dir) {
     tib = tib_dt
   }
   if(nrow(tib_dea) > 0 && nrow(tib_dt) > 0) {
-    tib = full_join(dea_results_to_wide(dataset),
-                    diffdetect_results_to_wide(dataset),
-                    by="protein_id")
+    tib = full_join(tib_dea, tib_dt, by="protein_id")
   }
 
   if(nrow(tib) > 0) {
     # add # unique peptides per protein in entire dataset
     pepcount = dataset$peptides %>% select(peptide_id, protein_id) %>% distinct(peptide_id, .keep_all = T) %>% count(protein_id, name = "unique_peptides")
-    # system.time({pepcount = dataset$peptides %>% group_by(protein_id) %>% summarise(unique_peptides = n_distinct(peptide_id))}) # slow
     tib = add_column(tib, unique_peptides = pepcount$unique_peptides[data.table::chmatch(tib$protein_id, pepcount$protein_id)], .before = 1)
 
     # if there is protein metadata, join and put those columns in front
