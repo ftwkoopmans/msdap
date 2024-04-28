@@ -2,7 +2,7 @@
 % Please edit documentation in R/normalize_vwmb.R
 \name{get_mode}
 \alias{get_mode}
-\title{find the mode in a numeric array using the default density function from base R}
+\title{find the mode in a numeric array using the density function from base R}
 \usage{
 get_mode(x)
 }
@@ -13,5 +13,5 @@ get_mode(x)
 mode of x
 }
 \description{
-find the mode in a numeric array using the default density function from base R
+find the mode in a numeric array using the density function from base R
 }

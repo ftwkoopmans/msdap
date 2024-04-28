@@ -151,6 +151,7 @@ import_dataset_fragpipe_ionquant = function(path, acquisition_mode, confidence_t
 #' @param file_ion full path to a ion.tsv file
 #' @param file_psm full path to a psm.tsv file, this must match the `file_ion` argument (e.g. files in the same dir)
 parse_fragpipe_psm_ion_pair = function(file_ion, file_psm) {
+  spectrum = NULL
   # basically this reads the CSV/TSV table from file and maps column names to expected names.
   # (complicated) downstream code handles compressed files, efficient parsing of only the requested columns, etc.
   append_log(paste("reading FragPipe file;", file_ion), type = "info")

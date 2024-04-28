@@ -158,6 +158,10 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
       # reduce tibble size
       select(protein_id, label, foldchange.log2, foldchange.log2_abs, minlog10qval, signif)
 
+    if(nrow(tib) == 0) {
+      next
+    }
+
     # which proteins should get a text label?
     tib$flag_plot_label = FALSE
     lbl_style = ""
@@ -166,8 +170,9 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
       lbl_style = "significant"
     }
     if(label_mode == "topn_pvalue") { # topN 'best' pvalue
-      tib$flag_plot_label = rep(c(F,T), c(nrow(tib) - label_target, label_target)) # set last N rows to TRUE, this works because we just sorted `tib` by pvalue descending
-      lbl_style = paste(label_target, "best qvalue")
+      tmp = min(nrow(tib), label_target)
+      tib$flag_plot_label = rep(c(F,T), c(nrow(tib) - tmp, tmp)) # set last N rows to TRUE, this works because we just sorted `tib` by pvalue descending
+      lbl_style = paste(tmp, "best qvalue")
     }
     if(label_mode == "protein_id") { # user-specified protein(group) IDs
       tib$flag_plot_label = tib$protein_id %in% label_target
@@ -210,7 +215,7 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
                            tib %>% select(label, x=foldchange.log2, y=minlog10qval, pch=updown, flag_plot_label)                                   %>% add_column(plottype = "asis_lab"),
                            tib %>% select(label, x=x_outlier, y=y_outlier, pch=updown_outlier, flag_plot_label) %>% mutate(flag_plot_label=FALSE)  %>% add_column(plottype = "lim"),
                            tib %>% select(label, x=x_outlier, y=y_outlier, pch=updown_outlier, flag_plot_label)                                    %>% add_column(plottype = "lim_lab"))
-    tib_facets$pch = factor(tib_facets$pch, levels = c("down", "unchanged", "up", "down_outlier", "unchanged_outlier", "up_outlier"))
+    tib_facets$pch = factor(tib_facets$pch, levels = c("up", "down", "up_outlier", "down_outlier", "unchanged", "unchanged_outlier"))
 
     # some mock data to enforce symmetric x-axis and expand the y-limit a bit to make room for the labels (this is a workaround because we cannot hardcode separate y-axis limits per facet)
     blank_data = bind_rows(tibble(x=xmax_nooutlier, y=ymax_nooutlier[2] * 1.2, plottype = "asis"),
@@ -221,21 +226,24 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
 
     ### volcano plot
     p = ggplot(tib_facets, aes(x, y, colour = pch, fill = pch, shape = pch, label = label)) +
-      geom_point(na.rm=T) +
-      geom_blank(data = blank_data) +
+      geom_point(na.rm = TRUE, show.legend = TRUE) + # show legend is needed since ggplot 3.5.0 , i.e. `drop=FALSE` in the scale is now ignored... https://github.com/tidyverse/ggplot2/issues/5728
+      geom_blank(mapping = aes(x, y), data = blank_data, inherit.aes = FALSE, show.legend = FALSE) +
       scale_discrete_manual(
         aesthetics = c("colour", "fill"),
         values = c(up = "#d55e00aa", down = "#56b4e9aa", up_outlier = "#d55e00aa", down_outlier = "#56b4e9aa", unchanged = "#22222299", unchanged_outlier = "#22222299"),
         labels = c(up = "up regulated", down = "down regulated", up_outlier = "up regulated & outside plot limits", down_outlier = "down regulated & outside plot limits",
                    unchanged = "not significant", unchanged_outlier = "not significant & outside plot limits"),
-        drop = F,
-        guide = guide_legend(byrow=F, override.aes = list(alpha = 1))
+        breaks = c("up", "down", "up_outlier", "down_outlier", "unchanged", "unchanged_outlier"),
+        drop = F
       ) +
-      scale_shape_manual(values = c(up = 24, down = 25, up_outlier = 2, down_outlier = 6, unchanged = 19, unchanged_outlier = 1),
-                         labels = c(up = "up regulated", down = "down regulated", up_outlier = "up regulated & outside plot limits", down_outlier = "down regulated & outside plot limits",
-                                    unchanged = "not significant", unchanged_outlier = "not significant & outside plot limits"),
-                         drop = F
+      scale_shape_manual(
+        values = c(up = 24, down = 25, up_outlier = 2, down_outlier = 6, unchanged = 19, unchanged_outlier = 1),
+        labels = c(up = "up regulated", down = "down regulated", up_outlier = "up regulated & outside plot limits", down_outlier = "down regulated & outside plot limits",
+                   unchanged = "not significant", unchanged_outlier = "not significant & outside plot limits"),
+        breaks = c("up", "down", "up_outlier", "down_outlier", "unchanged", "unchanged_outlier"),
+        drop = F
       ) +
+      guides(colour = guide_legend(byrow = FALSE, override.aes = list(alpha = 1))) + # don't have to repease the guide_legend for fill and shape
       facet_wrap(~plottype, nrow = 2, ncol = 2, scales = "free", labeller = labeller(plottype=plottype_labels)) +
       labs(x = "log2 fold-change", y = "-log10 FDR adjusted p-value", title = paste(algo_name, "@", mtitle)) +
       theme_bw() +
@@ -272,6 +280,9 @@ plot_volcano = function(stats_de, log2foldchange_threshold = NA, qvalue_threshol
 #' @param tib pre-define color_code column
 #' @param mtitle todo
 plot_foldchanges = function(tib, mtitle="") {
+  param_density_bandwidth = "sj"
+  param_density_adjust = 1.0 # alternatively, 0.9
+
   if(!is.data.frame(tib) || nrow(tib) == 0) {
     return(NULL)
   }
@@ -279,22 +290,13 @@ plot_foldchanges = function(tib, mtitle="") {
   ggplot(tib, aes(foldchange.log2, colour = color_code)) +
     geom_vline(xintercept=0) +
     # same density function as default in base R's stats::density()
-    geom_line(stat = "density", adjust=1, bw = "SJ", na.rm = T) +
+    geom_line(stat = "density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T) +
     facet_wrap( ~ dea_algorithm, nrow = ceiling(sqrt(n_distinct(tib$color_code))), scales = "free_y") +
     coord_cartesian(xlim = c(-1,1) * max(abs(quantile(tib$foldchange.log2, probs = c(0.005, 0.995), na.rm=T)))) +
     labs(x="log2 foldchange", colour = "", title=mtitle) +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5, size=8),
           legend.position = "none") # bottom
-
-  ### alternatively, combine into a single plot. Since some methods (eg; msqrob) can hugely inflate the amount of proteins with exactly zero foldchange this can distort the binning and y-axis scale. So above plot with separate facets (and ditto free scales) is preferred
-  # ggplot(tib, aes(x = foldchange.log2, colour=color_code)) +
-  #   geom_vline(xintercept=0) +
-  #   stat_density(adjust=3, bw = "SJ", geom="line", na.rm=T, trim=F) + # aes(y = ..count..) seems scuffed, way to many
-  #   coord_cartesian(xlim = c(-1,1) * mean(abs(quantile(tib$foldchange.log2, probs = c(0.005, 0.995), na.rm=T)))) +
-  #   labs(x="log2 foldchange", colour = "", title=mtitle) +
-  #   theme_bw() +
-  #   theme(legend.position = "bottom")
 }
 
 

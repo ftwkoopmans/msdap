@@ -222,6 +222,7 @@ filter_dataset = function(dataset,
                           rollup_algorithm = "maxlfq",
                           # which filters to apply
                           by_group = T, all_group = T, by_contrast = F) {
+
   start_time = Sys.time()
 
   ##### input validation
@@ -278,8 +279,8 @@ filter_dataset = function(dataset,
   data.table::setkey(dataset$dt_pep_group, key_group) # set key for data.table::merge()
   dt_criteria = data.table::data.table(dataset$groups %>% select(key_group, ndetect_min, nquant_min, ndetect_noexclude_min, nquant_noexclude_min) %>% mutate_all(as.integer), key="key_group")
   dt_filter_group = data.table::merge.data.table(dataset$dt_pep_group, dt_criteria, all.x = T, sort = FALSE)
-  dt_filter_group[ , `:=`(pass = ndetect>=ndetect_min & nquant>=nquant_min,
-                          pass_noexclude = ndetect_noexclude>=ndetect_noexclude_min & nquant_noexclude>=nquant_noexclude_min)]
+  dt_filter_group[ , `:=`(pass = ndetect >= ndetect_min & nquant >= nquant_min,
+                          pass_noexclude = ndetect_noexclude >= ndetect_noexclude_min & nquant_noexclude >= nquant_noexclude_min)]
 
   ## now we know for each peptide whether it passes the filter criteria in each group (with and without taking 'exclude' samples into account)
 

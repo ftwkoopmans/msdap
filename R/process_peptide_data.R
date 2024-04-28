@@ -357,7 +357,7 @@ aggregate_tibble_by_datatables = function(peptides, prop_peptide = "sequence_pla
 #   tib_peptide_group = tib %>%
 #     group_by(peptide_id, group) %>%
 #     summarise(
-#       score_intensity = median(intensity),
+#       score_intensity = stats::median(intensity),
 #       score_n = sum(detect) / group_size[1], # fraction of samples where detected
 #       #score_n = n() / group_size[1],
 #       score_cov = coefficient_of_variation(2^intensity)

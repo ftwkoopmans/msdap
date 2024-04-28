@@ -4,10 +4,12 @@
 \alias{plot_differential_detect}
 \title{Plot differential detection results as a histogram}
 \usage{
-plot_differential_detect(dataset)
+plot_differential_detect(dataset, zscore_threshold = 4)
 }
 \arguments{
 \item{dataset}{dataset object}
+
+\item{zscore_threshold}{cutoff used in the plot (for absolute values)}
 }
 \value{
 list of ggplot objects with 1 plot per contrast. If no differential detection data is available, returns an empty list

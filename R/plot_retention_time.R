@@ -5,6 +5,9 @@
 #' @importFrom data.table setorder
 #' @importFrom patchwork wrap_plots
 plot_retention_time_v2 = function(peptides, samples, isdia) {
+  param_density_bandwidth = "sj"
+  param_density_adjust = 1.0 # alternatively, 0.9
+
   # TODO: input validation; are all expected columns present in peptides and samples ?
   if(!"intensity_qc_basic" %in% names(peptides)) {
     append_log("plot_retention_time: `intensity_qc_basic` column is missing from peptide tibble", type = "warning")
@@ -27,8 +30,8 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   peptides$temp_int = peptides$intensity_qc_basic
 
   # use data.tables to summarize the data (reasonably fast, don't need to convert to wide)
-  DT = data.table::setDT(peptides)[ , `:=` (temp_rt_diff = rt - median(temp_rt_nodetect, na.rm=T),
-                                            temp_int_diff_overall = temp_int - median(temp_int, na.rm=T)), by=key_peptide][ , temp_int_diff := (temp_int - mean(temp_int, na.rm=T)), by=key_peptide_group]
+  DT = data.table::setDT(peptides)[ , `:=` (temp_rt_diff = rt - stats::median(temp_rt_nodetect, na.rm=T),
+                                            temp_int_diff_overall = temp_int - stats::median(temp_int, na.rm=T)), by=key_peptide][ , temp_int_diff := (temp_int - mean(temp_int, na.rm=T)), by=key_peptide_group]
 
   ## DEBUG: remove data in a few RT bins to simulate spray issues  -->>  how does the plot hold up?
   # DT$rt[DT$key_sample == 2 & DT$rt > 50 & DT$rt <60 ] = NA; print("********* manually discarding data for code debugging")
@@ -65,13 +68,13 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
                        size = .N,
                        rt_quantup = quantile(temp_rt_diff, .95, na.rm=T),
                        rt_quantlow = quantile(temp_rt_diff, .05, na.rm=T),
-                       rt_median = median(temp_rt_diff, na.rm=T),
+                       rt_median = stats::median(temp_rt_diff, na.rm=T),
                        int_quantup = quantile(temp_int_diff, .95, na.rm=T),
                        int_quantlow = quantile(temp_int_diff, .05, na.rm=T),
-                       int_median = median(temp_int_diff, na.rm=T),
+                       int_median = stats::median(temp_int_diff, na.rm=T),
                        int_quantup_overall = quantile(temp_int_diff_overall, .95, na.rm=T),
                        int_quantlow_overall = quantile(temp_int_diff_overall, .05, na.rm=T),
-                       int_median_overall = median(temp_int_diff_overall, na.rm=T) ),
+                       int_median_overall = stats::median(temp_int_diff_overall, na.rm=T) ),
                   by = .(rt_bin=temp_rt_bin, key_sample)] # note the rename while grouping
 
 
@@ -102,7 +105,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
 
   # reference value for bin sizes
-  DT_binned[ , size_overall_median := median(size, na.rm=T), by=rt_bin]
+  DT_binned[ , size_overall_median := stats::median(size, na.rm=T), by=rt_bin]
 
   # smoothed data
   DT_binned[ ,`:=`(rt_quantup_smooth = smooth_loess_custom(rt_bin, rt_quantup, span=.1),
@@ -157,7 +160,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
 
   p_all_rt_distributions = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, linetype = exclude)) +
-    geom_line(stat="density", na.rm=T, alpha=0.3) +
+    geom_line(stat="density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm=T, alpha=0.3) +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
     facet_grid(~"all samples, no color-coding") +
@@ -165,7 +168,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
     theme(legend.position = "none", legend.title = element_blank())
 
   p_all_rt_distributions_colour_groups = ggplot(peptides, aes(x=temp_rt_nodetect, group=sample_id, colour=group, linetype = exclude)) +
-    geom_line(stat="density", na.rm=T) +
+    geom_line(stat="density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm=T) +
     guides(linetype = "none") +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
@@ -176,7 +179,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
           legend.title = element_text(size=10) )
 
   p_all_rt_distributions_collapse_groups = ggplot(peptides, aes(x=temp_rt_nodetect, colour=group)) +
-    geom_line(stat="density", na.rm=T) +
+    geom_line(stat="density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm=T) +
     xlim(overall_rt_xlim) + # use xlim instead of coord_cartesian to compute the densities only on the subset of data points within this limited RT window, to prevent influence from far outliers
     labs(x="Retention time (min)", y="(detected) peptide density") +
     facet_grid(~"overall density by sample group") +
@@ -210,7 +213,8 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   # p_all_rt_distributions_colour_groups
 
   # consistent plot limits
-  plotlim_rt_diff = c(-1,1) * (min(5, max(abs(c(quantile(DT_binned$rt_quantlow_smooth, probs = .005, na.rm = T), quantile(DT_binned$rt_quantup_smooth, probs = .995, na.rm = T))))))
+  plotlim_rt_diff = min(5, max(abs(c(quantile(DT_binned$rt_quantlow_smooth, probs = .005, na.rm = T), quantile(DT_binned$rt_quantup_smooth, probs = .995, na.rm = T)))))
+  plotlim_rt_diff = c(-1,1) * max(0.1, plotlim_rt_diff) # guard against zero diff
   plotlim_int_diff = c(-1,1) * (min(5, max(abs(c(quantile(DT_binned$int_quantlow_smooth_overall, probs = .005, na.rm = T), quantile(DT_binned$int_quantup_smooth_overall, probs = .995, na.rm = T))))))
 
 
@@ -307,6 +311,7 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
     }
 
     plotlist[[length(plotlist) + 1]] = patchwork::wrap_plots(p1, p2, p3, ncol = 1)
+    # print(plotlist[[length(plotlist)]])
   }
 
   append_log_timestamp("RT plots: creating plots", start_time)

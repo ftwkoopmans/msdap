@@ -21,13 +21,17 @@
 #'
 #' mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of VWMB. Normalize (/scale) samples within each sample group such that their pairwise log-foldchange modes are zero, then scales between groups such that the log-foldchange mode is zero (i.e. the between-group part is the same as VWMB). If the dataset has (unknown) covariates and a sufficient number of replicates, this might be beneficial because covariate-specific effects are not averaged out as they might be with `VWMB`. See further MS-DAP function \code{\link{normalize_vwmb}}.
 #'
-#' modebetween: only the "Mode Between" part of VWMB described earlier, does not affect scaling between (replicate) samples within the same sample group.
+#' modebetween: only the "Mode Between" part of VWMB described earlier, does not affect scaling between (replicate) samples within the same sample group. Note that this is mode-between normalization at peptide level, in most cases you'll want to use "modebetween_protein" instead.
 #'
 #' modebetween_protein  (also referred to as "MBprot", e.g. in the MS-DAP manuscript and some documentation): only the "Mode Between" part of VWMB described earlier, but the scaling factors are computed at protein-level !!  When this normalization function is used, the \code{\link{normalize_modebetween_protein}} function will first rollup the peptide data matrix to protein-level, then compute between-sample-group scaling factors and finally apply those to the input peptide-level data matrix to compute the normalized peptide data.
 #'
+#' vw: only perform peptide-level variation-within normalization. This rescales samples such that the peptide standard deviations (intensity values across samples in the same sample group) are minimized.  i.e. this is only the first part of the VWMB algorithm. Note that in most cases / experimental designs, you want to end your normalizations with modebetween_protein  (only normalization variation within group is often not the most suitable normalization solution)
+#'
+#' mw: analogous to the "vw" option, but here performing peptide-level normalization that uses mode normalization within groups (first part of MWMB). No between group rescaling. Same recommendations/notes as with "vm" apply
+#'
 #' @export
 normalization_algorithms = function() {
-  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein")
+  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein", "vw", "mw")
 }
 
 
@@ -93,6 +97,23 @@ normalize_matrix = function(x_as_log2, algorithm, group_by_cols = NA, group_by_r
     return(threshold_numerics(normalize_vwmb(x_as_log2, groups = group_by_cols, metric_within = "mode", metric_between = "mode"), 1))
   }
 
+  # only normalize between replicates by minimizing variation
+  if (algorithm == "vw") {
+    if (!valid_mask) {
+      append_log("vw (variation-within) normalization requires a definition of sample groups", type = "error")
+    }
+    return(threshold_numerics(normalize_vwmb(x_as_log2, groups = group_by_cols, metric_within = "var", metric_between = ""), 1))
+  }
+
+  # only normalize between replicates by minimizing mode-foldchange
+  if (algorithm == "mw") {
+    if (!valid_mask) {
+      append_log("mw (mode-within) normalization requires a definition of sample groups", type = "error")
+    }
+    return(threshold_numerics(normalize_vwmb(x_as_log2, groups = group_by_cols, metric_within = "mode", metric_between = ""), 1))
+  }
+
+  # peptide-level variant of modebetween
   if (algorithm == "modebetween") {
     if (!valid_mask) {
       append_log("'mode between' normalization requires a definition of sample groups for between-group normalization", type = "error")
@@ -126,9 +147,9 @@ normalize_matrix = function(x_as_log2, algorithm, group_by_cols = NA, group_by_r
   f = tryCatch(match.fun(algorithm, descend = FALSE), error = function(...) NULL)
   if(!is.function(f)) {
     if(grepl("::", algorithm, fixed = T)) {
-      f = tryCatch(getFromNamespace(gsub(".*::", "", algorithm), gsub("::.*", "", algorithm), envir = .GlobalEnv), error = function(...) NULL)
+      f = tryCatch(utils::getFromNamespace(gsub(".*::", "", algorithm), gsub("::.*", "", algorithm), envir = .GlobalEnv), error = function(...) NULL)
     } else {
-      f = tryCatch(getFromNamespace(algorithm, "msdap", envir = .GlobalEnv), error = function(...) NULL)
+      f = tryCatch(utils::getFromNamespace(algorithm, "msdap", envir = .GlobalEnv), error = function(...) NULL)
     }
   }
   if(is.function(f)) {
@@ -198,7 +219,7 @@ normalize_msempire = function(x, group_by_cols) {
 #'
 #' @importFrom MASS rlm
 normalize_rlr_MSqRob_implementation = function(exprs, weights = NULL) {
-  mediandata = apply(exprs, 1, "median", na.rm = TRUE)
+  mediandata = apply(exprs, 1, stats::median, na.rm = TRUE)
   flag1 = 1
   for (j in 1:ncol(exprs)) {
     LRfit = MASS::rlm(as.matrix(exprs[, j]) ~ mediandata, weights = weights, na.action = na.exclude)

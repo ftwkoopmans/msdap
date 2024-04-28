@@ -342,8 +342,8 @@ ggplot_sample_detect_vs_metadata_scatterplot_by_prop = function(tib_plot) {
       # median detect count by unique value
       tib_stat = tib %>%
         group_by(val) %>%
-        summarise(median_detect_count = median(detected_peptides, na.rm = T),
-                  median_detect_count_noexclude = median(detected_peptides[exclude == FALSE], na.rm = T) ) %>%
+        summarise(median_detect_count = stats::median(detected_peptides, na.rm = T),
+                  median_detect_count_noexclude = stats::median(detected_peptides[exclude == FALSE], na.rm = T) ) %>%
         arrange(desc(median_detect_count))
       tib_stat$index = 1:nrow(tib_stat)
 

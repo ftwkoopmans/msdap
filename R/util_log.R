@@ -110,13 +110,13 @@ append_log_error = function(err, type = "error") {
       # if there is a message attached, try to neatly print the user-facing message followed by the erronous call
       if(length(err$call) > 0) { # report more details on where the error occurred
         # note that if type="error", code halts after first append_log call so all output/log should go into 1 call
-        append_log(paste0(err$message, "\n", stringr::str_trim(capture.output(str(err$call, nchar.max = 1000))) ), type = type)
+        append_log(paste0(err$message, "\n", stringr::str_trim(capture.output(utils::str(err$call, nchar.max = 1000))) ), type = type)
       } else { # no call trace available
         append_log(err$message, type = type)
       }
     } else {
       # if there was no warning attached, just dump the entire object to console
-      append_log(stringr::str_trim(capture.output(str(err, nchar.max = 1000))), type = type)
+      append_log(stringr::str_trim(capture.output(utils::str(err, nchar.max = 1000))), type = type)
     }
   }
 }

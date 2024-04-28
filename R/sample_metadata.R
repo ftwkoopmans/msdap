@@ -239,6 +239,8 @@ sample_metadata_from_file = function(sample_id, filename, group_order = NA) {
   tmp = as.character(df$sample_id)
   tmp[is.na(df$sample_id)] = ""
   df$sample_id = tmp
+  # remove rows where sample_id column is empty
+  df = df[df$sample_id != "NA" & df$sample_id != "", ]
 
   # check dupes for non-empty  (e.g. deal with trailing empty rows etc. in downstream code/functions)
   df_sid_dupe = df$sample_id != "" & duplicated(df$sample_id)
@@ -400,7 +402,7 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
 
   # enforce valid characters in metadata
   df_check = df[, setdiff(colnames(df), "sample_id")]
-  props_invalid = colnames(df_check)[apply(df_check, 2, function(x) any(!is.na(x) & is.character(x) & grepl("[^0-9a-z_+. /;:#?*-]", x, ignore.case = T) ) )] # apply regex to each column, check if any row matches; allow alphanumeric, underscore, space, minus, slash, dot
+  props_invalid = colnames(df_check)[apply(df_check, 2, function(x) any(!is.na(x) & is.character(x) & grepl("[^0-9a-z_+., /;:#!?*-]", x, ignore.case = T) ) )] # apply regex to each column, check if any row matches; allow alphanumeric, underscore, space, minus, slash, dot
   if (length(props_invalid) > 0) {
     print(df[ , props_invalid, drop = F])
     append_log(paste0("invalid characters in sample metadata columns; ", paste(props_invalid, collapse = ", "), ". valid characters allowed are: alphanumeric, underscore, space (but no double spaces), dot, minus, (forward)slash, backslash, semicolon, hashtag, star"), type = "error")

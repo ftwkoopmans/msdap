@@ -151,10 +151,10 @@ plot_variance_explained = function(dataset, cols_metadata = NULL, rollup_algorit
     append_log_timestamp("variance-explained", start_time)
 
     ## collect plot and summary stats (as plot/table)
-    vp_sort = variancePartition::sortCols(variancePartition::sortCols(vp, FUN = mean), fun = median)
+    vp_sort = variancePartition::sortCols(variancePartition::sortCols(vp, FUN = mean), fun = stats::median)
     p_ve_violin = variancePartition::plotVarPart(vp_sort)
     tbl_ve = as_tibble(as.matrix(vp_sort)) %>%
-      summarize_all(.funs = function(x) {bp=boxplot.stats(x, do.conf=FALSE, do.out=FALSE)$stats; m=mean(x,na.rm=T); c(bp[5:4], m, bp[3:1])} ) %>% mutate_all(function(x) sprintf("%.1f", x * 100)) %>%
+      summarize_all(.funs = function(x) {bp=grDevices::boxplot.stats(x, do.conf=FALSE, do.out=FALSE)$stats; m=mean(x,na.rm=T); c(bp[5:4], m, bp[3:1])} ) %>% mutate_all(function(x) sprintf("%.1f", x * 100)) %>%
       add_column(statistic = c("boxplot upper whisker", "boxplot upper hinge", "mean", "median", "boxplot lower hinge", "boxplot lower whisker"), .before = 1)
 
     return(list(p_ve_violin=p_ve_violin, tbl_ve = tbl_ve, ve_data = vp_sort))

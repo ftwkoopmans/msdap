@@ -293,7 +293,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     # create a PDF that holds a single page with some documentation / figure explanation  -->>  add it to the list of PDF files that need be be combined into the results
     fname_documentation_page = sprintf("%s/peptideplot_%s_%s.pdf", output_dir__temp, index, "docs")
     pdf(fname_documentation_page, width=7, height=9)
-    plot.new()
+    graphics::plot.new()
     # mtext(paste0(contr, "\n\nhorizontal line = peptide average intensity within 'sample group'\n\nconfidently identified peptides: solid/filled symbols\nquantified but not identified (match-between-runs): open symbols\n\npeptides that _fail_ the filter criteria for this contrast:\nsmall symbols & dashed line for average\n(note; these were not used for statistics)\n\nfor proteins with many peptides, legends are shown on a separate page for legibility"), padj = 1, cex = .75)
     mtext(paste0(contr, "
 

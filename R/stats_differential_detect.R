@@ -68,15 +68,16 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
         z$log2fc[!is.finite(z$log2fc) | z$pass_filters == FALSE] = NA # enforce NA's over inf/NaN
         ### standardize score
         ## updated metric in MS-DAP release 1.6
-        log2fc_centered = z$log2fc - median(z$log2fc, na.rm=T)
+        # MS-DAP release 1.6.1  -->>  center log2fc in results as well  (previously we centered log2fc prior to z-score computation, but didn't return centered data)
+        z$log2fc = z$log2fc - stats::median(z$log2fc, na.rm=T)
         sd_rescale = 1 # init variable, overwritten in all cases
-        fit_sd = suppressWarnings(fit_t_dist_fixed_mu(log2fc_centered))
-        if(length(fit_sd) == 2) {
+        fit_sd = suppressWarnings(fit_t_dist_fixed_mu(z$log2fc))
+        if(length(fit_sd) == 2 && is.finite(fit_sd[1])) {
           sd_rescale = fit_sd[1]
         } else {
           sd_rescale = sd(z$log2fc, na.rm = TRUE)
         }
-        z$zscore = suppressWarnings(log2fc_centered / sd_rescale)
+        z$zscore = suppressWarnings(z$log2fc / sd_rescale)
         # z$zscore = suppressWarnings((z$log2fc - get_mode(z$log2fc)) / sd_rescale)
         # z$zscore = suppressWarnings((z$log2fc - get_mode(z$log2fc)) / sd(z$log2fc, na.rm = T))
         # z$zscore = suppressWarnings((z$log2fc - get_mode(z$log2fc)) / mad(z$log2fc, na.rm = T))
@@ -175,7 +176,7 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
   sample_count_detect__scaling_factor = sample_count_detect / mean(sample_count_detect)
 
   # protein*sample count matrices
-  df_detect = aggregate(m_detect, by = list(protein_id = m__protein_id), FUN = sum) # slow !
+  df_detect = stats::aggregate(m_detect, by = list(protein_id = m__protein_id), FUN = sum) # slow !
   count_detect = as.matrix(df_detect[,-1])
   rownames(count_detect) = df_detect$protein_id
   rm(df_detect)
@@ -189,7 +190,7 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
   if(compute_quant_counts) {
     sample_count_quant = matrixStats::colSums2(m_quant)
     sample_count_quant__scaling_factor = sample_count_quant / mean(sample_count_quant)
-    df_quant = aggregate(m_quant, by = list(protein_id = m__protein_id), FUN = sum)
+    df_quant = stats::aggregate(m_quant, by = list(protein_id = m__protein_id), FUN = sum)
     count_quant = as.matrix(df_quant[,-1])
     rownames(count_quant) = df_quant$protein_id
     rm(df_quant)

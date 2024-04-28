@@ -6,13 +6,13 @@
 #' @param samples_colors sample colors in wide format tibble
 #' @param sample_label_property labels used to represent the samples. Set to "auto" to automatically select based on number of samples (default). possible values; auto, shortname, index, index_asis
 #' @param pch_as_exclude should exclude samples be represented with a distinct symbol shape? possible values; FALSE, TRUE (default)
-#'
+#' @param infer_continuous_scale should the legends infer continuous scale from the data? FALSE = all categorical, TRUE = automatic (default)
 #' @importFrom pcaMethods pca
 #' @importFrom ggrepel geom_text_repel
 #' @importFrom ggpubr ggarrange annotate_figure text_grob
 #' @importFrom gtools mixedsort
 #' @importFrom scales rescale
-plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, sample_label_property = "auto", pch_as_exclude = TRUE) {
+plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, sample_label_property = "auto", pch_as_exclude = TRUE, infer_continuous_scale = TRUE) {
   if(!sample_label_property %in% c("auto", "shortname", "index", "index_asis")) {
     append_log(paste("invalid value for parameter 'sample_label_property':", sample_label_property), type = "error")
   }
@@ -30,7 +30,8 @@ plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, s
   textonly_sample_labels = nrow(samples) > 50 # default
   prop_sample_labels = "shortname" # default
   if(sample_label_property == "auto") {
-    prop_sample_labels = ifelse(nrow(samples) < 25, "shortname", "sample_index") # alternatively; nrow(samples) * median(nchar(samples$shortname)) < 25*10
+    # only shortname if less than 25 samples AND 80% of those are actually short strings (<=30 characters)
+    prop_sample_labels = ifelse(nrow(samples) < 25 && sum(nchar(samples$shortname) > 30) < nrow(samples) * 0.2, "shortname", "sample_index") # alternatively; nrow(samples) * stats::median(nchar(samples$shortname)) < 25*10
   }
   if(sample_label_property == "index") {
     prop_sample_labels = "sample_index"
@@ -56,10 +57,13 @@ plot_sample_pca = function(matrix_sample_intensities, samples, samples_colors, s
         left_join(samples_colors %>% select(sample_id, clr=!!prop), by="sample_id")
       tib = left_join(tib, samples %>% select(sample_id, exclude), by="sample_id")
 
-      # check if current property (column in sample metadata) only contains numbers
-      prop_is_numeric = suppressWarnings(all(is.finite(as.numeric(na.omit(tib$prop)))))
-      # make a numeric plot only if there are more than 3 unique values. Also covers the case of booleans that should be plotted as categorical variables
-      plot_as_numeric = !prop %in% c("group", "exclude") && prop_is_numeric && n_distinct(as.numeric(tib$prop), na.rm = T) > 2
+      plot_as_numeric = FALSE
+      if(infer_continuous_scale) {
+        # check if current property (column in sample metadata) only contains numbers
+        prop_is_numeric = suppressWarnings(all(is.finite(as.numeric(na.omit(tib$prop)))))
+        # make a numeric plot only if there are more than 3 unique values. Also covers the case of booleans that should be plotted as categorical variables
+        plot_as_numeric = !prop %in% c("group", "exclude") && prop_is_numeric && n_distinct(as.numeric(tib$prop), na.rm = T) > 2
+      }
 
       # mutate the actual data before making ggplot object
       if(plot_as_numeric) {

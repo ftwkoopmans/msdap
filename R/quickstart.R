@@ -1,20 +1,3 @@
-#' MS-DAP: Mass Spectrometry Downstream Analysis Pipeline for label-free proteomics data.
-#'
-#' http://github.com/ftwkoopmans/msdap
-#'
-#' @docType package
-#' @name msdap
-#'
-# some additional imports to get rid of devtools::check() warnings
-#' @import ggplot2
-#' @importFrom grDevices colorRampPalette dev.off graphics.off pdf rainbow
-#' @importFrom graphics abline boxplot legend lines mtext par plot points text
-#' @importFrom stats .lm.fit contrasts cov density ecdf mad median na.exclude na.omit p.adjust p.adjust.methods pt quantile resid residuals rt sd sigma weights loess optim predict
-#' @importFrom utils capture.output combn data head relist tail help packageVersion
-#' @importFrom rlang .data :=
-NULL
-
-
 
 #' Quickstart for analyses in this pipeline
 #'
@@ -121,36 +104,38 @@ NULL
 #' @importFrom openxlsx write.xlsx
 #' @importFrom data.table fwrite
 #' @export
-analysis_quickstart = function(dataset,
-                               # peptide filter criteria applied within each sample group
-                               filter_min_detect = 0, filter_fraction_detect = 0, filter_min_quant = 0, filter_fraction_quant = 0,
-                               # respective criteria on protein level
-                               filter_min_peptide_per_prot = 1, filter_topn_peptides = 0,
-                               # apply filter to each sample group, or only apply filter within relevant sample groups being compared in a contrast?
-                               filter_by_contrast = FALSE,
-                               # normalization algorithms for peptide-level data. Available options at msdap::normalization_algorithms() and are detailed in this function's documentation. Provide an array of options to run multiple sequentially
-                               norm_algorithm = c("vsn", "modebetween_protein"),
-                               rollup_algorithm = "maxlfq",
-                               # DEA algorithms. Available options at msdap::dea_algorithms() and are detailed in this function's documentation. Provide an array of options to run multiple DEA algorithms in parallel / independently
-                               dea_algorithm = c("deqms", "msqrob", "msempire"),
-                               # define thresholds for significant proteins
-                               dea_qvalue_threshold = 0.01,
-                               dea_log2foldchange_threshold = 0, # if NA, infer from bootstrap
-                               # differential detection
-                               diffdetect_min_peptides_observed = 2,
-                               diffdetect_min_samples_observed = 3,
-                               diffdetect_min_fraction_observed = 0.5,
-                               # plot options
-                               pca_sample_labels = "auto",
-                               var_explained_sample_metadata = NULL,
-                               # multithreading control
-                               multiprocessing_maxcores = NA,
-                               # output data
-                               output_abundance_tables = TRUE,
-                               output_qc_report = TRUE,
-                               output_dir, # no default, required to be explicitly set
-                               output_within_timestamped_subdirectory = TRUE,
-                               dump_all_data = FALSE) {
+analysis_quickstart = function(
+    dataset,
+    # peptide filter criteria applied within each sample group
+    filter_min_detect = 0, filter_fraction_detect = 0, filter_min_quant = 0, filter_fraction_quant = 0,
+    # respective criteria on protein level
+    filter_min_peptide_per_prot = 1, filter_topn_peptides = 0,
+    # apply filter to each sample group, or only apply filter within relevant sample groups being compared in a contrast?
+    filter_by_contrast = FALSE,
+    # normalization algorithms for peptide-level data. Available options at msdap::normalization_algorithms() and are detailed in this function's documentation. Provide an array of options to run multiple sequentially
+    norm_algorithm = c("vsn", "modebetween_protein"),
+    rollup_algorithm = "maxlfq",
+    # DEA algorithms. Available options at msdap::dea_algorithms() and are detailed in this function's documentation. Provide an array of options to run multiple DEA algorithms in parallel / independently
+    dea_algorithm = c("deqms", "msqrob", "msempire"),
+    # define thresholds for significant proteins
+    dea_qvalue_threshold = 0.01,
+    dea_log2foldchange_threshold = 0, # if NA, infer from bootstrap
+    # differential detection
+    diffdetect_min_peptides_observed = 2,
+    diffdetect_min_samples_observed = 3,
+    diffdetect_min_fraction_observed = 0.5,
+    # plot options
+    pca_sample_labels = "auto",
+    var_explained_sample_metadata = NULL,
+    # multithreading control
+    multiprocessing_maxcores = NA,
+    # output data
+    output_abundance_tables = TRUE,
+    output_qc_report = TRUE,
+    output_dir, # no default, required to be explicitly set
+    output_within_timestamped_subdirectory = TRUE,
+    dump_all_data = FALSE
+) {
 
 
   output_disabled = length(output_dir) == 0 || (length(output_dir) == 1 && all(is.na(output_dir)))
@@ -208,6 +193,9 @@ analysis_quickstart = function(dataset,
     fname_stats = path_append_and_check(output_dir, "differential_abundance_analysis.xlsx")
     remove_file_if_exists(fname_stats)
 
+    fname_dataset = path_append_and_check(output_dir, "dataset.RData")
+    remove_file_if_exists(fname_dataset)
+
     if(output_qc_report) {
       remove_file_if_exists(path_append_and_check(output_dir, "report.pdf"))
     }
@@ -215,6 +203,9 @@ analysis_quickstart = function(dataset,
       fname_abundances = path_append_and_check(output_dir, "peptide_and_protein_abundances.xlsx")
       remove_file_if_exists(fname_abundances)
     }
+
+    # add output dir to the dataset object
+    dataset$output_dir = output_dir
   }
 
 
@@ -296,6 +287,5 @@ analysis_quickstart = function(dataset,
     append_log(paste("output directory;", output_dir), type = "info")
   }
 
-  dataset$output_dir = output_dir
   return(dataset)
 }

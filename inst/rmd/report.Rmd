@@ -137,7 +137,7 @@ suppressWarnings(print(p_datacompleteness))
 
 Samples flagged as 'exclude' (by user) are not taken into account in this figure. Exact values are shown for data points matching 90% and 50% of samples to convenience comparison between analyses (e.g. before/after configuring 'exclude' samples, or comparing between experiments of similar protocol).
 
-
+\newpage
 ### peptide detection frequency
 
 Each identified peptide in a sample is classified and color-coded by the number of other samples where the same peptide is present. Visualization of the amount of peptides that overlap with other samples in the dataset, from peptides identified in most samples (red) to one-hit-wonders (blue), helps identify uncommon samples (more blue/green than other samples). 
@@ -222,11 +222,13 @@ For each sample group, two plots are shown: 1) a basic monochrome plot and 2) a 
 
 The 'input' panel is based on the peptide intensities as-is (i.e. the user-provided input data from upstream software), the 'normalized' panel shows the exact same samples and peptides after normalization (as specified by user). Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
 
-\newpage
-
 ```{r echo=F, message=F, warning=F, results='asis'}
 # returns a list (names are the sample groups), each contains 3 ggplot objects; mono, highlight, legend
 l_fc_distr = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
+```
+
+\newpage
+```{r echo=F, message=F, warning=F, results='asis'}
 p_group_mean_foldchange = l_fc_distr$plotlist
 
 i = 0 # counter for unique chunk IDs
@@ -547,7 +549,7 @@ all replicates of condition A). \n\n')
       cat('Below figure shows the distribution of these scores with thresholds at 4 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
       
       # !! index by name. Order may be different from l_contrasts !!
-      subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = 5, fig_width = 5)
+      subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = ifelse(isdia, 3, 5.5), fig_width = 5)
     }
 
 

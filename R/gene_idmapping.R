@@ -2,6 +2,11 @@
 #' Parse HGNC gene identifier lookup table that was downloaded from genenames.org
 #'
 #' download link: https://www.genenames.org/download/statistics-and-files/
+#' table: "Complete dataset download links" -->> "Complete HGNC approved dataset text json" -->> download the "TXT" table
+#' filename is typically something like hgnc_complete_set.txt
+#' URL as of September 2023; https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt
+#'
+#' # alternatively;
 #' table: "Total Approved Symbols" -->> "TXT" / "text file in TSV format"
 #' filename is typically something like non_alt_loci_set.txt
 #'
@@ -88,7 +93,7 @@ hgnc_lookuptable = function(f) {
   }
   if("entrez_id" %in% colnames(hgnc)) {
     hgnc$entrez_id = gsub("\\D.*", "", as.character(hgnc$entrez_id)) # remove multiple mappings
-    hgnc$entrez_id[is.na(hgnc$ensembl_id) | !grepl("^\\d+$", hgnc$entrez_id)] = NA # invalid IDs to NA
+    hgnc$entrez_id[is.na(hgnc$entrez_id) | !grepl("^\\d+$", hgnc$entrez_id)] = NA # invalid IDs to NA
     result = bind_rows(
       result,
       hgnc %>% filter(!is.na(entrez_id)) %>% mutate(type = "entrez_id") %>% select(hgnc_id, type, value = entrez_id)
@@ -131,7 +136,19 @@ hgnc_lookuptable = function(f) {
     return(hgnc %>% select(hgnc_id, hgnc_symbol))
   }
 
+  # add hgnc_id that do not have any synonyms or mappings to mgi/rgd/entrez/ensembl
+  id_missing = setdiff(hgnc$hgnc_id, result$hgnc_id)
+  if(length(id_missing) > 0) {
+    id_missing__symbol = hgnc$hgnc_symbol[match(id_missing, hgnc$hgnc_id)]
+    result = bind_rows(
+      result,
+      tibble::tibble(hgnc_id = id_missing, type = "onlysymbol", value = id_missing__symbol)
+    )
+  }
+
+  # add HGNC symbols
   result$hgnc_symbol = hgnc$hgnc_symbol[match(result$hgnc_id, hgnc$hgnc_id)]
+  # return results with re-ordered column names
   result %>% select(hgnc_id, hgnc_symbol, type, value)
 }
 

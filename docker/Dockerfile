@@ -1,4 +1,4 @@
-FROM rocker/verse:4.2.1
+FROM rocker/verse:4.4.0
 LABEL MAINTAINER="github.com/ftwkoopmans/msdap"
 
 
@@ -27,15 +27,15 @@ RUN R -e "BiocManager::install(c('ProtGenerics', 'MSnbase', 'limma', 'vsn', 'pca
 RUN R -e "devtools::install_github('zimmerlab/MS-EmpiRe', upgrade = 'never')"
 RUN R -e "devtools::install_github('vdemichev/diann-rpackage', upgrade = 'never')"
 
-# 'variancePartition' package now requires 'remaCor' package version >= 0.0.11
-RUN R -e "devtools::install_version('remaCor', '0.0.11', upgrade = 'never', repos = 'https://cloud.r-project.org')"
+# 'variancePartition' package now requires 'remaCor' package version >= 0.0.15
+RUN R -e "devtools::install_version('remaCor', '0.0.18', upgrade = 'never', repos = 'https://cloud.r-project.org')"
 
 ### MS-DAP
 # from local devtools::build() file
 RUN mkdir /msdap
-COPY temp/msdap_1.0.6.tar.gz /msdap/
-RUN R -e "devtools::install_local('/msdap/msdap_1.0.6.tar.gz', upgrade = 'never')"
-# alternatively, install from github; RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.6', upgrade = 'never')"
+COPY temp/msdap_1.0.7.tar.gz /msdap/
+RUN R -e "devtools::install_local('/msdap/msdap_1.0.7.tar.gz', upgrade = 'never')"
+# alternatively, install from github; RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.7', upgrade = 'never')"
 
 
 ### finish setting up

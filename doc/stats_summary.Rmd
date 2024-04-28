@@ -92,8 +92,8 @@ Before running below example code for phylogenetic mappings, download required l
 **HGNC**
 
 - download link: https://www.genenames.org/download/statistics-and-files/
-- table: "Total Approved Symbols" -->> "TXT" / "text file in TSV format"
-- filename is typically something like non_alt_loci_set.txt
+- table: "Complete dataset download links" -->> "Complete HGNC approved dataset text json" -->> download the "TXT" table
+- filename is typically something like hgnc_complete_set.txt
 
 **MGI**
 
@@ -105,7 +105,7 @@ for rat proteins one can use information from RGD as a drop-in replacement for M
 
 ```{r eval=FALSE}
 # load HGNC and MGI lookup tables from disk, assuming you previously downloaded these
-hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/non_alt_loci_set.txt")
+hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/hgnc_complete_set.txt")
 mgi = mgi_lookuptable(f = "C:/<path to your downloads>/MRK_SwissProt_TrEMBL.rpt")
 
 # map the mouse proteins to human gene identifiers
@@ -141,13 +141,13 @@ Before running below example code for phylogenetic mappings, download the requir
 **HGNC**
 
 - download link: https://www.genenames.org/download/statistics-and-files/
-- table: "Total Approved Symbols" -->> "TXT" / "text file in TSV format"
-- filename is typically something like non_alt_loci_set.txt
+- table: "Complete dataset download links" -->> "Complete HGNC approved dataset text json" -->> download the "TXT" table
+- filename is typically something like hgnc_complete_set.txt
 
 
 ```{r eval=FALSE}
 # load HGNC lookup tables from disk, assuming you previously downloaded these
-hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/non_alt_loci_set.txt")
+hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/hgnc_complete_set.txt")
 
 # assuming x is the results you obtained from summarise_stats()
 # this will add columns hgnc_id, hgnc_symbol, entrez_id and ensembl_id

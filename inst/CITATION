@@ -1,0 +1,11 @@
+bibentry(
+  bibtype="Article",
+  title="MS-DAP platform for downstream data analysis of label-free proteomics uncovers optimal workflows in benchmark data sets and increased sensitivity in analysis of Alzheimer’s biomarker data",
+  author="Koopmans, F. and Li, K.W. and Klaassen, R.V. and Smit, A.B.",
+  journal="Journal of Proteome Research",
+  year="2022",
+  volume="22",
+  number="2",
+  pages="374--386",
+  doi="10.1021/acs.jproteome.2c00513"
+)

@@ -50,7 +50,13 @@ Installation of the R package in RStudio (assuming
 [R](https://cran.r-project.org),
 [RTools](https://cran.r-project.org/bin/windows/Rtools/history.html) and
 [RStudio](https://www.rstudio.com/products/rstudio/) have been
-installed)
+installed).
+
+On some systems, you may encounter errors when installing this R package
+from GitHub if Git is not installed. In this case; on MacOS, install
+[Homebrew](https://brew.sh) if you haven’t then `$ brew install git`. On
+Windows, [download Git here](https://git-scm.com/download/win), install
+and reboot your computer.
 
 ``` r
 install.packages(c("devtools", "tidyverse", "tinytex", "BiocManager"))

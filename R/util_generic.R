@@ -285,7 +285,7 @@ check_parameter_is_string = function(...) {
 #' @param n number of colors
 gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
-  hcl(h = hues, l = 65, c = 100)[1:n]
+  grDevices::hcl(h = hues, l = 65, c = 100)[1:n]
 }
 
 
@@ -585,7 +585,7 @@ fit_t_dist_fixed_mu = function(x) {
   mydt = function(par) {
     s = par[1]
     df = par[2]
-    -sum(dt((x - 0)/s, df, log = TRUE) - log(s))
+    -sum(stats::dt((x - 0)/s, df, log = TRUE) - log(s))
   }
 
   x = x[is.finite(x)]

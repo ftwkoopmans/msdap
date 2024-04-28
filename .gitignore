@@ -16,4 +16,5 @@ Thumbs.db
 /docker/docker_compose/**
 /docker/README
 /docker/Dockerfile.dev
+/docker/_test_versions/**
 /manuscript/**

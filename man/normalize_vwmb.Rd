@@ -46,3 +46,21 @@ To ignore groups and simply normalize all samples by reducing overall variation 
 
 note; if you want to treat replicate samples that are flagged as 'exclude' upstream differently while still including them in the data matrix, you could set parameter \code{groups=paste(samples$group, samples$exclude)} to put them in separate groups.
 }
+\examples{
+\dontrun{
+# Define a custom normalization function that we'll use in the MS-DAP pipeline later.
+# All it does is apply the first part of the VWMB algorithm to reduce varation between replicates.
+norm_within_only = function(x_as_log2, group_by_cols, ...) {
+  normalize_vwmb(x_as_log2, groups = group_by_cols,
+                 metric_within="var", metric_between = "")
+}
+
+# now we use the main MS-DAP function as typical, but note that we here set the
+# normalization algorithm to the function we defined in the lines above.
+dataset = analysis_quickstart(
+  dataset,
+  norm_algorithm = "norm_within_only",
+  # <other parameters here>
+)
+}
+}

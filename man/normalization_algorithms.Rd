@@ -27,7 +27,11 @@ See further MS-DAP function \code{\link{normalize_vwmb}}.
 
 mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of VWMB. Normalize (/scale) samples within each sample group such that their pairwise log-foldchange modes are zero, then scales between groups such that the log-foldchange mode is zero (i.e. the between-group part is the same as VWMB). If the dataset has (unknown) covariates and a sufficient number of replicates, this might be beneficial because covariate-specific effects are not averaged out as they might be with \code{VWMB}. See further MS-DAP function \code{\link{normalize_vwmb}}.
 
-modebetween: only the "Mode Between" part of VWMB described earlier, does not affect scaling between (replicate) samples within the same sample group.
+modebetween: only the "Mode Between" part of VWMB described earlier, does not affect scaling between (replicate) samples within the same sample group. Note that this is mode-between normalization at peptide level, in most cases you'll want to use "modebetween_protein" instead.
 
 modebetween_protein  (also referred to as "MBprot", e.g. in the MS-DAP manuscript and some documentation): only the "Mode Between" part of VWMB described earlier, but the scaling factors are computed at protein-level !!  When this normalization function is used, the \code{\link{normalize_modebetween_protein}} function will first rollup the peptide data matrix to protein-level, then compute between-sample-group scaling factors and finally apply those to the input peptide-level data matrix to compute the normalized peptide data.
+
+vw: only perform peptide-level variation-within normalization. This rescales samples such that the peptide standard deviations (intensity values across samples in the same sample group) are minimized.  i.e. this is only the first part of the VWMB algorithm. Note that in most cases / experimental designs, you want to end your normalizations with modebetween_protein  (only normalization variation within group is often not the most suitable normalization solution)
+
+mw: analogous to the "vw" option, but here performing peptide-level normalization that uses mode normalization within groups (first part of MWMB). No between group rescaling. Same recommendations/notes as with "vm" apply
 }

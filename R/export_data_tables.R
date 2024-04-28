@@ -107,7 +107,7 @@ export_protein_abundance_matrix = function(dataset, rollup_algorithm, output_dir
     # check if output file is writable
     remove_file_if_exists(fname)
     # write to TSV file. note that we enforce a dot as decimal character (so ignore user's locale)
-    write.table(tib, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
+    utils::write.table(tib, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
   }
 }
 
@@ -150,7 +150,7 @@ export_peptide_abundance_matrix = function(dataset, output_dir) {
     # check if output file is writable
     remove_file_if_exists(fname)
     # write to TSV file. note that we enforce a dot as decimal character (so ignore user's locale)
-    write.table(tibw, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
+    utils::write.table(tibw, file = fname, quote = F, sep="\t", na="", row.names = F, col.names = T, dec = ".")
   }
 
 }

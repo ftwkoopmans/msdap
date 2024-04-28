@@ -10,7 +10,8 @@ plot_sample_pca(
   samples,
   samples_colors,
   sample_label_property = "auto",
-  pch_as_exclude = TRUE
+  pch_as_exclude = TRUE,
+  infer_continuous_scale = TRUE
 )
 }
 \arguments{
@@ -23,6 +24,8 @@ plot_sample_pca(
 \item{sample_label_property}{labels used to represent the samples. Set to "auto" to automatically select based on number of samples (default). possible values; auto, shortname, index, index_asis}
 
 \item{pch_as_exclude}{should exclude samples be represented with a distinct symbol shape? possible values; FALSE, TRUE (default)}
+
+\item{infer_continuous_scale}{should the legends infer continuous scale from the data? FALSE = all categorical, TRUE = automatic (default)}
 }
 \description{
 placeholder title

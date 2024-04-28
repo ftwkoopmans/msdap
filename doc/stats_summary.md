@@ -110,9 +110,9 @@ required lookup tables here;
 
 - download link:
   <https://www.genenames.org/download/statistics-and-files/>
-- table: “Total Approved Symbols” –\>\> “TXT” / “text file in TSV
-  format”
-- filename is typically something like non_alt_loci_set.txt
+- table: “Complete dataset download links” –\>\> “Complete HGNC approved
+  dataset text json” –\>\> download the “TXT” table
+- filename is typically something like hgnc_complete_set.txt
 
 **MGI**
 
@@ -127,7 +127,7 @@ replacement for MGI in this example, see further `rgd_lookuptable()`.
 
 ``` r
 # load HGNC and MGI lookup tables from disk, assuming you previously downloaded these
-hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/non_alt_loci_set.txt")
+hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/hgnc_complete_set.txt")
 mgi = mgi_lookuptable(f = "C:/<path to your downloads>/MRK_SwissProt_TrEMBL.rpt")
 
 # map the mouse proteins to human gene identifiers
@@ -164,13 +164,13 @@ the required lookup table here;
 
 - download link:
   <https://www.genenames.org/download/statistics-and-files/>
-- table: “Total Approved Symbols” –\>\> “TXT” / “text file in TSV
-  format”
-- filename is typically something like non_alt_loci_set.txt
+- table: “Complete dataset download links” –\>\> “Complete HGNC approved
+  dataset text json” –\>\> download the “TXT” table
+- filename is typically something like hgnc_complete_set.txt
 
 ``` r
 # load HGNC lookup tables from disk, assuming you previously downloaded these
-hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/non_alt_loci_set.txt")
+hgnc = hgnc_lookuptable(f = "C:/<path to your downloads>/hgnc_complete_set.txt")
 
 # assuming x is the results you obtained from summarise_stats()
 # this will add columns hgnc_id, hgnc_symbol, entrez_id and ensembl_id

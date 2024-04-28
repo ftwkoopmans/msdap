@@ -79,6 +79,19 @@ get_column_intensity = function(peptides, contr_lbl = NA) {
 
 
 
+#' return sample groups for a given contrast (column name in dataset$samples)
+#'
+#' @param dataset your dataset
+#' @param contr_lbl a string describing a contrast = column in dataset$samples, e.g. "contrast: WT vs KO"
+#' @returns list of unique sample groups, first element is left-hand side of the contrast and second element the right-hand side
+contrast_to_samplegroups = function(dataset, contr_lbl) {
+  stopifnot(contr_lbl %in% colnames(dataset$samples))
+  x = dataset$samples %>% select(group, contrast = !!contr_lbl)
+  return(list(unique(x$group[x$contrast == 1]), unique(x$group[x$contrast == 2])))
+}
+
+
+
 #' Differential expression analysis
 #'
 #' @param dataset your dataset

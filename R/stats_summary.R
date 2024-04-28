@@ -10,6 +10,9 @@
 #' For DEA, the criteria for significance that were previously configured when performing DEA using `dea()` or
 #' `analysis_quickstart()` functions are reused here (i.e. cutoffs for adjusted p-value and log2 foldchange).
 #'
+#' If `return_dea` and `return_diffdetect` are both set to TRUE, the effectsizes from each statistic/result are standardized.
+#' This makes both statistics more comparable but the downside is that the effectsizes are no longer the exact effectsizes returned by the DEA model.
+#'
 #' Note that if your dataset contains results for multiple contrasts and multiple DEA algorithms,
 #' these will all be appended into the result table so make sure to filter the results by 'contrast' and
 #' 'dea_algorithm' columns where appropriate.
@@ -113,7 +116,7 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
   if(!is.list(dataset)) {
     append_log("invalid dataset", type = "error")
   }
-  if(!all(c("protein_id", "gene_symbols_or_id") %in% colnames(dataset$proteins)) || !any(dataset$proteins$protein_id != dataset$proteins$gene_symbols_or_id) ) {
+  if(!all(c("protein_id", "gene_symbols_or_id") %in% colnames(dataset$proteins)) || !is.character(dataset$proteins$gene_symbols_or_id) || any(dataset$proteins$gene_symbols_or_id == "") ) {
     append_log("requires MS-DAP dataset where the proteins table contains gene symbols (did you forget to import_fasta() ?)", type = "error")
   }
   if(length(return_dea) != 1 || ! return_dea %in% c(TRUE, FALSE)) {
@@ -177,12 +180,12 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
       dd = dd %>%
         filter(type == dd_type) %>%
         mutate(
-          zscore_pvalue = pnorm(abs(zscore), lower.tail = F),
+          zscore_pvalue = stats::pnorm(abs(zscore), lower.tail = F),
           zscore_pvalue_adjust = p.adjust(zscore_pvalue, method = "BH"),
           signif = abs(zscore) >= diffdetect_zscore_threshold
         ) %>%
         arrange(desc(abs(zscore))) %>%
-        select(protein_id, peptides_used_for_dd = npep_max, effectsize_dd = zscore, pvalue_dd = zscore_pvalue, pvalue_adjust_dd = zscore_pvalue_adjust, signif_dd = signif)
+        select(protein_id, peptides_used_for_dd = npep_max, log2fc_dd = log2fc, effectsize_dd = zscore, pvalue_dd = zscore_pvalue, pvalue_adjust_dd = zscore_pvalue_adjust, signif_dd = signif)
     }
 
     if(nrow(dd) == 0) {
@@ -233,13 +236,13 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
 
   # only DEA
   if(nrow(dea) > 0 && (nrow(dd) == 0 || !any(dd$signif_dd))) {
-    result = dea %>% select(protein_id, peptide_count = peptides_used_for_dea, log2fc = log2fc_dea, effectsize = effectsize_dea, pvalue = pvalue_dea, pvalue_adjust = pvalue_adjust_dea, signif = signif_dea)
+    result = dea %>% mutate(score_type = "dea") %>% select(protein_id, score_type, peptide_count = peptides_used_for_dea, log2fc = log2fc_dea, effectsize = effectsize_dea, pvalue = pvalue_dea, pvalue_adjust = pvalue_adjust_dea, signif = signif_dea)
     log = sprintf("%sreturning only DEA results from %s, %d proteins.", log, param_dea_algorithm, nrow(result))
   }
 
   # only DD
   if(nrow(dea) == 0 && nrow(dd) > 0) {
-    result = dd %>% select(protein_id, peptide_count = peptides_used_for_dd, effectsize = effectsize_dd, pvalue = pvalue_dd, pvalue_adjust = pvalue_adjust_dd, signif = signif_dd)
+    result = dd %>% mutate(score_type = "dd") %>% select(protein_id, score_type, peptide_count = peptides_used_for_dd, log2fc = log2fc_dd, effectsize = effectsize_dd, pvalue = pvalue_dd, pvalue_adjust = pvalue_adjust_dd, signif = signif_dd)
     log = sprintf("%sreturning only differential detect results, %d proteins.", log, nrow(result))
   }
 
@@ -257,6 +260,7 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
     rows_stronger  = is.finite(result$pvalue_dea) & is.finite(result$pvalue_dd) & result$pvalue_dea > result$pvalue_dd
     rows = rows_na | rows_stronger
     result$score_type[rows]    = ifelse(is.na(result$score_type[rows]), "dd", "dea,dd")
+    result$log2fc[rows]        = result$log2fc_dd[rows]
     result$effectsize[rows]    = result$effectsize_dd[rows]
     result$pvalue[rows]        = result$pvalue_dd[rows]
     result$pvalue_adjust[rows] = result$pvalue_adjust_dd[rows]
@@ -266,7 +270,7 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
 
     result = result %>%
       filter(is.finite(pvalue)) %>%
-      select(protein_id, score_type, peptide_count, log2fc, effectsize, pvalue, pvalue_adjust, signif)
+      select(protein_id, score_type, peptide_count, log2fc, effectsize_dea, effectsize, pvalue, pvalue_adjust, signif)
 
     log = sprintf("%smerging DEA results from %s and differential detect (score type '%s'), the latter contributed to %d / %d proteingroups (%d without DEA, %d stronger than DEA).",
                   log, param_dea_algorithm, dd_type, sum(rows_na | rows_stronger), length(rows_na), sum(rows_na), sum(rows_stronger))

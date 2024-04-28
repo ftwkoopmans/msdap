@@ -56,7 +56,7 @@ rollup_pep2prot_summation = function(tib, intensity_is_log2 = TRUE, return_as_ma
     tidyr::pivot_wider(id_cols = c("peptide_id", "protein_id"), names_from = "sample_id", values_from = "intensity", values_fill = list(intensity=0))
 
   # rollup
-  df_prot = aggregate.data.frame(tibw %>% select(-peptide_id, -protein_id), by = list(protein_id = tibw$protein_id), FUN = sum, na.rm=T)
+  df_prot = stats::aggregate.data.frame(tibw %>% select(-peptide_id, -protein_id), by = list(protein_id = tibw$protein_id), FUN = sum, na.rm=T)
 
   if(return_as_matrix) {
     # if output should be a matrix...
@@ -121,7 +121,7 @@ rollup_pep2prot_tmp = function(tib, intensity_is_log2 = TRUE, return_as_matrix =
     } else {
       # use base R implementation for median polish
       # to go faster, parallelise and use Rcpp implementation of TMP algorithm
-      tmp = suppressWarnings(medpolish(tibw_mat[rows,], na.rm = TRUE, trace.iter = FALSE))
+      tmp = suppressWarnings(stats::medpolish(tibw_mat[rows,], na.rm = TRUE, trace.iter = FALSE))
       mat_prot[i,] = tmp$overall + tmp$col
     }
   }

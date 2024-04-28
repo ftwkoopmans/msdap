@@ -49,6 +49,9 @@ Stringent cutoffs (diffdetect_zscore_threshold of at least 4 ~ 6) are encouraged
 For DEA, the criteria for significance that were previously configured when performing DEA using \code{dea()} or
 \code{analysis_quickstart()} functions are reused here (i.e. cutoffs for adjusted p-value and log2 foldchange).
 
+If \code{return_dea} and \code{return_diffdetect} are both set to TRUE, the effectsizes from each statistic/result are standardized.
+This makes both statistics more comparable but the downside is that the effectsizes are no longer the exact effectsizes returned by the DEA model.
+
 Note that if your dataset contains results for multiple contrasts and multiple DEA algorithms,
 these will all be appended into the result table so make sure to filter the results by 'contrast' and
 'dea_algorithm' columns where appropriate.

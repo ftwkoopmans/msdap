@@ -4,6 +4,9 @@
 #' @param samples todo
 #' @param isdia todo
 plot_abundance_distributions = function(tib_input, samples, isdia) {
+  param_density_bandwidth = "sj"
+  param_density_adjust = 1.0 # alternatively, 0.9
+
   # for DIA datasets, only use abundances for peptides detected at some q-value threshold (instead of 'mbr' at any confidence threshold)
   tib = left_join(tib_input %>% filter(detect | !isdia),
                   samples %>% select(sample_id, shortname, group, exclude),
@@ -15,7 +18,7 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
 
   ## all samples in a single plot
   p_all_intensity_distributions = ggplot(tib, aes(x=intensity, colour=shortname, labels=shortname, linetype = exclude)) +
-    geom_line(stat="density", na.rm = T) +
+    geom_line(stat = "density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T) +
     scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
     coord_cartesian(xlim = overall_xlim) +
     labs(x="peptide intensity (log10)", y="density") +
@@ -28,7 +31,7 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
   for (g in unique(samples$group)) {
     n_samples = sum(samples$group == g)
     p = ggplot(tib %>% filter(group == g), aes(x = intensity, colour = shortname, labels = shortname, linetype = exclude)) +
-      stat_density(geom="line", position="identity", adjust = 1, na.rm = T) +
+      stat_density(geom="line", position="identity", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
       coord_cartesian(xlim = overall_xlim) +
       labs(x="peptide intensity (log10)", y="density", colour="sample", linetype = "exclude sample") +
@@ -77,15 +80,18 @@ plot_abundance_distributions = function(tib_input, samples, isdia) {
 #' @param peptides peptide tibble, e.g. dataset$peptides, which must hold raw intensity data in "intensity" column and filtered and normalized data in the column "intensity_qc_basic"
 #' @param samples sample tibble, e.g. dataset$samples
 plot_foldchange_distribution_among_replicates = function(peptides, samples) {
+  param_density_bandwidth = "sj"
+  param_density_adjust = 1.0 # alternatively, 0.9
+
   plotlist = list()
   tib_scores = NULL
   ugrp = unique(samples$group)
   for (g in ugrp) { # g = ugrp[1]
-    # g_key = samples$key_group[match(g, samples$group)]
-    skey = samples %>% filter(group == g) %>% pull(key_sample)
-    # cannot make within-group foldchange plots for groups with less than 2 samples
-    if(length(skey) < 2) {
-      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', require at least 2 replicates", g), type = "info")
+    g_samples = samples %>% filter(group == g)
+    skey = g_samples$key_sample
+    # cannot make within-group foldchange plots for groups with less than 2 non-exclude samples
+    if(sum(g_samples$exclude == FALSE) < 2) {
+      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', require at least 2 replicates that are not flagged as 'exclude'", g), type = "info")
       next
     }
 
@@ -93,10 +99,20 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     # this filtering step ensures we only data points that are in both the input and the output (eg; same filtering applied to both, just normalization that differs)
     DT = data.table::setDT(peptides %>% select(key_peptide, key_sample, intensity, intensity_qc_basic) %>% filter(key_sample %in% skey & is.finite(intensity_qc_basic)))
 
-    # subtract the mean value per peptide from each peptide*sample data point
+    # cannot make within-group foldchange plots for groups that contain only exclude samples, or where all peptide intensities were set to "NA" following filtering
+    if(n_distinct(DT$key_peptide) < 50) { # require at least 50 unique peptides
+      append_log(sprintf("skipping within-group foldchange plots for sample group '%s', not enough data (from non-exclude samples) to create plots", g), type = "info")
+      next
+    }
+
+    ## subtract the mean value per peptide from each peptide*sample data point
+    ## update for MS-DAP 1.7; now using tmean instead of mean
+    # more robust estimates by using trimmed mean (when there are many samples)
+    # alternatively, use a robust estimator like MASS::hubers (when sufficient replicates are available)
+    # median is not a good choice, we observed cases of strong bias in various small test datasets (e.g. 2 or 3 reps)
     DT_diff_to_mean = DT[ , .(key_sample=key_sample,
-                              input = intensity - mean(intensity, na.rm=T),
-                              normalized = intensity_qc_basic - mean(intensity_qc_basic, na.rm=T)),
+                              input = intensity - mean(intensity, na.rm=T, trim=0.2),
+                              normalized = intensity_qc_basic - mean(intensity_qc_basic, na.rm=T, trim=0.2)),
                           by=key_peptide]
 
     # convert data we efficiently gathered with data.table into a long-format tibble
@@ -110,7 +126,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     # plot limits
     g_fc_xlim = c(-1, 1) * max(abs(quantile(DT_diff_to_mean$input, probs = c(.005, .995), na.rm = T)))
 
-    ### v2; updated/extended plots (monochrome + highlight topN outliers + density bw="SJ")
+    ### v2; updated/extended plots (monochrome + highlight topN outliers + density)
 
     # color-code for highlighted samples
     # number of colors in this array dictates the topN samples to be highlighted
@@ -152,7 +168,7 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     # monochrome plot without legend
     p_mono = ggplot(tib_plot, aes(x = logratio, labels = shortname, linetype = exclude)) +
       geom_vline(xintercept = 0, size = 1, colour = "darkgrey") +
-      geom_line(stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 0.33, size = .75) +
+      geom_line(stat = "density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T, alpha = 0.33, size = .75) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
       facet_wrap(.~group + normalization_status) +
       xlim(g_fc_xlim) +
@@ -165,9 +181,9 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
     p_highlight = ggplot(tib_plot, aes(x = logratio, labels = shortname, colour = shortname, linetype = exclude)) +
       geom_vline(xintercept = 0, size = 1, colour = "darkgrey") +
       # first, plot the non-outlier samples (color black, strong transparency)
-      geom_line(data = tib_plot %>% filter(has_color == F), stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 0.33, size = 0.75) +
+      geom_line(data = tib_plot %>% filter(has_color == F), stat = "density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T, alpha = 0.33, size = 0.75) +
       # next, draw the highlighted samples (aka. worst sd()) on top. Note that these were sorted upstream to ensure the 'worst' sample is drawn on top. (color-coded lines, no transparency)
-      geom_line(data = tib_plot %>% filter(has_color == T), stat = "density", adjust = 1, bw = "SJ", na.rm = T, alpha = 1, size = 1) +
+      geom_line(data = tib_plot %>% filter(has_color == T), stat = "density", bw = param_density_bandwidth, adjust = param_density_adjust, na.rm = T, alpha = 1, size = 1) +
       scale_colour_manual(values = array(tib_sample_score$color, dimnames = list(tib_sample_score$shortname)),
                           # the sample labels to be shown in the legend = highlighted samples from summary statistic tibble, in reverse order (so the 'worst' sample comes first)
                           breaks = tib_sample_score %>% filter(has_color==T) %>% pull(shortname) %>% rev() ) +
@@ -228,6 +244,9 @@ plot_foldchange_distribution_among_replicates = function(peptides, samples) {
 #' @importFrom ggrepel geom_text_repel
 #' @importFrom matrixStats rowSums2 colMedians
 ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, samples_colors) {
+  param_density_bandwidth = "sj"
+  param_density_adjust = 1.0 # alternatively, 0.9
+
   start_time = Sys.time()
   # XX<<-tib_input; YY<<-samples; ZZ<<-samples_colors
   # tib_input=XX; samples=YY; samples_colors=ZZ
@@ -299,7 +318,7 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
 
     # plot
     p = ggplot(tib_plot, aes(x=cov, colour=shortname, linetype=exclude)) +
-      stat_density(geom="line", position="identity", na.rm = T) +
+      stat_density(geom="line", bw = param_density_bandwidth, adjust = param_density_adjust, position="identity", na.rm = T) +
       scale_linetype_manual(values = c("FALSE"="solid", "TRUE"="dashed")) +
       facet_grid(~group) +
       guides(linetype = "none", #guide_legend(direction = "horizontal", title.position = "top"),
