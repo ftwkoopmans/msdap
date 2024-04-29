@@ -5,21 +5,30 @@ This guide helps you install the MS-DAP R package and all of its
 software dependencies on your computer. If you are looking for the
 *Dockerized* MS-DAP, [use this guide](docker.md).
 
+Note that recent updates to some dependencies (e.g. variancePartition)
+of MS-DAP have changed requirements to R version 4.3 (or later). So when
+installing MS-DAP for the first time (i.e. required packages are not
+installed yet), you may find that you need to update R first.
+
 ## prequisites
 
 **Windows**
 
-    You will need to install GIT, which is needed to automaticall retrieve R packages from github.com (may not be installed on your system). 
-    Download and install this tool, available at https://gitforwindows.org
+You will need to install GIT, which is needed to automatically retrieve
+R packages from github.com (may not be installed on your system).
+Download and install this tool, available at <https://gitforwindows.org>
 
-**Ubuntu** (for Ubuntu 18.04 or older, see further
-<https://github.com/ropensci/pdftools> ):
+**Ubuntu**
+
+(for Ubuntu 18.04 or older, see further
+<https://github.com/ropensci/pdftools> )
 
 Linux installations require pandoc to be installed (guide at
 <https://pandoc.org/installing.html> ). Other requirements can be
 installed by;
 
-    sudo apt-get install git libnetcdf-dev netcdf-bin libpoppler-cpp-dev
+    sudo apt-get update
+    sudo apt-get install git libnetcdf-dev netcdf-bin libpoppler-cpp-dev libarchive-dev
 
 **Fedora**
 
@@ -27,9 +36,11 @@ Linux installations require pandoc to be installed (guide at
 <https://pandoc.org/installing.html> ). Other requirements can be
 installed by;
 
-    sudo dnf install git netcdf-devel netcdf poppler-cpp-devel
+    sudo dnf install git netcdf-devel netcdf poppler-cpp-devel libarchive-devel
 
-**MacOS** first, install Homebrew if you haven’t: <https://brew.sh>
+**MacOS**
+
+first, install Homebrew if you haven’t: <https://brew.sh>
 
     brew install git netcdf poppler automake
     export PKG_CONFIG_PATH=/usr/local/Cellar/zlib/1.2.8/lib/pkgconfig:/usr/local/lib/pkgconfig:/opt/X11/lib/pkgconfig
@@ -40,8 +51,8 @@ installed by;
 MS-DAP to create PDF reports, if you have any trouble installing please
 check these resources:
 
--   <https://github.com/ropensci/pdftools>
--   <https://github.com/politza/pdf-tools>
+- <https://github.com/ropensci/pdftools>
+- <https://github.com/politza/pdf-tools>
 
 *pandoc;* If you run into issues on Linux or macOS that relate to
 tex/latex/Rmd files/markdown, either during installation of the MS-DAP R
@@ -51,39 +62,48 @@ package or when creating a QC report with
 
 ## installing R (if you have not already)
 
--   R version 4 is recommended. MS-DAP was tested with the recently
-    released R version 4.2 (as well as older versions 4.0 and 4.1)
--   R version 3 is still supported, but we recommend using R version
-    3.6.3 (last R 3.\* version, released February 2020) for users who
-    stick with R version 3
+R version 4.3 or later is recommended. MS-DAP was tested with the
+recently released R version 4.4 (as well as older version 4.1)
 
 **Windows**
 
 If you do not have R installed yet, go to
 <https://cloud.r-project.org/bin/windows/>
 
--   download and install “base” R
--   download and install “Rtools”
-
-For reference, users that want to stick with R version 3 should grab R
-from here:
-
--   base R 3.6.3 @
-    <https://cloud.r-project.org/bin/windows/base/old/3.6.3/>
--   Rtools35 @
-    <https://cran.r-project.org/bin/windows/Rtools/history.html>
+- download and install “base” R
+- download and install “Rtools”
 
 **Ubuntu**
 
-    sudo apt-get install r-base r-base-dev
+the latest R version is not available through the default/stable package
+repository. Recommended to install R as follows;
+
+Download the R project’s public GPG key and install it:
+
+    wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo gpg --dearmor -o /usr/share/keyrings/r-project.gpg
+
+update APT sources
+
+    echo "deb [signed-by=/usr/share/keyrings/r-project.gpg] https://cloud.r-project.org/bin/linux/ubuntu jammy-cran40/" | sudo tee -a /etc/apt/sources.list.d/r-project.list
+
+download latest available packages and install R
+
+    sudo apt update
+    sudo apt install --no-install-recommends r-base
+
+print the installed R version
+
+    sudo -i R
 
 **Fedora**
 
-    sudo yum install R
+    sudo dnf install R
 
-**MacOS** - download and install *R-3.6.3.nn.pkg* @
-<https://cran.r-project.org/bin/macosx/> - make sure to select Tcl/Tk
-and Textinfo during installation
+**MacOS**
+
+- download and install *R-<version>.pkg* @
+  <https://cran.r-project.org/bin/macosx/>
+- make sure to select Tcl/Tk and Textinfo during installation
 
 ## install RStudio Desktop
 
@@ -126,23 +146,22 @@ library(msdap)
 
 ## general troubleshooting
 
--   If you encounter “installation path not writable” errors the user
-    running R (/RStudio) may not have write access to the directory
-    where the R packages are stored. Use the R command `.libPaths()` to
-    print those locations.
+- If you encounter “installation path not writable” errors the user
+  running R (/RStudio) may not have write access to the directory where
+  the R packages are stored. Use the R command `.libPaths()` to print
+  those locations.
 
-    -   For windows users, the most robust workaround is to start a
-        command prompt as administrator (start \> type `cmd` \>
-        right-click `run as administrator`), open a commandline R
-        session (eg; on the cmd prompt, type
-        `"C:\Program Files\R\R-3.6.3\bin\R.exe"`) and retry your package
-        installation.
+  - For windows users, the most robust workaround is to start a command
+    prompt as administrator (start \> type `cmd` \> right-click
+    `run as administrator`), open a commandline R session (eg; on the
+    cmd prompt, type `"C:\Program Files\R\R-3.6.3\bin\R.exe"`) and retry
+    your package installation.
 
--   Further documentation for TinyTex, in case you run into problems
-    when installing it, is available at <https://yihui.org/tinytex/>
+- Further documentation for TinyTex, in case you run into problems when
+  installing it, is available at <https://yihui.org/tinytex/>
 
--   On systems with many CPU cores that run into errors related to
-    “socketConnection” or “PSOCK” when running `analysis_quickstart()`
-    for analyses that include MSqRob/MSqRobSum; try to set parameter
-    `multiprocessing_maxcores=8` to limit the amount of parallel threads
-    initiated by MS-DAP.
+- On systems with many CPU cores that run into errors related to
+  “socketConnection” or “PSOCK” when running `analysis_quickstart()` for
+  analyses that include MSqRob/MSqRobSum; try to set parameter
+  `multiprocessing_maxcores=8` to limit the amount of parallel threads
+  initiated by MS-DAP.
