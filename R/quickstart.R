@@ -229,7 +229,7 @@ analysis_quickstart = function(
 
 
   # facilitate multiprocessing, this is only used for our custom implementation of msqrob at the moment
-  if(any(c("msqrob", "msqrobsum") %in% dea_algorithm)) {
+  if(any(grepl("msqrob", dea_algorithm, ignore.case = T))) {
     # speed up your analysis by using multiple processor cores (default; all cores but one)
     cl <<- initialize_multiprocessing(multiprocessing_maxcores)
     # finally, shut down multithreading clusters. use on.exit to execute regardless of downstream errors

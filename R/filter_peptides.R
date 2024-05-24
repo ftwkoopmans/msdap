@@ -58,9 +58,13 @@ cache_filtering_data = function(dataset) {
   p[, key_peptide_group_noexclude := kpg]
   # detect not as a boolean, but scaled by number of detect per sample
   # ` * !is.na(key_peptide_group_noexclude)` is simply to remove all data points for samples that are excluded, which allows us to downstream group by key_group and not worry about excluded samples
-  p[, `:=` (detect_scaled_noexclude = (detect/sum(detect)) * !is.na(key_peptide_group_noexclude),
-            quant_scaled_noexclude = 1/.N * !is.na(key_peptide_group_noexclude)),
+  p[, c("detect_scaled_noexclude", "quant_scaled_noexclude") := list(
+    (detect/sum(detect)) * !is.na(key_peptide_group_noexclude),
+    1/.N * !is.na(key_peptide_group_noexclude) ),
     by = key_sample]
+  # p[, `:=` (detect_scaled_noexclude = (detect/sum(detect)) * !is.na(key_peptide_group_noexclude),
+  #           quant_scaled_noexclude = 1/.N * !is.na(key_peptide_group_noexclude)),
+  #   by = key_sample]
 
 
   ## efficiently collapse filtering data for each peptide * 'sample group'
@@ -78,7 +82,10 @@ cache_filtering_data = function(dataset) {
   data.table::setkey(dt_pep_group, key_group) # set key for data.table::merge()
   dt_criteria = data.table::data.table(grps %>% select(key_group, size, size_noexclude) %>% mutate_all(as.integer), key="key_group")
   dt_pep_group = data.table::merge.data.table(dt_pep_group, dt_criteria, all.x = T, sort = FALSE)
-  dt_pep_group[ , `:=`(ndetect_fraction = ndetect / size, ndetect_noexclude_fraction = ndetect_noexclude / size_noexclude)]
+  dt_pep_group[ , c("ndetect_fraction", "ndetect_noexclude_fraction") := list(
+    ndetect / size,
+    ndetect_noexclude / size_noexclude)]
+  # dt_pep_group[ , `:=`(ndetect_fraction = ndetect / size, ndetect_noexclude_fraction = ndetect_noexclude / size_noexclude)]
 
 
   ################# pre-cache CoV
@@ -279,19 +286,25 @@ filter_dataset = function(dataset,
   data.table::setkey(dataset$dt_pep_group, key_group) # set key for data.table::merge()
   dt_criteria = data.table::data.table(dataset$groups %>% select(key_group, ndetect_min, nquant_min, ndetect_noexclude_min, nquant_noexclude_min) %>% mutate_all(as.integer), key="key_group")
   dt_filter_group = data.table::merge.data.table(dataset$dt_pep_group, dt_criteria, all.x = T, sort = FALSE)
-  dt_filter_group[ , `:=`(pass = ndetect >= ndetect_min & nquant >= nquant_min,
-                          pass_noexclude = ndetect_noexclude >= ndetect_noexclude_min & nquant_noexclude >= nquant_noexclude_min)]
+  dt_filter_group[ , c("pass", "pass_noexclude") := list(
+    ndetect >= ndetect_min & nquant >= nquant_min,
+    ndetect_noexclude >= ndetect_noexclude_min & nquant_noexclude >= nquant_noexclude_min
+  )]
+  # dt_filter_group[ , `:=`(pass = ndetect >= ndetect_min & nquant >= nquant_min,
+  #                         pass_noexclude = ndetect_noexclude >= ndetect_noexclude_min & nquant_noexclude >= nquant_noexclude_min)]
 
   ## now we know for each peptide whether it passes the filter criteria in each group (with and without taking 'exclude' samples into account)
 
   ## wide format for re-use (eg; by-group or all-group)
   data.table::setkey(dt_filter_group, pass_noexclude) # set key for filter step below; remove all peptide*group that don't pass anywhere to minimize wide-table size
   dt_filter_group_wide_noexclude = data.table::dcast(dt_filter_group[pass_noexclude>0], key_peptide ~ key_group, value.var = "pass_noexclude", fill = FALSE)
-  dt_filter_group_wide_noexclude[ , `:=`(ngroup = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide_noexclude), "key_peptide")))]
+  dt_filter_group_wide_noexclude[ , ngroup := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide_noexclude), "key_peptide")))]
+  # dt_filter_group_wide_noexclude[ , `:=`(ngroup = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide_noexclude), "key_peptide")))]
   # analogous
   data.table::setkey(dt_filter_group, pass)
   dt_filter_group_wide = data.table::dcast(dt_filter_group[pass>0], key_peptide ~ key_group, value.var = "pass", fill = FALSE)
-  dt_filter_group_wide[ , `:=`(ngroup = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide), "key_peptide")))]
+  dt_filter_group_wide[ , ngroup := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide), "key_peptide")))]
+  # dt_filter_group_wide[ , `:=`(ngroup = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(setdiff(colnames(dt_filter_group_wide), "key_peptide")))]
 
 
   if(by_group) {
@@ -351,7 +364,8 @@ filter_dataset = function(dataset,
         grp1_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude[[as.character(grp1_key)]] ]
       } else {
         # if multi-group, select all columns for this group and test that all are true
-        dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp1_key)))]
+        dt_filter_group_wide_noexclude[, temp := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(as.character(grp1_key)))]
+        # dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp1_key)))]
         grp1_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude$temp == length(grp1_key) ]
       }
 
@@ -359,7 +373,8 @@ filter_dataset = function(dataset,
         grp2_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude[[as.character(grp2_key)]] ]
       } else {
         # if multi-group, select all columns for this group and test that all are true
-        dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp2_key)))]
+        dt_filter_group_wide_noexclude[, temp := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(as.character(grp2_key)))]
+        # dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp2_key)))]
         grp2_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude$temp == length(grp2_key) ]
       }
 

@@ -6,14 +6,18 @@
 \usage{
 de_msqrobsum_msqrob(
   eset,
+  eset_proteins = NULL,
   use_peptide_model = T,
   input_intensities_are_log2 = T,
   protein_rollup_robust = T,
-  random_variables = NULL
+  random_variables = NULL,
+  log2fc_without_shrinkage = FALSE
 )
 }
 \arguments{
 \item{eset}{a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition}
+
+\item{eset_proteins}{only required if \code{log2fc_without_shrinkage == TRUE}}
 
 \item{use_peptide_model}{if true, apply msqrob. if false, apply msqrobsum}
 
@@ -22,6 +26,8 @@ de_msqrobsum_msqrob(
 \item{protein_rollup_robust}{for msqrobsum analyses, whether to use 'robust' protein rollup (TRUE) or traditional peptide intensity summation (FALSE)}
 
 \item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms}
+
+\item{log2fc_without_shrinkage}{boolean parameter, if FALSE (default) returns msqrob estimated log2 foldchanges. if TRUE, uses \code{protein_foldchange_from_ebayes()} instead (affecting log2fc and effectsize results)}
 }
 \description{
 note that this is the final version of this algorithm provided by its authors, and is no longer maintained; https://github.com/statOmics/msqrob

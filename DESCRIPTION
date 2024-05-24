@@ -3,7 +3,7 @@ Package: msdap
 Title: Mass Spectrometry Downstream Analysis Pipeline
 Description: Analyze label-free proteomics datasets from various sources (MaxQuant, Spectronaut, etc) using a pipeline that facilitates peptide filtering and many algorithms for normalization and statistical analysis. A comprehensive PDF report can be generated that includes many data visualizations and documentation thereof.
 URL: https://github.com/ftwkoopmans/msdap
-Version: 1.0.7
+Version: 1.0.8
 Authors@R: 
     person(given = "Frank",
            family = "Koopmans",

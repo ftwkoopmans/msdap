@@ -107,7 +107,7 @@ plot_variance_explained = function(dataset, cols_metadata = NULL, rollup_algorit
   }
 
   if(length(cols_na_repaired) > 0) {
-    append_log(paste0("replaced NA values in these sample metadata columns; ", paste(cols_na_repaired, collapse = ","), "\nfor numeric columns the mean value was imputed, for other column types the missing values were replaced by the string 'NA' (e.g. a boolean sample metadata column with missing values would become a factor with levels 'TRUE'/'FALSE'/'NA')"), type = "warning")
+    append_log(paste0("plot_variance_explained: replaced NA values in these sample metadata columns; ", paste(cols_na_repaired, collapse = ","), "\nfor numeric columns the mean value was imputed, for other column types the missing values were replaced by the string 'NA' (e.g. a boolean sample metadata column with missing values would become a factor with levels 'TRUE'/'FALSE'/'NA')"), type = "warning")
   }
 
 

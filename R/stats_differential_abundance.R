@@ -49,8 +49,8 @@ de_ebayes = function(eset_proteins, input_intensities_are_log2 = TRUE, random_va
 
   # convert from data.frame to a tibble that follows the column names/format we expect downstream
   result = as_tibble(result) %>%
-           mutate(protein_id = rownames(x)) %>%
-           select(protein_id, pvalue = P.Value, qvalue = adj.P.Val, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation, standarderror) %>%
+    mutate(protein_id = rownames(x)) %>%
+    select(protein_id, pvalue = P.Value, qvalue = adj.P.Val, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation, standarderror) %>%
     add_column(dea_algorithm = "ebayes")
 
   # note; we added condition to random variables above, strip it from result table for consistency within this R package ('condition' is always assumed to be a regression variable)
@@ -153,7 +153,7 @@ de_deqms = function(eset_proteins, input_intensities_are_log2 = TRUE, random_var
     suppressWarnings(DEqMS::VarianceBoxplot(fit, n=20, main = "DEqMS QC plot", xlab="#unique peptides per protein"))
   }
 
-  ## analogous to our do_ebayes() implementation, extract results from the fit object but grab the DEqMS specific output columns where available (reference; DEqMS::outputResult() )
+  ## analogous to our de_ebayes() implementation, extract results from the fit object but grab the DEqMS specific output columns where available (reference; DEqMS::outputResult() )
   coef_col = 2
   # !! sort.by="none" keeps the output table aligned with input matrix
   result = suppressMessages(limma::topTable(fit, number = length(eset_proteins__protein_id), coef = coef_col, adjust.method = "fdr", sort.by = "none", confint = TRUE))
@@ -217,7 +217,7 @@ de_ebayes_fit = function(x, random_variables) {
     all( rownames(random_variables) == as.character(1:nrow(random_variables)) ) ||
     all( rownames(random_variables) == colnames(x) )
   )) {
-      append_log("input matrix x and random_variables seem misaligned; the column names of x versus rownames of variables do not match", type = "error")
+    append_log("input matrix x and random_variables seem misaligned; the column names of x versus rownames of variables do not match", type = "error")
   }
 
   if(is.vector(random_variables) || is.array(random_variables)) {
@@ -349,16 +349,19 @@ de_msempire = function(eset, input_intensities_are_log2 = F) {
 #' ref; https://github.com/statOmics/msqrob
 #'
 #' @param eset a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition
+#' @param eset_proteins only required if `log2fc_without_shrinkage == TRUE`
 #' @param use_peptide_model if true, apply msqrob. if false, apply msqrobsum
 #' @param input_intensities_are_log2 whether the provided intensities are already log2 transformed
 #' @param protein_rollup_robust for msqrobsum analyses, whether to use 'robust' protein rollup (TRUE) or traditional peptide intensity summation (FALSE)
 #' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms
+#' @param log2fc_without_shrinkage boolean parameter, if FALSE (default) returns msqrob estimated log2 foldchanges. if TRUE, uses `protein_foldchange_from_ebayes()` instead (affecting log2fc and effectsize results)
 #'
 #' @importFrom Biobase exprs pData fData
 #' @importFrom MSnbase as.MSnSet.ExpressionSet combineFeatures
 #' @export
-de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_are_log2 = T, protein_rollup_robust = T, random_variables = NULL) {
+de_msqrobsum_msqrob = function(eset, eset_proteins = NULL, use_peptide_model = T, input_intensities_are_log2 = T, protein_rollup_robust = T, random_variables = NULL, log2fc_without_shrinkage = FALSE) {
   start_time = Sys.time()
+  if(log2fc_without_shrinkage && is.null(eset_proteins)) stop("if log2fc_without_shrinkage is set, provide protein eset")
 
   # strip forbidden random variables and compose updated formula
   random_variables = setdiff(random_variables, c("peptide_id", "protein_id", "sample_id", "condition"))
@@ -435,6 +438,15 @@ de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_ar
     dplyr::select(protein_id, contrasts) %>%
     tidyr::unnest(cols = contrasts)
 
+  # test: optional log2fc estimates without shrinkage
+  if(log2fc_without_shrinkage) {
+    df_fc = protein_foldchange_from_ebayes(eset_proteins, input_intensities_are_log2 = TRUE, random_variables = random_variables)
+    i = match(as.character(result_unpacked$protein_id), df_fc$protein_id)
+    stopifnot(!is.na(i))
+    result_unpacked$logFC = df_fc$foldchange.log2[i]
+    algorithm_name = paste0(algorithm_name, "_fc")
+  }
+
   result_unpacked$sigma_post = result_unpacked$se / result_unpacked$sigma_contrast
   result_unpacked$effectsize = result_unpacked$logFC / result_unpacked$sigma_post
 
@@ -449,4 +461,43 @@ de_msqrobsum_msqrob = function(eset, use_peptide_model = T, input_intensities_ar
   }
   append_log_timestamp(algorithm_name, start_time)
   return(result)
+}
+
+
+
+#' Compute protein log2 foldchanges from protein-level eBayes (i.e. simple, no shrinkage)
+#'
+#' implementation analogous to `de_ebayes()`
+#'
+#' @param eset a Biobase ExpressionSet that contains the protein intensities. required attributes; fData(): protein_id and pData(): condition
+#' @param input_intensities_are_log2 whether the provided intensities are already log2 transformed
+#' @param random_variables a vector of column names in your sample metadata table that are added as additional(!) regression terms
+#' @return data.frame with columns protein_id and foldchange.log2
+protein_foldchange_from_ebayes = function(eset, input_intensities_are_log2 = TRUE, random_variables = NULL) {
+  if(length(random_variables) > 0 && (!is.vector(random_variables) ||
+                                       any(is.na(random_variables) | !is.character(random_variables)))) {
+    append_log(paste("random_variables must either be NULL or character vector",
+                     paste(random_variables, collapse = ", ")), type = "error")
+  }
+  if(!input_intensities_are_log2) {
+    x = log2(Biobase::exprs(eset))
+    x[!is.finite(x)] = NA
+    Biobase::exprs(eset) = x
+  }
+  random_variables = unique(c("condition", random_variables))
+  df_metadata = Biobase::pData(eset)
+  if(!all(random_variables %in% colnames(df_metadata))) {
+    append_log(paste("eset ExpressionSet pData() must contain columns 'condition' and all additional random variables requested in `random_variables` parameter. missing:",
+                     paste(setdiff(random_variables, colnames(df_metadata)),
+                           collapse = ", ")), type = "error")
+  }
+  x = Biobase::exprs(eset)
+  df_metadata = df_metadata[, random_variables, drop = F]
+
+  # re-use our limma wrapper to apply eBayes()
+  fit = de_ebayes_fit(x, random_variables = df_metadata)
+
+  ## analogous to our de_ebayes() implementation, extract results from the fit object
+  coef_col = 2
+  data.frame(protein_id = rownames(x), foldchange.log2 = fit$coefficients[,coef_col])
 }

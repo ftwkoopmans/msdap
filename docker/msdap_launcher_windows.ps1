@@ -1,7 +1,7 @@
 # MS-DAP launch script
 # https://github.com/ftwkoopmans/msdap
 
-$VERSION = "1.0.7"
+$VERSION = "1.0.8"
 
 
 Write-Host "$((Get-Date).ToString("HH:mm:ss")) - Starting MS-DAP launcher script for version: $VERSION"

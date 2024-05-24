@@ -30,8 +30,12 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   peptides$temp_int = peptides$intensity_qc_basic
 
   # use data.tables to summarize the data (reasonably fast, don't need to convert to wide)
-  DT = data.table::setDT(peptides)[ , `:=` (temp_rt_diff = rt - stats::median(temp_rt_nodetect, na.rm=T),
-                                            temp_int_diff_overall = temp_int - stats::median(temp_int, na.rm=T)), by=key_peptide][ , temp_int_diff := (temp_int - mean(temp_int, na.rm=T)), by=key_peptide_group]
+  DT = data.table::setDT(peptides)[ , c("temp_rt_diff", "temp_int_diff_overall") := list(
+    rt - stats::median(temp_rt_nodetect, na.rm=T),
+    temp_int - stats::median(temp_int, na.rm=T)),
+    by = key_peptide][ , temp_int_diff := (temp_int - mean(temp_int, na.rm=T)), by=key_peptide_group]
+  # DT = data.table::setDT(peptides)[ , `:=` (temp_rt_diff = rt - stats::median(temp_rt_nodetect, na.rm=T),
+  #                                           temp_int_diff_overall = temp_int - stats::median(temp_int, na.rm=T)), by=key_peptide][ , temp_int_diff := (temp_int - mean(temp_int, na.rm=T)), by=key_peptide_group]
 
   ## DEBUG: remove data in a few RT bins to simulate spray issues  -->>  how does the plot hold up?
   # DT$rt[DT$key_sample == 2 & DT$rt > 50 & DT$rt <60 ] = NA; print("********* manually discarding data for code debugging")
@@ -79,7 +83,8 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
 
 
   # we created some temp columns by reference, no longer needed as we are working with binned data from here on
-  DT[ ,`:=`(temp_rt_nodetect = NULL, temp_int = NULL, temp_rt_diff = NULL, temp_int_diff_overall = NULL, temp_int_diff = NULL, temp_rt_bin = NULL, temp_rt_bin_mean = NULL)]
+  DT[ , c("temp_rt_nodetect", "temp_int", "temp_rt_diff", "temp_int_diff_overall", "temp_int_diff", "temp_rt_bin", "temp_rt_bin_mean") := list(NULL, NULL, NULL, NULL, NULL, NULL, NULL)]
+  # DT[ ,`:=`(temp_rt_nodetect = NULL, temp_int = NULL, temp_rt_diff = NULL, temp_int_diff_overall = NULL, temp_int_diff = NULL, temp_rt_bin = NULL, temp_rt_bin_mean = NULL)]
 
 
   # force the creation of empty bins for 'missing bins'. eg; if in some sample at some RT interval no peptides were observed (that pass qc peptide filter), these bins are empty
@@ -108,22 +113,38 @@ plot_retention_time_v2 = function(peptides, samples, isdia) {
   DT_binned[ , size_overall_median := stats::median(size, na.rm=T), by=rt_bin]
 
   # smoothed data
-  DT_binned[ ,`:=`(rt_quantup_smooth = smooth_loess_custom(rt_bin, rt_quantup, span=.1),
-                   rt_quantlow_smooth = smooth_loess_custom(rt_bin, rt_quantlow, span=.1),
-                   rt_median_smooth = smooth_loess_custom(rt_bin, rt_median, span=.1),
+  DT_binned[ , c("rt_quantup_smooth", "rt_quantlow_smooth", "rt_median_smooth", "int_quantup_smooth", "int_quantlow_smooth", "int_median_smooth", "int_quantup_smooth_overall", "int_quantlow_smooth_overall", "int_median_smooth_overall", "size_smooth", "size_overall_median_smooth") := list(
+    smooth_loess_custom(rt_bin, rt_quantup, span=.1),
+    smooth_loess_custom(rt_bin, rt_quantlow, span=.1),
+    smooth_loess_custom(rt_bin, rt_median, span=.1),
 
-                   int_quantup_smooth = smooth_loess_custom(rt_bin, int_quantup, span=.1),
-                   int_quantlow_smooth = smooth_loess_custom(rt_bin, int_quantlow, span=.1),
-                   int_median_smooth = smooth_loess_custom(rt_bin, int_median, span=.1),
+    smooth_loess_custom(rt_bin, int_quantup, span=.1),
+    smooth_loess_custom(rt_bin, int_quantlow, span=.1),
+    smooth_loess_custom(rt_bin, int_median, span=.1),
 
-                   int_quantup_smooth_overall = smooth_loess_custom(rt_bin, int_quantup_overall, span=.1),
-                   int_quantlow_smooth_overall = smooth_loess_custom(rt_bin, int_quantlow_overall, span=.1),
-                   int_median_smooth_overall = smooth_loess_custom(rt_bin, int_median_overall, span=.1),
+    smooth_loess_custom(rt_bin, int_quantup_overall, span=.1),
+    smooth_loess_custom(rt_bin, int_quantlow_overall, span=.1),
+    smooth_loess_custom(rt_bin, int_median_overall, span=.1),
 
-                   size_smooth = smooth_loess_custom(rt_bin, size, span=.1),
-                   size_overall_median_smooth = smooth_loess_custom(rt_bin, size_overall_median, span=.1)
-                   ),
-             by = key_sample]
+    smooth_loess_custom(rt_bin, size, span=.1),
+    smooth_loess_custom(rt_bin, size_overall_median, span=.1)
+  ), by = key_sample]
+  # DT_binned[ ,`:=`(rt_quantup_smooth = smooth_loess_custom(rt_bin, rt_quantup, span=.1),
+  #                  rt_quantlow_smooth = smooth_loess_custom(rt_bin, rt_quantlow, span=.1),
+  #                  rt_median_smooth = smooth_loess_custom(rt_bin, rt_median, span=.1),
+  #
+  #                  int_quantup_smooth = smooth_loess_custom(rt_bin, int_quantup, span=.1),
+  #                  int_quantlow_smooth = smooth_loess_custom(rt_bin, int_quantlow, span=.1),
+  #                  int_median_smooth = smooth_loess_custom(rt_bin, int_median, span=.1),
+  #
+  #                  int_quantup_smooth_overall = smooth_loess_custom(rt_bin, int_quantup_overall, span=.1),
+  #                  int_quantlow_smooth_overall = smooth_loess_custom(rt_bin, int_quantlow_overall, span=.1),
+  #                  int_median_smooth_overall = smooth_loess_custom(rt_bin, int_median_overall, span=.1),
+  #
+  #                  size_smooth = smooth_loess_custom(rt_bin, size, span=.1),
+  #                  size_overall_median_smooth = smooth_loess_custom(rt_bin, size_overall_median, span=.1)
+  #                  ),
+  #            by = key_sample]
   # catch smoothing problems for bin size (eg; empty bins)
   DT_binned$size_smooth[!is.finite(DT_binned$size) | DT_binned$size <= 0] = 0
 

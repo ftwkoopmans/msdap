@@ -17,11 +17,13 @@
 #'
 #' **msqrob**: implementation of the MSqRob package, with minor tweak for (situationally) faster computation (PMID:26566788) <https://github.com/statOmics/msqrob>. This is a peptide-level DEA algorithm. This method will take provided covariates into account (if any). Implemented in function; \code{de_msqrobsum_msqrob}
 #'
+#' **msqrob_fc**: msqrob estimated protein pvalues, but with log2fc values computed by eBayes. This avoids the excessive shrinkage of protein log2fc values by MSqRob, but does use the MSqRob robust peptide regression model for protein p-value estimates (which outperforms eBayes/DEqMS in ROC analyses on most benchmark datasets, so this method is intended as a "best of both worlds")
+#'
 #' **msqrobsum**: implementation of the MSqRob package (which also features MSqRobSum), with minor tweak for (situationally) faster computation (PMID:32321741) <https://github.com/statOmics/msqrob>. This is a hybrid peptide&protein-level DEA algorithm that takes peptide-level data as input; it first performs peptide-to-protein rollup, then applies statistics to this protein-level data matrix. This method will take provided covariates into account (if any). Implemented in function; \code{de_msqrobsum_msqrob}
 #'
 #' @export
 dea_algorithms = function() {
-  return(c("ebayes", "deqms", "msempire", "msqrobsum", "msqrob"))
+  return(c("ebayes", "deqms", "msempire", "msqrobsum", "msqrob")) # , "msqrob_fc"
 }
 
 
@@ -261,9 +263,11 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
           # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
           alg_result = de_msempire(eset_peptides, input_intensities_are_log2 = T)
         } else if(alg == "msqrob") {
-          alg_result = de_msqrobsum_msqrob(eset_peptides, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = NULL, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = FALSE)
+        # } else if(alg == "msqrob_fc") {
+        #   alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = eset_proteins, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = TRUE)
         } else if(alg == "msqrobsum") {
-          alg_result = de_msqrobsum_msqrob(eset_peptides, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = NULL, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = FALSE)
         } else {
           # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
           alg_fun = match.fun(alg) # throws error if not found

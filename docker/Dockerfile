@@ -33,9 +33,9 @@ RUN R -e "devtools::install_version('remaCor', '0.0.18', upgrade = 'never', repo
 ### MS-DAP
 # from local devtools::build() file
 RUN mkdir /msdap
-COPY temp/msdap_1.0.7.tar.gz /msdap/
-RUN R -e "devtools::install_local('/msdap/msdap_1.0.7.tar.gz', upgrade = 'never')"
-# alternatively, install from github; RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.7', upgrade = 'never')"
+COPY temp/msdap_1.0.8.tar.gz /msdap/
+RUN R -e "devtools::install_local('/msdap/msdap_1.0.8.tar.gz', upgrade = 'never')"
+# alternatively, install from github; RUN R -e "devtools::install_github('ftwkoopmans/msdap@1.0.8', upgrade = 'never')"
 
 
 ### finish setting up
