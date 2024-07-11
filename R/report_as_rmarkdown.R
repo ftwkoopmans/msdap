@@ -167,7 +167,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rol
   # copy .Rmd file into temp directory, nested in chosen output dir
   f_newlocation = paste0(output_dir__temp, "/", basename(f))
   if(!file.copy(from = f, to = f_newlocation)) {
-    append_log(paste("failed to move report from", f, "into to the output directory:", f_newlocation), type = "error")
+    append_log(paste("failed to copy report template from", f, "into to the temp directory:", f_newlocation), type = "error")
   }
 
   ### create the actual report

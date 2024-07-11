@@ -651,8 +651,8 @@ normalize_peptide_intensity_column = function(dataset, col_intensity, norm_algor
   if(length(col_intensity) != 1 || !is.character(col_intensity) || ! col_intensity %in% colnames(dataset$peptides)) {
     append_log(sprintf("invalid dataset$peptides column provided to normalize_peptide_intensity_column(). Provided value: %s", paste(col_intensity, collapse = ",")), type = "error")
   }
-  if(!all(is.character(norm_algorithm)) || !any(norm_algorithm != "")) {
-    append_log(sprintf("invalid normalization algorithm provided to normalize_peptide_intensity_column(): must be (and array of) character type and contain at least one non-empty. Provided value: %s", paste(norm_algorithm, collapse = ",")), type = "error")
+  if(any(!is.character(norm_algorithm))) {
+    append_log(sprintf("invalid normalization algorithm provided to normalize_peptide_intensity_column(): must be (and array of) character type. Provided value: %s", paste(norm_algorithm, collapse = ",")), type = "error")
   }
 
   # remove NA values to ensure we remove empty rows and columns

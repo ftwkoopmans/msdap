@@ -254,7 +254,8 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
   ### leave-one-out computation, per group
   tib_loo_cov = tibble()
   plotlist = list()
-  for(grp in unique(samples$group)) { #grp=unique(samples$group)[1]
+  ugrp = unique(samples$group)
+  for(grp in ugrp) { #grp=ugrp[1]
     # samples for current group
     sid = samples %>% filter(group == grp) %>% pull(sample_id)
     # we use the basic filter+normalization data as input, as this has already been pre-selected for bare minimum of detect/quant (less so than filters below) AND normalized, making CoV estimations more reflective of actual data
@@ -370,7 +371,10 @@ ggplot_coefficient_of_variation__leave_one_out = function(tib_input, samples, sa
     scale_color_manual(breaks=names(tib_plot_colors), values = tib_plot_colors, labels=names(tib_plot_colors), aesthetics = c("colour", "fill")) +
     labs(title="Effect of removing a sample prior to CoV computation on within-group CoV\nlower value = better CoV after removing sample s", y="", x="median Coefficient of Variation (%)") +
     theme_bw() +
-    theme(plot.title = element_text(size=10), legend.position = "bottom", legend.title = element_blank())
+    # alternatively, show legend when there are less than N groups. But beware that in large datasets, this causes a bug (plot+legend doesn't fit viewport)
+    # in version 1.0.9 we removed the legend because group names are also shown as rows in the plot (i.e. legend is redundant)
+    # code to reintroduce legend for small datasets only; legend.position = ifelse(length(ugrp) <= 8, "bottom", "none")
+    theme(plot.title = element_text(size=10), legend.position = "none", legend.title = element_blank())
 
   # summary stats we can print as a table, hard to glance from the figures
   tbl_loo_cov = tib_plot %>%

@@ -149,6 +149,7 @@ boxplot_add_text = function(bp, show_N = TRUE, show_values = T, ...) {
 #' }
 #'
 #' @param x a wide-format data.frame or tibble where the first column are assumed to represent unique row identifiers and other columns assumed 'data' columns for the output matrix
+#' @export
 as_matrix_except_first_column = function(x) {
   if (is_tibble(x)) {
     x = as.data.frame(x, stringsAsFactors = F)
@@ -168,6 +169,7 @@ as_matrix_except_first_column = function(x) {
 #' @param column_name target column name for the row names
 #' @param row_name target column name for the column names
 #' @importFrom tidyr gather
+#' @export
 matrix_to_long = function(mat, value_name = "value", column_name = "sample", row_name = "sequence") {
   x = as_tibble(mat)
   x$rownms = rownames(mat)

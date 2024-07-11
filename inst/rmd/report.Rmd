@@ -35,7 +35,7 @@ The first set of quality control figures describes individual samples, thereafte
 
 
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=3}
+```{r chunk_cscore, echo=F, message=F, warning=F, results="asis", fig.height=3}
 if(exists("ggplot_cscore_histograms") && length(ggplot_cscore_histograms) > 0) {
   cat("## DIA confidence score distributions \n\n")
   cat("DIA data was used as input for this analysis. Below histograms visualize both target (green) and decoy (grey) cscores in each sample, indicating how confident the input software was in the identification of peptides from the spectral library in the raw DIA data. Samples are ordered by the number of precursors quantified at q-value confidence threshold 0.01. At this threshold, the respective cscore and number of peptides is shown. \n\n")
@@ -54,7 +54,7 @@ These plots show the number of (target) peptides that are 'detected' per sample.
 Samples in this plot are sorted by their experimental group, and then ordered and by their name within each group. This data is also available in the output table 'samples.xlsx'.
 
 
-```{r}
+```{r chunk_pepcount_setup}
 # plot height scales with number of samples
 barplot_ht = min(9, 1.5 + 0.2 * nrow(dataset$samples))
 
@@ -70,11 +70,11 @@ samples_metadata_counts_colors$sample_jitter = jit[as.numeric(samples_metadata_c
 sm_scatterplot_ht = min(10, 1.5 + 0.2 * length(levels(samples_metadata_counts_colors$prop)))
 ```
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_pepcount_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_dcbp = ggplot_sample_detect_counts_barplots(dataset$samples, samples_colors_long)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
+```{r chunk_pepcount_print, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
 suppressWarnings(print(p_dcbp))
 ```
 
@@ -88,11 +88,11 @@ The figure below provides an overview of all sample metadata at a first glance. 
 
 Note that the visualization of sample metadata in this report depends on user-provided input; each column in the metadata input table (besides sample names) that contains more than 1 unique value is automatically used as a factor for color-coding all figures in this section. All information shown in these figures is also available in the output table 'samples.xlsx'.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_detect_vs_metadata_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_dcvsmetadata_scatter = ggplot_sample_detect_vs_metadata_scatterplot(samples_metadata_counts_colors)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=sm_scatterplot_ht}
+```{r chunk_detect_vs_metadata_print, echo=F, message=F, warning=F, results="asis", fig.height=sm_scatterplot_ht}
 suppressWarnings(print(p_dcvsmetadata_scatter))
 ```
 
@@ -107,11 +107,11 @@ Note that samples flagged as _exclude_ are user-provided in the sample metadata 
 
 For example: the first plot shows color-coding by the 'group' property, so each row represents a sample group. If samples in a particular group systematically yield fewer peptides than another group, a clear pattern will be visible.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_detect_vs_metadata_byprop_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_dcvsmetadata_scatter_byprop = ggplot_sample_detect_vs_metadata_scatterplot_by_prop(samples_metadata_counts_colors)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_detect_vs_metadata_byprop_print, echo=F, message=F, warning=F, results="asis"}
 for(prp in names(p_dcvsmetadata_scatter_byprop)) {
   subchunkify(suppressWarnings(print(p_dcvsmetadata_scatter_byprop[[prp]]$plot)), unique_chunk_id = paste0("detect_vs_metadata_scatterplot_", prp), fig_height = min(10, 1.5 + 0.2 * p_dcvsmetadata_scatter_byprop[[prp]]$n), fig_width = 7)
   cat('\n\n')
@@ -127,11 +127,11 @@ To visualize how many peptides are consistently identified in multiple samples, 
 
 ### cumulative distribution
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_cumdistr_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_datacompleteness = ggplot_peptide_detect_frequency_distribution(dataset$peptides, dataset$samples, include_quant = !isdia, remove_exclude_samples = TRUE)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.width=5, fig.height=5}
+```{r chunk_cumdistr_print, echo=F, message=F, warning=F, results="asis", fig.width=5, fig.height=5}
 suppressWarnings(print(p_datacompleteness))
 ```
 
@@ -145,11 +145,11 @@ Each identified peptide in a sample is classified and color-coded by the number 
 Optimally, the majority of peptides in each sample are red~orange with relatively few uniquely identified peptides (blue~green). Samples are sorted by the total amount of detected peptides.
 
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_detectfreq_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_detectfrequency = ggplot_peptide_detect_frequency(dataset$peptides, dataset$samples)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
+```{r chunk_detectfreq_print, echo=F, message=F, warning=F, results="asis", fig.height=barplot_ht}
 suppressWarnings(print(p_detectfrequency))
 ```
 
@@ -161,11 +161,11 @@ suppressWarnings(print(p_detectfrequency))
 
 The figures in this subsection are used to identify unexpected mass-spec sensitivity or sample loading differences. Peptide data is shown as provided in input files, so peptide filtering nor intensity normalization has been applied yet (for proper QC, make sure the software that generated the input data did not apply normalization prior). If the dataset is DDA, match-between-runs (MBR) peptides are included in these distributions whereas for DIA only 'detected' peptides (based on confidence score threshold) are included.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_abundancedistr_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_intensity = plot_abundance_distributions(dataset$peptides, dataset$samples, isdia)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_abundancedistr_print, echo=F, message=F, warning=F, results="asis"}
 suppressWarnings(print(p_intensity$intensity_distributions_all))
 cat('\n\n')
 for(p in p_intensity$intensity_distributions_bygroup) {
@@ -184,11 +184,11 @@ The figures in this section allow you to identify potential problems during HPLC
 ### retention time distributions 
 The density of the number of peptides eluting at each point in time. The figure below presents an overview of all samples that allows for the identification of outlier samples that follow distinct elution patterns. The following section shows details for each sample. Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_rt_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_rt = plot_retention_time_v2(dataset$peptides, dataset$samples, isdia)
 ```
 
-```{r, echo=F, message=F, warning=F, results="asis"} 
+```{r chunk_rt_print_global, echo=F, message=F, warning=F, results="asis"} 
 suppressWarnings(print(p_rt$rt_distributions_all))
 suppressWarnings(print(p_rt$rt_distributions_colour_groups))
 suppressWarnings(print(p_rt$rt_distributions_collapse_groups))
@@ -201,7 +201,7 @@ The top panel shows the number of peptides in the input data, e.g. as recognized
 
 The middle panel indicates whether peptide retention times deviate from their median over all samples (blue line). The grey area depicts the 5% and 95% quantiles, respectively. The line width corresponds to the number of peptides eluting at that time (data from first panel). Analogously, the bottom panel shows the deviation in peptide abundance as compared to the median over all samples (red line).
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=4.75} 
+```{r chunk_rt_print_bysample, echo=F, message=F, warning=F, results="asis", fig.height=4.75} 
 for(p in p_rt$rt_by_sample) {
   suppressWarnings(print(p))
   cat('\n\n') 
@@ -222,13 +222,13 @@ For each sample group, two plots are shown: 1) a basic monochrome plot and 2) a 
 
 The 'input' panel is based on the peptide intensities as-is (i.e. the user-provided input data from upstream software), the 'normalized' panel shows the exact same samples and peptides after normalization (as specified by user). Samples marked as 'exclude' in the provided sample metadata table are visualized as dashed lines.
 
-```{r echo=F, message=F, warning=F, results='asis'}
+```{r chunk_fcdistr_makeplot, echo=F, message=F, warning=F, results='asis'}
 # returns a list (names are the sample groups), each contains 3 ggplot objects; mono, highlight, legend
 l_fc_distr = suppressWarnings(plot_foldchange_distribution_among_replicates(dataset$peptides, dataset$samples))
 ```
 
 \newpage
-```{r echo=F, message=F, warning=F, results='asis'}
+```{r chunk_fcdistr_main, echo=F, message=F, warning=F, results='asis'}
 p_group_mean_foldchange = l_fc_distr$plotlist
 
 i = 0 # counter for unique chunk IDs
@@ -258,7 +258,7 @@ if(length(l_fc_distr$tib_scores) > 0) {
 
 
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_loo_makeplot, echo=F, message=F, warning=F, results="hide"}
 isplot_cov_loo = FALSE
 p_cov_loo = list()
 if("intensity_qc_basic" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_qc_basic))) {
@@ -269,7 +269,7 @@ if("intensity_qc_basic" %in% colnames(dataset$peptides) && any(!is.na(dataset$pe
 ``` 
 
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_loo_print_bygroup, echo=F, message=F, warning=F, results="asis"}
 cat('\n\\newpage \n')
 cat("### CoV, leave-one-out \n\n")
 if(isplot_cov_loo) {
@@ -286,15 +286,22 @@ if(isplot_cov_loo) {
 }
 ``` 
 
-
-```{r, echo=F, message=F, warning=F, results="asis"}
-if(isplot_cov_loo && "loo_combined" %in% names(p_cov_loo)) {
-  suppressWarnings(print(p_cov_loo$loo_combined))
+```{r chunk_loo_print_combined, echo=F, message=F, warning=F, results="asis"}
+# bugfix: this code should go into a separate chunk from above chunk_loo_print_bygroup
+# otherwise, for unknown reason, the newpage command does not work
+if("loo_combined" %in% names(p_cov_loo)) {
+  # plot height scales with number of groups
+  loo_combined_ht = min(9, 1.5 + 0.3 * length(p_cov_loo$loo_bygroup))
+  cat("\n\n\\newpage\n")
+  subchunkify(suppressWarnings(print(p_cov_loo$loo_combined)), unique_chunk_id = "loo_combined", fig_height = loo_combined_ht, fig_width = 7)
+  cat('\n\n') 
 }
 ``` 
 
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+
+
+```{r chunk_loo_print_table, echo=F, message=F, warning=F, results="asis"}
 if(isplot_cov_loo && "tbl_loo_cov" %in% names(p_cov_loo)) {
   # cat('\n\\newpage \n')
   rmarkdown_xtable_custom(p_cov_loo$tbl_loo_cov, caption = "CoV leave-one-out") #, align="lllllp{3.5in}")
@@ -317,7 +324,7 @@ if(isplot_cov_loo && "tbl_loo_cov" %in% names(p_cov_loo)) {
 
 
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_covpep_makeplot, echo=F, message=F, warning=F, results="hide"}
 isplot_cov = FALSE
 p_cov = list()
 if(any(!is.na(dataset$peptides$intensity_by_group))) {
@@ -327,7 +334,7 @@ if(any(!is.na(dataset$peptides$intensity_by_group))) {
 ``` 
 
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_covpep_print, echo=F, message=F, warning=F, results="asis"}
 cat('\n\\newpage \n')
 cat("### Coefficient of Variation \n\n")
 if(isplot_cov) {
@@ -347,7 +354,7 @@ if(isplot_cov) {
 ``` 
 
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_covprot_makeplot, echo=F, message=F, warning=F, results="hide"}
 isplot_cov_protein = FALSE
 p_cov = list()
 if(isplot_cov) {
@@ -358,7 +365,7 @@ if(isplot_cov) {
 }
 ``` 
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_covprot_print, echo=F, message=F, warning=F, results="asis"}
 if(isplot_cov_protein) {
   cat('\n\\newpage \n')
   cat("**Protein-level CoV:** \n\n(analogous to peptide CoV's, but with additional rollup to protein abundances using '", rollup_algorithm ,"' algorithm) \n\n", sep = "")
@@ -370,7 +377,7 @@ if(isplot_cov_protein) {
 
 
 
-```{r echo=F, message=F, warning=F, results='asis'}
+```{r chunk_varexplained_print, echo=F, message=F, warning=F, results='asis'}
 if(length(p_varexplained) > 0) {
   cat("\n\\newpage \n## variance explained \n\n")
   cat('To investigate sources of biological and technical variation in the dataset, this analysis applies the "variancePartition" R package (Hoffman GE, Schadt EE, 2016, PMID:27884101) which uses a linear mixed model to quantify variation in abundance attributable to (user provided) sample metadata. \n \n')
@@ -401,7 +408,7 @@ As mentioned above, the aim of the PCA figures is to identify global effects. To
 **Figure legends** \
 The first 3 principle components compared visually (1 _vs_ 2, 1 _vs_ 3, 2 _vs_ 3) on the rows. Left- and right-side panels on each row represent the same figure without and with sample labels. The principle components are shown on the axis labels together with their respective percentage of variance explained. Samples marked as 'exclude' in the provided sample metadata, if any, are visualized as square shapes.
 
-```{r, echo=F, message=F, warning=F, results="hide"}
+```{r chunk_pca_makeplot, echo=F, message=F, warning=F, results="hide"}
 p_pca__excl_outliers = p_pca__incl_outliers = list()
 p_pca__excl_outliers__npep = p_pca__incl_outliers__npep = 0
 if(any(dataset$samples$exclude) && "intensity_all_group_withexclude" %in% colnames(dataset$peptides) && any(!is.na(dataset$peptides$intensity_all_group_withexclude))) {
@@ -428,7 +435,7 @@ if("intensity_all_group" %in% colnames(dataset$peptides) && any(!is.na(dataset$p
 ```
 
 
-```{r, echo=F, message=F, warning=F, results="asis", fig.height=9.5, fig.pos='h'}
+```{r chunk_pca_print, echo=F, message=F, warning=F, results="asis", fig.height=9.5, fig.pos='h'}
 if(length(p_pca__incl_outliers) > 0) {
   cat('\n\\newpage \n')
   cat(sprintf("\n**PCA of all samples, including those flagged as \'exclude\', using %d peptides** \\ \n", p_pca__incl_outliers__npep))
@@ -456,7 +463,7 @@ if(length(p_pca__excl_outliers) > 0) {
 
 
 
-```{r echo=F, message=F, warning=F, results='asis'}
+```{r chunk_dea, echo=F, message=F, warning=F, results='asis'}
 if(length(l_contrast) > 0) {
   cat("\n\\newpage \n# Differential abundance analysis \n\n")
   
@@ -562,7 +569,7 @@ all replicates of condition A). \n\n')
 
 
 
-```{r, echo=F, message=F, warning=F, results="asis"} 
+```{r chunk_statsumm, echo=F, message=F, warning=F, results="asis"} 
 if(exists("tib_report_stats_summary") && is.data.frame(tib_report_stats_summary) && nrow(tib_report_stats_summary) > 0) {
   cat("\n\\newpage \n# Summary of differential testing \n\n")
   cat('Differential expression analysis (DEA): summary of significant proteins. The "signif" column indicates the number of significant hits at user-provided thresholds for adjusted p-value and foldchange. Columns "q<0.01" and "q<0.05" show the number of significant hits at 1% and 5% FDR cutoffs, respectively. The top10 proteingroups with strongest p-value per contrast and DEA algorithm is shown in the last column (note that these may include non-significant proteins, i.e. even if there are no significant hits the top10 is still shown). \n\n')
@@ -602,7 +609,7 @@ if(exists("tib_report_stats_summary") && is.data.frame(tib_report_stats_summary)
 \definecolor{textColorSuccess}{RGB}{1,128,35}
 \definecolor{textColorGray}{RGB}{85,85,85}
 
-```{r, results = 'asis', echo = F}
+```{r chunk_log, results = 'asis', echo = F}
 if(exists("log_") && length(log_) > 0) {
   cat('\n\\newpage \n')
   cat('# log \n')
@@ -656,7 +663,7 @@ Do not use RStudio's `source` option to execute our pipeline since it will only 
 
 \scriptsize
 
-```{r, results = 'asis', echo = F}
+```{r chunk_code, results = 'asis', echo = F}
 #, you can reset these through the RStudio UI before making your 'final' analysis to generate a clean 'code log' (for advanced users, you can start your script with `rstudioapi::executeCommand("clearHistory")` to clear history)
 
 # update: we now first subset the R command history from the last "import_dataset..." on, then format the R code. So prior R code/commands that are 'unparsable' will not affect the pretty-printing of the subset of code that we want to display here
@@ -687,7 +694,7 @@ if(grepl("^\\s*source\\s*\\(", tail(history_as_string, 1))) {
 
 The computer system and versioning of all R packages used to run this analysis are shown below to facilitate, in combination with the previous section, reproducibility.
 
-```{r, echo=F, message=F, warning=F, results="asis"}
+```{r chunk_sessioninfo, echo=F, message=F, warning=F, results="asis"}
 tmp = devtools::session_info()
 tib_platform = tibble(setting = names(tmp$platform), value = unlist(tmp$platform))
 tib_packages = as_tibble(tmp$packages)
