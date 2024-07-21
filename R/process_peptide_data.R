@@ -172,7 +172,10 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
     summarise(
       accessions = paste(acc, collapse = ";"),
       fasta_headers = paste(header, collapse = ";"),
-      # for genes; take unique values, remove NA, remove strings of less than 2 characters
+      # full list of gene symbols, NA where missing
+      gene_symbols = paste(ifelse(is.na(gene) | nchar(gene) < 2, "-", gene), collapse = ";"), # for consistency, collapse
+      # gene_symbols = list(ifelse(is.na(gene) | nchar(gene) < 2, NA_character_, gene)), # alternatively, store as list
+      # gene_symbols_or_id; take unique values, remove NA, remove strings of less than 2 characters
       gene_symbols_or_id = paste(remove_by_charlength(unique(gene_symbols_or_id), minchar = 2), collapse = ";")
     )
 

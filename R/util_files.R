@@ -234,13 +234,14 @@ filename_strip_illegal_characters = function(f, strict = FALSE, replacement = "_
 #' @param as_table boolean, TRUE = results from data.table::fread(), FALSE = results from readr::read_lines() (default)
 #' @param skip_empty_rows ignore empty rows (default: FALSE)
 #' @param nrow optionally, integer specifying to only read first N rows
+#' @param datatable_skip hardcoded parameter for datatable_skip (set NULL to ignore; default)
 #' @param ... sent to data.table::fread()
 #' @return NULL if path doesn't exist or file could not be read / decompressed (warnings/errors are silent)
 #' @importFrom archive file_read archive_read
 #' @importFrom readr read_lines
 #' @importFrom data.table fread
 #' @export
-read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FALSE, nrow = -1, ...) {
+read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FALSE, nrow = -1, datatable_skip = NULL, ...) {
   # TODO: generate warning when as_table && skip_empty_rows -->> disabled
   if(length(file) != 1 || !is.character(file) || !file.exists(file)) {
     return(NULL)
@@ -282,7 +283,15 @@ read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FA
     ### user requested a table
     if(as_table) {
       if(!ext_assume_compressed) {
-        x = data.table::fread(file = file, nrows = nrow, ...) #, blank.lines.skip = FALSE
+        if(nrow > 0) {
+          x = data.table::fread(file = file, nrows = nrow, ...) #, blank.lines.skip = FALSE
+        } else {
+          if(!is.null(datatable_skip)) {
+            x = data.table::fread(file = file, skip = datatable_skip, ...) #, blank.lines.skip = FALSE
+          } else {
+            x = data.table::fread(file = file, ...) #, blank.lines.skip = FALSE
+          }
+        }
       }
       if(ext_assume_compressed && length(x) > 0) {
         # bugfix; data.table::fread() doesn't accept input that is a single line without end-of-line character
@@ -290,7 +299,11 @@ read_textfile_compressed = function(file, as_table = FALSE, skip_empty_rows = FA
           x = paste0(x, "\n")
         }
         # input file is compressed, assume we already uncompressed and read all lines
-        x = data.table::fread(text = x, ...) # don't need blank skip nor nrow argument, already done @ read_lines()
+        if(!is.null(datatable_skip)) {
+          x = data.table::fread(text = x, skip = datatable_skip, ...) # don't need blank skip nor nrow argument, already done @ read_lines()
+        } else {
+          x = data.table::fread(text = x, ...) # don't need blank skip nor nrow argument, already done @ read_lines()
+        }
       }
     }
 
@@ -452,7 +465,7 @@ robust_header_matching = function(x, column_spec, columns_required) {
     # halt if required columns are missing
     if(length(col) == 0 && names(column_spec)[i] %in% columns_required) {
       append_log(sprintf("invalid data table; cannot find column '%s' while testing for column names %s",
-                         names(column_spec)[1], paste(cols[[i]], collapse = ", ")), type = "error")
+                         names(column_spec)[1], paste(column_spec[[i]], collapse = ", ")), type = "error")
     }
     if(length(col) > 0) {
       col = col[1] # in case of multiple matches, take the first

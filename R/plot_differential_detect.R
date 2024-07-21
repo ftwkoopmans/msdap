@@ -5,7 +5,7 @@
 #' @param zscore_threshold cutoff used in the plot (for absolute values)
 #' @returns list of ggplot objects with 1 plot per contrast. If no differential detection data is available, returns an empty list
 #' @export
-plot_differential_detect = function(dataset, zscore_threshold = 4) {
+plot_differential_detect = function(dataset, zscore_threshold = 6) {
   result = list()
   if(!"dd_proteins" %in% names(dataset) || nrow(dataset$dd_proteins) == 0) {
     return(result)

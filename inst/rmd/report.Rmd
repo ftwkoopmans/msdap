@@ -550,10 +550,10 @@ As general guidelines for differential detection, the recommended default settin
 were observed with at least 2 peptides in at least 3 replicates (or 50% of replicates, whichever number is greater). 
 Use the plots of differential detection z-score histograms to observe the overall distribution and start your data 
 exploration at proteins with the strongest z-scores to find desired z-score cutoffs (typically an absolute z-score 
-of 4~5, but this is not set in stone for all datasets). This works best for DDA experiments, for DIA only the most 
+of 5 or higher, but this is not set in stone for all datasets). This works best for DDA experiments, for DIA only the most 
 extreme values are informative in many cases (e.g. proteins exclusively identified in condition A & found in nearly 
 all replicates of condition A). \n\n')
-      cat('Below figure shows the distribution of these scores with thresholds at 4 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
+      cat('Below figure shows the distribution of these scores with thresholds at 6 std. Both the z-scores and the counts these are based upon are available in the statistical result Excel table. \n\n')
       
       # !! index by name. Order may be different from l_contrasts !!
       subchunkify(suppressWarnings(print(dd_plots[[contr]])), unique_chunk_id = paste0("dd_hist_", contr_index), fig_height = ifelse(isdia, 3, 5.5), fig_width = 5)
@@ -583,7 +583,7 @@ if(exists("tib_report_stats_summary") && is.data.frame(tib_report_stats_summary)
   ## differential detect
   cat('\\bigskip \n\n')
   cat('\\bigskip \n\n')
-  cat("Differential detection: summary of proteins with extreme differences in observed peptides. A simple metric to complement results from DEA, which is the main result, for peptides that lack data to perform DEA. \n\nDifferential detection scores based only on 'detected' peptides; \n\n")
+  cat("Differential detection: summary of proteins with extreme differences in observed peptides. A simple metric to complement results from DEA, which is the main result, especially for proteins that lack data to perform DEA. \n\nDifferential detection scores based only on 'detected' peptides; \n\n")
   if(exists("tib_report_diffdetects_summary") && is.data.frame(tib_report_diffdetects_summary) && nrow(tib_report_diffdetects_summary) > 0) {
     rmarkdown_xtable_custom(tib_report_diffdetects_summary, caption = "Differential Detection @ only 'detected' peptides", align="lp{2in}llp{3.5in}", scalebox = 0.9)
     # print(kableExtra::column_spec(knitr::kable(tib_report_diffdetects_summary, format="latex", row.names = FALSE), 4, width = "4in"))

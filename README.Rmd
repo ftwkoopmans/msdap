@@ -103,7 +103,7 @@ dataset = analysis_quickstart(
   filter_fraction_quant = 0.75,     # analogous for quantitative values
   filter_min_peptide_per_prot = 1,  # minimum number of peptides per protein (after applying above filters) required for DEA. Set this to 2 to increase robustness, but note that'll discard approximately 25% of proteins in typical datasets (i.e. that many proteins are only quantified by 1 peptide)
   filter_by_contrast = TRUE,        # only relevant if dataset has 3+ groups. For DEA at each contrast, filters and normalization are applied on the subset of relevant samples within the contrast for efficiency, see further MS-DAP manuscript. Set to FALSE to disable and use traditional "global filtering" (filters are applied to all sample groups, same data table used in all statistics)
-  norm_algorithm = c("vsn", "modebetween_protein"), # normalization; first vsn, then modebetween on protein-level (applied sequentially so the MS-DAP modebetween algorithm corrects scaling/balance between-sample-groups)
+  norm_algorithm = c("vsn", "modebetween_protein"), # normalization; first vsn, then modebetween on protein-level (applied sequentially so the MS-DAP modebetween algorithm corrects scaling/balance between-sample-groups). "mwmb" is a good alternative for "vsn"
   dea_algorithm = c("deqms", "msempire", "msqrob"), # statistics; apply multiple methods in parallel/independently
   dea_qvalue_threshold = 0.01,                      # threshold for significance of adjusted p-values in figures and output tables
   dea_log2foldchange_threshold = NA,                # threshold for significance of log2 foldchanges. 0 = disable, NA = automatically infer through bootstrapping
@@ -122,6 +122,73 @@ print_dataset_summary(dataset)
 # 7) All done! Check out the generated files in the output directory, starting with report.pdf
 ```
 
+
+### Creating gene-level summaries of statistical analysis results
+
+_this requires MS-DAP version 1.10 or later_
+
+To expedite downstream analysis, MS-DAP includes a function that maps the proteingroup results from your 
+differential expression analysis to Human gene identifiers and exports these as Excel tables that are ready for
+use with GO tools. Optionally, one can also include results from differential detection analysis.
+Multiple proteingroups that map to the same unique gene are merged and there are various options
+for dealing with ambiguous proteingroups. 
+
+The resulting output tables can be used as input with the [GOAT online geneset analysis tool](https://ftwkoopmans.github.io/goat/)
+
+Further details on available parameters and a description of all columns in the output tables are available in this function's documentation; issue the R command `?export_stats_genesummary` to open the respective help page in RStudio.
+
+**First, obtain the required database files**
+
+- HGNC human database
+  - direct download link, right-click and select "save as": <https://ftp.ebi.ac.uk/pub/databases/genenames/hgnc/tsv/hgnc_complete_set.txt>
+    - alternatively, go to the HGNC website <https://www.genenames.org/download/statistics-and-files/> -> search for the text "Complete HGNC approved dataset" -> download the "TXT" table
+    - _the filename you need is "hgnc_complete_set.txt"_
+
+- MGI mouse database; only needed for Mouse datasets
+  - direct download link, right-click and select "save as": <https://www.informatics.jax.org/downloads/reports/MRK_SwissProt_TrEMBL.rpt>
+    - _the filename you need is "MRK_SwissProt_TrEMBL.rpt"_
+
+- RGD rat database; only needed for Rat datasets
+  - direct download link, right-click and select "save as": <https://download.rgd.mcw.edu/data_release/GENES_RAT.txt>
+    - _the filename you need is "GENES_RAT.txt"_
+
+pro tip: rename the files you downloaded to include the current date (e.g. "hgnc_complete_set__2024-01-01.txt"). This makes it easy to track versions of files/databases you use across analyses and reproduce your results later.
+
+**example code snippet**
+
+``` 
+
+hgnc_table = hgnc_lookuptable("C:/DATA/hgnc_complete_set__2024-01-01.txt")   # <<EDIT THIS FILENAME>>
+
+# MGI Mouse database, only needed for Mouse datasets
+#mgi_table = mgi_lookuptable("C:/DATA/MRK_SwissProt_TrEMBL__2024-01-01.rpt")  # <<EDIT THIS FILENAME>>
+# RGD Rat database, only needed for Rat datasets
+#rgd_table = rgd_lookuptable("C:/DATA/GENES_RAT__2024-01-01.rpt")  # <<EDIT THIS FILENAME>>
+
+
+# refer to this function's R documentation for additional details
+export_stats_genesummary(
+  dataset,
+  # set NA to ignore differential detection (default), or define an absolute zscore threshold (e.g. 6)
+  # ! when using diffdetect, first review the zscore distributions using MS-DAP function: plot_differential_detect()
+  diffdetect_zscore_threshold = NA,
+  # options for dealing with proteingroups that map to multiple genes:
+  # "leading_gene" = use only the leading/first gene per proteingroup. e.g. "GRIA1;GRIA2" is mapped to "GRIA1" and will overwrite a specific "GRIA1" proteingroup if (and only if) the former has a lower p-value
+  # "prio_specific" = discard ambiguous proteingroups if their leading/first gene overlaps with a specific proteingroup. e.g. "GRIA1;GRIA2" is mapped to "GRIA1" only if there is no specific/unambiguous "GRIA1" proteingroup
+  # "only_specific" = all ambiguous proteingroups are discarded
+  gene_ambiguity = "prio_specific", # prio_specific and only_specific are recommended
+  # HGNC data table is always required
+  hgnc = hgnc_table,
+  # example: for Mouse datasets, provide the MGI database for more accurate ID mapping
+  # xref = mgi_table,
+  # example: for Rat datasets, provide the RGD database for more accurate ID mapping
+  # xref = rgd_table,
+  # write output files to the same directory as main MS-DAP results by using the `dataset$output_dir` variable
+  # alternatively, provide a valid path. e.g. output_dir="C:/temp" # use forward slashes
+  output_dir = dataset$output_dir
+)
+
+```
 
 
 
@@ -148,7 +215,6 @@ Bioinformatic analyses beyond the typical MS-DAP workflow are described in the f
 
 - [introduction to MS-DAP](doc/intro.md)    (start here)
 - [user guide: details the main R functions](doc/userguide.md)
-- [summarizing results from statistics + gene ID mapping](doc/stats_summary.md)
 - [bioinformatics: differential expression analysis (DEA)](doc/differential_expression_analysis.md)
 - [bioinformatics: differential detection](doc/differential_detection.md)
 - [bioinformatics: plugin custom normalization or DEA](doc/custom_norm_dea.md)
@@ -158,12 +224,7 @@ Bioinformatic analyses beyond the typical MS-DAP workflow are described in the f
 
 ## Roadmap
 
-- currently working on;
-	- additional data visualization for the PDF report
-	- advanced experimental designs for eBayes/DEqMS (i.e. more flexibility in creating design matrices for limma)
-	- implement various imputation approaches, and apply extensive benchmarking evaluation
-- planned
-	- plugins for more statistical methods  &  extensive benchmarking evaluation
-		- e.g. existing methods / new tools currently in development in other labs (write plugin to help beta-test and benchmark) / port methods currently not available in R
-	- approaches for combining test statistics when applying multiple independent DEA methods
-
+- advanced experimental designs for eBayes/DEqMS (i.e. more flexibility in creating design matrices for limma)
+- implement various imputation approaches
+- plugins for more statistical methods
+	- e.g. existing methods / new tools currently in development in other labs (write plugin to help beta-test and benchmark)

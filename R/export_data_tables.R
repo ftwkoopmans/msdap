@@ -93,13 +93,10 @@ export_protein_abundance_matrix = function(dataset, rollup_algorithm, output_dir
     m = m[ , order(match(colnames(m), dataset$samples$sample_id)), drop=F]
 
     # add protein metadata
-    tib = dataset$proteins %>% inner_join(as_tibble(m) %>% add_column(protein_id = rownames(m)), by="protein_id") %>% arrange(protein_id)
-    if("accessions" %in% colnames(tib)) {
-      tib = tib %>% select(-accessions) # not useful for user, redundant with protein_id column in virtually all datasets
-    }
-    if("gene_symbols_or_id" %in% colnames(tib)) {
-      tib = tib %>% arrange(gene_symbols_or_id!=protein_id, gene_symbols_or_id) # proteins without gene symbol first, then sort by symbol
-    }
+    tib = dataset$proteins %>%
+      select(protein_id, fasta_headers, gene_symbols_or_id) %>%
+      inner_join(as_tibble(m) %>% add_column(protein_id = rownames(m)), by="protein_id") %>%
+      arrange(gene_symbols_or_id!=protein_id, gene_symbols_or_id) # proteins without gene symbol first, then sort by symbol
 
     ## write to file
     # generate filename. if very long (eg; huge contrast name + long path in output_dir), try to shorting with md5 hash

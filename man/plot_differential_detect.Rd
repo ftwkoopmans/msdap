@@ -4,7 +4,7 @@
 \alias{plot_differential_detect}
 \title{Plot differential detection results as a histogram}
 \usage{
-plot_differential_detect(dataset, zscore_threshold = 4)
+plot_differential_detect(dataset, zscore_threshold = 6)
 }
 \arguments{
 \item{dataset}{dataset object}

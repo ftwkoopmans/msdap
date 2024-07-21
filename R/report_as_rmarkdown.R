@@ -120,7 +120,7 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rol
 
   ### differential detect
   if("dd_proteins" %in% names(dataset) && is.data.frame(dataset$dd_proteins) && nrow(dataset$dd_proteins) > 0) {
-    dd_plots = plot_differential_detect(dataset)
+    dd_plots = plot_differential_detect(dataset, zscore_threshold = 6)
   }
 
 

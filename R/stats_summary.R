@@ -2,52 +2,24 @@
 #' Summarize DEA and/or differential detection results in a dataset into a table with a single statistic per gene
 #'
 #' @description
-#' For differential detection, the z-scores are converted to p-values by `pnorm(abs(zscore), lower.tail = F)` ,
-#' assuming these are normally distributed, and multiple testing correction by FDR is applied.
-#' However, this is just an approximation; the differential detection scores are inferior to DEA analyses and should be treated with care.
-#' Stringent cutoffs (diffdetect_zscore_threshold of at least 4 ~ 6) are encouraged when using differential detection results.
 #'
-#' For DEA, the criteria for significance that were previously configured when performing DEA using `dea()` or
-#' `analysis_quickstart()` functions are reused here (i.e. cutoffs for adjusted p-value and log2 foldchange).
+#' In most cases, you probably want to use the `export_stats_genesummary()` function instead.
+#' That is a wrapper function that uses this function but also adds additional functionality.
+#' For documentation on the output table, also refer to that function.
 #'
-#' If `return_dea` and `return_diffdetect` are both set to TRUE, the effectsizes from each statistic/result are standardized.
-#' This makes both statistics more comparable but the downside is that the effectsizes are no longer the exact effectsizes returned by the DEA model.
-#'
-#' Note that if your dataset contains results for multiple contrasts and multiple DEA algorithms,
-#' these will all be appended into the result table so make sure to filter the results by 'contrast' and
-#' 'dea_algorithm' columns where appropriate.
-#'
-#' @examples \dontrun{
-#'   # summarise the DEA results (and ignore the more speculative differential detect data)
-#'   x = summarise_stats(dataset, return_dea = TRUE, return_diffdetect = FALSE,
-#'                       remove_ambiguous_proteingroups = FALSE)
-#'
-#'   # first plot all differential detect results as histograms to verify the zscore cutoff
-#'   tmp = lapply(plot_differential_detect(dataset), print)
-#'   # merge both DEA and differential-detect 'extremes' into a gene-level stats summary
-#'   x = summarise_stats(dataset, return_dea = TRUE, return_diffdetect = TRUE,
-#'                       diffdetect_zscore_threshold = 5, remove_ambiguous_proteingroups = FALSE)
-#' }
 #' @param dataset dataset where dea() and/or differential_detect() has been applied
 #' @param return_dea boolean, set to TRUE to include DEA results in the stats table that returns 1 value per gene (setting TRUE for both DEA and DD will merge results)
 #' @param return_diffdetect analogous to `return_dea`, but setting this to TRUE includes differential detection results
 #' @param dea_logfc_as_effectsize optionally, the resulting effectsize column can be populated with standardized foldchange values (effectsize = log2fc / sd(log2fc)).
 #' When including differential detection results this'll be a convenient approach to getting 1 standardized distribution of DEA+DD effectsizes that can be used in e.g. GO analyses.
 #' While this is unusual, one could e.g. use this for DEA algorithms that apply shrinkage to estimated foldchanges such as MSqRob
-#' @param diffdetect_zscore_threshold differential detect z-score cutoff. A typical value would be `diffdetect_zscore_threshold=4` , or 5~6 for stringent filtering.
+#' @param diffdetect_zscore_threshold differential detect z-score cutoff. A typical value would be 5 or 6 (default)
 #' To plot histograms of the respective z-score distributions and inspect potential cutoff values for this relatively arbitrary metric, see below example code
-#' @param remove_ambiguous_proteingroups boolean parameter indicating whether proteingroups that contain shared gene symbols (e.g. GRIA1;GRIA2) should be removed
-#' @returns \itemize{
-#' \item The effectsize column data depends on the user parameters/configuration;
-#' When only differential detect is used, this contains the z-scores. When only DEA is used, this contains effectsizes from DEA as-is.
-#' However, when DEA and differential detect are combined, the effectsizes from DEA are standardized (divided by std) such that effectsizes from
-#' both statistics are integrated into 1 distribution (and thus these can be compared/ranked in downstream analyses).
-#' \item 'gene_symbols_or_id' contains the uniprot gene symbols for respective accessions in the proteingroup (protein_id column) as per usual in MS-DAP.
-#' \item The 'symbol' column contains the first gene symbol thereof (e.g. in ambiguous groups where gene_symbols_or_id='GRIA1;GRIA2', this'll yield 'GRIA1').
-#' \item the 'dea_algorithm' column shows the DEA algorithm that was used. Importantly, even differential detect results that were merged into results for this DEA algorithm have the same dea_algorithm value so you can group/filter by the entire analysis downstream.
-#' }
-#' @export
-summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE, dea_logfc_as_effectsize = FALSE, diffdetect_zscore_threshold = 4, remove_ambiguous_proteingroups = FALSE) {
+#' @param diffdetect_type type of differential detect scores. options:
+#' 'auto' = set to 'detect' if this score is available, 'quant' otherwise
+#' 'detect' = differential detection z-scores computed from only "detected" peptides (no MBR)
+#' 'quant' = differential detection z-scores computed from all quantified peptides (uses MBR)
+summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE, dea_logfc_as_effectsize = FALSE, diffdetect_zscore_threshold = 6, diffdetect_type = "auto") {
   if(length(return_dea) != 1 || ! return_dea %in% c(TRUE, FALSE)) {
     append_log("return_dea must be single boolean", type = "error")
   }
@@ -88,8 +60,9 @@ summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE
         dea_algorithm = iter_algo_de,
         dea_logfc_as_effectsize = dea_logfc_as_effectsize,
         diffdetect_zscore_threshold = diffdetect_zscore_threshold,
-        remove_ambiguous_proteingroups = remove_ambiguous_proteingroups
+        diffdetect_type = diffdetect_type
       )
+      if(is.null(tmp)) next
       if(!is.na(iter_algo_de)) {
         tmp = tmp %>% add_column(dea_algorithm = iter_algo_de, .after = 2)
       }
@@ -111,8 +84,8 @@ summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE
 #' @param dea_algorithm DEA algorithm as used in `dea()` upstream
 #' @param dea_logfc_as_effectsize see `summarise_stats()`
 #' @param diffdetect_zscore_threshold see `summarise_stats()`
-#' @param remove_ambiguous_proteingroups see `summarise_stats()`
-summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect, contr, dea_algorithm, dea_logfc_as_effectsize, diffdetect_zscore_threshold, remove_ambiguous_proteingroups) {
+#' @param diffdetect_type see `summarise_stats()`
+summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect, contr, dea_algorithm, dea_logfc_as_effectsize, diffdetect_zscore_threshold, diffdetect_type) {
   if(!is.list(dataset)) {
     append_log("invalid dataset", type = "error")
   }
@@ -140,9 +113,10 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
   if(length(diffdetect_zscore_threshold) != 1 || !is.numeric(diffdetect_zscore_threshold) || !is.finite(diffdetect_zscore_threshold) || diffdetect_zscore_threshold < 0) {
     append_log("diffdetect_zscore_threshold must be a single positive numeric value", type = "error")
   }
-  if(length(remove_ambiguous_proteingroups) != 1 || ! remove_ambiguous_proteingroups %in% c(TRUE, FALSE)) {
-    append_log("remove_ambiguous_proteingroups must be single boolean", type = "error")
+  if(length(diffdetect_type) != 1 || ! diffdetect_type %in% c("auto", "detect", "quant")) {
+    append_log("diffdetect_type must be aany of; auto, detect, quant", type = "error")
   }
+
 
   param_dea_algorithm = dea_algorithm
 
@@ -168,13 +142,28 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
     dd = dataset$dd_proteins %>% filter(contrast == contr & is.finite(zscore))
 
     if(nrow(dd) > 0) {
-      # results might contain both detect and quant, or only one of the other
-      dd_type = unique(dd$type)
-      if("detect" %in% dd_type) {
-        dd_type = "detect"
+      # results might contain both detect and quant, or only one of these
+      dd_type_available = unique(dd$type)
+      dd_type = ''
+      # auto = prefer detect
+      if(diffdetect_type == "auto") {
+        if("detect" %in% dd_type_available) {
+          dd_type = "detect"
+        } else {
+          dd_type = "quant"
+        }
       } else {
-        dd_type = dd_type[1]
+        # catch mismatch between parameter and available data
+        if(diffdetect_type == "detect" && ! "detect" %in% dd_type_available) {
+          append_log("diffdetect_type parameter is set to 'detect', but there are no differential detection results of this type (consider setting this parameter to 'auto' instead)", type = "error")
+        }
+        if(diffdetect_type == "quant" && ! "quant" %in% dd_type_available) {
+          append_log("diffdetect_type parameter is set to 'quant', but there are no differential detection results of this type (consider setting this parameter to 'auto' instead)", type = "error")
+        }
+        # finally, set dd_type to user parameter (which is not 'auto' here)
+        dd_type = diffdetect_type
       }
+
 
       # subset the DD results for the selected contrast @ type and z-score cutoff
       dd = dd %>%
@@ -201,7 +190,8 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
       append_log("DEA results are requested but the provided MS-DAP dataset has none. Did you forget to run the analysis_quickstart() or dea() function ?", type = "error")
     }
     if( ! contr %in% dataset$de_proteins$contrast) {
-      append_log(sprintf("selected contrast '%s' is not available in the DEA results; please re-run dea() to ensure data is available for all contrasts specified for this dataset", contr), type = "error")
+      append_log(sprintf("'%s' is not available in the DEA results; either dea/quickstart_analysis was not applied, or DEA failed for this contrast (please refer to the earlier MS-DAP log)", contr), type = "warning")
+      return(NULL)
     }
 
     dea = dataset$de_proteins %>%
@@ -254,6 +244,9 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
       mutate(peptide_count = peptides_used_for_dea, log2fc = log2fc_dea, effectsize = effectsize_dea_std, pvalue = pvalue_dea, pvalue_adjust = pvalue_adjust_dea,
              score_type = ifelse(is.na(pvalue_dea), NA, "dea"))
 
+    rows_low_dea_notsignif = is.finite(result$pvalue_dea) & is.finite(result$pvalue_dd) & !result$signif_dea %in% TRUE
+    rows_low_dea_signif    = is.finite(result$pvalue_dea) & is.finite(result$pvalue_dd) & result$signif_dea %in% TRUE
+
     # overwrite DEA statistics where Differential Detect (DD) has stronger result
     # (but note that we only consider the set of 'strong' DD scores, e.g. we don't overwrite poor DEA p-values with slightly better DD results)
     rows_na        = !is.finite(result$pvalue_dea) & is.finite(result$pvalue_dd)
@@ -272,8 +265,8 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
       filter(is.finite(pvalue)) %>%
       select(protein_id, score_type, peptide_count, log2fc, effectsize_dea, effectsize, pvalue, pvalue_adjust, signif)
 
-    log = sprintf("%smerging DEA results from %s and differential detect (score type '%s'), the latter contributed to %d / %d proteingroups (%d without DEA, %d stronger than DEA).",
-                  log, param_dea_algorithm, dd_type, sum(rows_na | rows_stronger), length(rows_na), sum(rows_na), sum(rows_stronger))
+    log = sprintf("%smerging DD (type '%s', threshold %s) with %s (DEA) results contributed to %d / %d proteingroups (%d not tested in DEA, %d not DEA 'signif', %d DEA 'signif').",
+                  log, dd_type, diffdetect_zscore_threshold, param_dea_algorithm, sum(rows_na | rows_stronger), length(rows_na), sum(rows_na), sum(rows_low_dea_notsignif), sum(rows_low_dea_signif))
   }
 
 
@@ -284,28 +277,13 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
 
   result = result %>%
     # add (leading) gene symbols
-    left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by = "protein_id") %>%
+    left_join(dataset$proteins %>% select(protein_id, gene_symbols, gene_symbols_or_id), by = "protein_id") %>%
     mutate(symbol = gsub(";.*", "", gene_symbols_or_id)) %>%
     # add contrast
     add_column(contrast = contr, .after = 1) %>%
     arrange(desc(signif), pvalue)
 
 
-  # finally, retain 1 row per gene
-  # this crucially depends on upstream sorting of the table
-  if(remove_ambiguous_proteingroups) {
-    # remove all proteingroups with multiple genes, then retain unique genes
-    result = result %>% filter(!grepl(";", gene_symbols_or_id, fixed = TRUE)) %>% distinct(gene_symbols_or_id, .keep_all = T)
-  } else {
-    # retain all unique shared gene symbols
-    result = result %>% distinct(gene_symbols_or_id, .keep_all = T)
-  }
-
-  append_log(sprintf(
-    "%s;  %s  %d/%d(%.1f%%) gene symbols in the final result table are foreground.",
-    contr, log,
-    sum(result$signif), nrow(result), sum(result$signif)/nrow(result) * 100
-  ), type = "info")
-
+  append_log(sprintf("%s;  %s", contr, log), type = "info")
   return(result)
 }

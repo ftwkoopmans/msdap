@@ -275,7 +275,7 @@ tibble_peptides_reorder = function(tib) {
 #' @param peptides peptide tibble in long format
 empty_protein_tibble = function(peptides) {
   uprot = unique(peptides$protein_id)
-  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols_or_id = uprot))
+  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols = uprot, gene_symbols_or_id = uprot))
 }
 
 
@@ -314,7 +314,7 @@ diffdetect_summary_prettyprint = function(dataset, use_quant = FALSE, trim_contr
     # summary stats per contrast
     group_by(contrast) %>%
     summarise(`#proteins` = n(),
-              `#abs(zscore) >= 4` = sum(abs(zscore) >= 4),
+              `#abs(zscore) >= 6` = sum(abs(zscore) >= 6),
               `top10` = tolower(paste(stringr::str_trunc(head(gene_symbols_or_id, 10), width = 10, side = "right"), collapse=", ") )) %>%
     ungroup() %>%
     # sort contrasts in same order as defined by user

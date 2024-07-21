@@ -7,8 +7,8 @@ dataset = import_dataset_metamorpheus(path = "C:/VU/code/R/msdap/docker/temp/exa
 
 dataset = import_fasta(
   dataset,
-  files = c("C:/VU/fasta/UniProt_2018-05/UP000000589_10090.fasta",
-            "C:/VU/fasta/UniProt_2018-05/UP000000589_10090_additional.fasta")
+  files = c("C:/VU/fasta/uniprot/2018_05/UP000000589_10090.fasta",
+            "C:/VU/fasta/uniprot/2018_05/UP000000589_10090_additional.fasta")
 )
 
 dataset = remove_proteins_by_name(dataset, regular_expression = "ig \\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)") # optional

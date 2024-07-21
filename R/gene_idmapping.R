@@ -14,15 +14,17 @@
 #' @returns a long-format table with columns; hgnc_id, hgnc_symbol, type, value
 #' @export
 hgnc_lookuptable = function(f) {
-  check_parameter_is_string(f)
-  if(!file.exists(f)) {
-    append_log(paste("file does not exist:", f), type = "error")
-  }
-
   result = NULL
+  check_parameter_is_string(f)
 
   # parse HGNC table from disk
-  hgnc = data.table::fread(f, data.table = F, stringsAsFactors = F)
+  f = path_exists(f, NULL, try_compressed = TRUE)
+  hgnc = as_tibble(read_textfile_compressed(f, as_table = TRUE))
+  # if(!file.exists(f)) {
+  #   append_log(paste("file does not exist:", f), type = "error")
+  # }
+  # hgnc = data.table::fread(f, data.table = F, stringsAsFactors = F)
+
 
   # check that all required columns are present + rename columns
   cols = list(
@@ -164,12 +166,16 @@ hgnc_lookuptable = function(f) {
 #' @export
 mgi_lookuptable = function(f) {
   check_parameter_is_string(f)
-  if(!file.exists(f)) {
-    append_log(paste("file does not exist:", f), type = "error")
-  }
+
+  # parse HGNC table from disk
+  f = path_exists(f, NULL, try_compressed = TRUE)
+  x = as_tibble(read_textfile_compressed(f, as_table = TRUE, header = FALSE))
+  # if(!file.exists(f)) {
+  #   append_log(paste("file does not exist:", f), type = "error")
+  # }
+  # x = data.table::fread(f, data.table = FALSE, stringsAsFactors = FALSE, header = FALSE)
 
   # MGI Marker Accession ID | Marker Symbol | Status | Marker Name | cM Position | Chromosome | SWISS-PROT/TrEMBL Protein Accession IDs (space-delimited)
-  x = data.table::fread(f, data.table = FALSE, stringsAsFactors = FALSE)
   if(ncol(x) != 7) {
     append_log(paste0("invalid MGI table; we expected 7 columns but found ", ncol(x), ". Is this MRK_SwissProt_TrEMBL.rpt @ MGI Marker associations to SWISS-PROT and TrEMBL protein IDs (tab-delimited)  ?"), type = "error")
   }
@@ -199,17 +205,19 @@ mgi_lookuptable = function(f) {
 #' @export
 rgd_lookuptable = function(f) {
   check_parameter_is_string(f)
-  if(!file.exists(f)) {
-    append_log(paste("file does not exist:", f), type = "error")
-  }
 
-  # load table from disk
-  x = data.table::fread(f, data.table = FALSE, stringsAsFactors = FALSE)
+  # parse table from disk
+  f = path_exists(f, NULL, try_compressed = TRUE)
+  x = as_tibble(read_textfile_compressed(f, as_table = TRUE, datatable_skip = "GENE_RGD_ID"))
+  # if(!file.exists(f)) {
+  #   append_log(paste("file does not exist:", f), type = "error")
+  # }
+  # x = data.table::fread(f, data.table = FALSE, stringsAsFactors = FALSE, skip = "GENE_RGD_ID")
 
   # check that all required columns are present + rename columns
   cols = list(
     rgd_id = c("GENE_RGD_ID"),
-    symbol = c("symbol", "SYMBOL"),
+    symbol = c("SYMBOL"),
     uniprot_id = c("UNIPROT_ID")
   )
   x = robust_header_matching(x, column_spec = cols, columns_required = names(cols))
@@ -227,183 +235,108 @@ rgd_lookuptable = function(f) {
 
 
 
-#' Map the protein_id column, which are assumed to contain uniprot mouse/rat identifiers, in a table to HGNC human gene IDs
+#' helper function to match a protein table to HGNC via gene symbols (and synonyms)
 #'
-#' This function is currently limited such that the first matching human gene per proteingroup is returned,
-#' so ambiguous proteingroups with multiple gene symbols (e.g. "GRIA1;GRIA2") might not always yield the 'leading'
-#' gene and additional/ambiguous genes are disregarded). Columns describing the HGNC (genenames.org) ID,
-#' NCBI Entez ID and Ensembl gene ID are appended to the provided table.
-#'
-#' Workflow for ID mapping, where subsequent steps are fallbacks;
-#' 1) uniprot id -> mgi/rgd id -> hgnc id
-#' 2) uniprot symbol -> mgi/rgd id -> hgnc id
-#' 3) uniprot symbol -> hgnc official symbol -> hgnc id
-#' 4) uniprot symbol -> hgnc non-ambiguous synonyms -> hgnc id
-#'
-#' @examples \dontrun{
-#'   # prior to this, import a dataset/samples/fasta & setup contrasts & apply filter_datasets()
-#'   # alternatively, use analysis_quickstart() to do everything
-#'   dataset = dea(dataset, dea_algorithm = "deqms")
-#'   dataset = differential_detect(dataset, min_peptides_observed = 2, min_samples_observed = 3,
-#'                                 min_fraction_observed = 0.5, return_wide_format = FALSE)
-#'   print_dataset_summary(dataset)
-#'
-#'   x = summarise_stats(dataset, return_dea = TRUE, return_diffdetect = TRUE,
-#'                       diffdetect_zscore_threshold = 5, remove_ambiguous_proteingroups = TRUE)
-#'   hgnc = hgnc_lookuptable(f = "C:/DATA/hgnc/hgnc__non_alt_loci_set___2023-03-21.tsv")
-#'   mgi = mgi_lookuptable(f = "C:/DATA/mgi/2023-07-15/MRK_SwissProt_TrEMBL.rpt")
-#'   y = protein2gene_orthologs(x, hgnc, mgi)
-#' }
-#' @param x a data.table with columns protein_id and symbol (e.g. the "leading symbol" extracted from the uniprot gene symbols @ dataset$proteins$gene_symbols_or_id)
+#' @description typically called from `export_stats_genesummary`
+#' @param proteins_long long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimted values)
 #' @param hgnc HGNC lookup table from `hgnc_lookuptable()`
-#' @param idmap MGI lookup table from `mgi_lookuptable()` or a RGD lookup table from `rgd_lookuptable()`
-#' @param remove_nohgnc set to TRUE to remove all rows that could not be matched to a HGNC ID. default; FALSE
-#' @export
-protein2gene_orthologs = function(x, hgnc, idmap, remove_nohgnc = FALSE) {
-  if(!is.data.frame(x) || nrow(x) == 0 || !all(c("protein_id", "symbol") %in% colnames(x)) ) {
-    append_log("x must be a data.frame with columns 'protein_id' and 'symbol'", type = "error")
-  }
-  if(anyNA(x$protein_id) || !is.character(x$protein_id) || any(x$protein_id == "")) {
-    append_log("column 'protein_id' in x must be of character type and not contain any NA values or empty strings", type = "error")
+#' @param use_synonyms boolean; use synonyms? if FALSE, only uses hgnc_symbol
+idmap_symbols = function(proteins_long, hgnc, use_synonyms = TRUE) {
+  if(!is.data.frame(proteins_long) || nrow(proteins_long) == 0 || !"symbol" %in% colnames(proteins_long) ) {
+    append_log("proteins_long parameter must be a data.frame with column 'symbol'", type = "error")
   }
   if(!is.data.frame(hgnc) || nrow(hgnc) == 0 || !all(c("hgnc_id", "hgnc_symbol", "type", "value") %in% colnames(hgnc)) ) {
-    append_log("hgnc must be a data.frame with columns 'hgnc_id', 'hgnc_symbol', 'type', 'value' as typically prepared using the hgnc_lookuptable() function", type = "error")
+    append_log("hgnc parameter must be a data.frame with columns 'hgnc_id', 'hgnc_symbol', 'type', 'value' as typically prepared using the hgnc_lookuptable() function", type = "error")
   }
-  if(!is.data.frame(idmap) || nrow(idmap) == 0 || !all(c("symbol", "uniprot_id") %in% colnames(idmap)) || !colnames(idmap)[1] %in% hgnc$type) {
-    append_log("idmap must be a data.frame with columns 'symbol', 'uniprot_id' and the first column should contain identifiers that are also in the hgnc table (e.g. first column name should be 'mgi_id' or 'rgd_id'). e.g. as obtained from the mgi_lookuptable() function", type = "error")
+  if(length(use_synonyms) != 1 || !all(use_synonyms %in% c(TRUE, FALSE))) {
+    append_log("use_synonyms parameter must be TRUE or FALSE", type = "error")
   }
 
-  # remove preexisting columns, if any. e.g. suppose that `x` contains entrez_id column but here we don't have entrez_id
-  # in the hgnc table; this table never gets overwritten
-  x$hgnc_id = x$hgnc_symbol = x$ensembl_id = x$entrez_id = NULL
+  # initialize result column, if missing
+  if(!"hgnc_id" %in% colnames(proteins_long)) {
+    proteins_long$hgnc_id = NA_character_
+  }
 
-  # replace empty symbols, if any
-  x$symbol_input = x$symbol
-  rows_symbol_fail = is.na(x$symbol) | nchar(x$symbol) < 2
-  x$symbol[rows_symbol_fail] = x$protein_id[rows_symbol_fail]
-  x$symbol = toupper(x$symbol) # enforce uppercase
+  # the hgnc mapping table contains official gene symbols in a separate column (i.e. not available as a "type")
+  hgnc_subset_symbol = hgnc %>% distinct(hgnc_symbol, .keep_all = TRUE) # subset for efficiency
 
-  proteins_long = x %>%
-    select(protein_id, symbol) %>%
-    distinct(protein_id, .keep_all = TRUE) %>%
-    mutate(uniprot_id = strsplit(protein_id, split = " *; *")) %>%
-    tidyr::unchop(uniprot_id, keep_empty = TRUE) %>%
-    filter(nchar(uniprot_id) >= 3) %>% # shouldn't be needed but enforce check for empty IDs anyway
-    mutate(
-      uniprot_id = gsub("-.*", "", uniprot_id) #,
-      # by_symbol = TRUE # default = leftover matching by symbol
-    )
+  # rows that we need to match by official gene symbol
+  rows = is.na(proteins_long$hgnc_id) &
+    # double-check that we don't even attempt to match missing gene symbols
+    !is.na(proteins_long$symbol) & nchar(proteins_long$symbol) >= 2
+  proteins_long$hgnc_id[rows] = hgnc_subset_symbol$hgnc_id[match(toupper(proteins_long$symbol[rows]), toupper(hgnc_subset_symbol$hgnc_symbol))]
 
-  ## map from uniprot ID to MGI/RGD
-  i = match(proteins_long$uniprot_id, idmap$uniprot_id)              # match by uniprot id
-  i[is.na(i)] = match(proteins_long$symbol[is.na(i)], toupper(idmap$symbol))  # fallback matching by symbol (should align well between MGI and uniprot mouse proteome)
-  proteins_long$xref_id = unlist(idmap[i,1], recursive = F, use.names = F) # first column in the data.frame / tibble
-
-  ## map to HGNC
-  # hgnc subset of relevant crossreference identifiers
-  hgnc_xref = hgnc %>% filter(type == colnames(idmap)[1])
-  proteins_long$hgnc_id = hgnc_xref$hgnc_id[match(proteins_long$xref_id, hgnc_xref$value)]
-  # flag all protein_id that we directly matched as 'not matched by symbols but rather through identifiers'
-  # proteins_long$by_symbol[!is.na(proteins_long$hgnc_id)] = FALSE
-
-  # fallback matching by official gene symbol
-  # note that we shouldn't use subsets of the hgnc table, e.g. for crossreference or synonyms, as not all HGNC entries might have crossreferences/synonyms
-  proteins_long$hgnc_id[is.na(proteins_long$hgnc_id)] = hgnc$hgnc_id[match(proteins_long$symbol[is.na(proteins_long$hgnc_id)], hgnc$hgnc_symbol)]
-
-  # fallback matching by synonym
-  rows = is.na(proteins_long$hgnc_id)
-  if(any(rows)) {
-    hgnc_synonym = hgnc %>% filter(type == "synonym")
-    if(nrow(hgnc_synonym) > 0) {
-      proteins_long$hgnc_id[rows] = hgnc_synonym$hgnc_id[match(proteins_long$symbol[rows], hgnc_synonym$value)]
+  # fallback matching by synonym, using data in the "type" column
+  if(use_synonyms) {
+    rows = is.na(proteins_long$hgnc_id) & # analogous to above, but here update the selection of rows
+      !is.na(proteins_long$symbol) & nchar(proteins_long$symbol) >= 2
+    if(any(rows)) {
+      hgnc_subset_synonym = hgnc %>% filter(type == "synonym") # subset only synonyms
+      if(nrow(hgnc_subset_synonym) > 0) {
+        proteins_long$hgnc_id[rows] = hgnc_subset_synonym$hgnc_id[match(toupper(proteins_long$symbol[rows]), toupper(hgnc_subset_synonym$value))]
+      }
     }
   }
 
-
-  ### mapping table from proteingroups (protein_id) to HGNC
-  # importantly, we don't deal with ambiguous mappings atm
-  # e.g. if a proteingroup contains multiple gene symbols, we just return the first human gene ID we found
-  protein_to_gene = proteins_long %>%
-    filter(!is.na(hgnc_id)) %>%
-    # retain just 1 entry per proteingroup -->> any 1:n mapping is lost
-    distinct(protein_id, .keep_all = TRUE)
-  # direct 1:1 matching
-  i = match(x$protein_id, protein_to_gene$protein_id)
-  x$hgnc_id = protein_to_gene$hgnc_id[i]
-
-  ### add hgnc_symbol and entrez/ensembl IDs if present in hgnc table
-  x = hgnc_add_xrefs(x, hgnc)
-
-  ### restore input symbols
-  x$symbol = x$symbol_input
-  x$symbol_input = NULL
-
-  # log status to console. use distinct(protein_id) because some input tables might contain multiple entries for
-  # some protein_id, e.g. dataset$de_proteins is provided as-is when it contains 2 contrasts
-  tmp = x %>% distinct(protein_id, .keep_all = TRUE)
-  n_input = nrow(tmp)
-  n_fail = sum(is.na(tmp$hgnc_id))
-  cat(sprintf("%d / %d (%.1f%%) unique protein_id could not be mapped to a HGNC human gene ID\n",
-              n_fail, n_input, n_fail / n_input * 100 ))
-
-  if(remove_nohgnc) {
-    x = x %>% filter(!is.na(hgnc_id))
-  }
-  return(x)
+  return(proteins_long)
 }
 
 
 
-#' Map the the symbol column in a table to HGNC human gene IDs by matching official gene symbols and synonyms
+#' helper function to match a protein table to HGNC via an intermediate mapping table (e.g. MGI/RGD)
 #'
-#' @param x a data.table with a column symbol
+#' @description typically called from `export_stats_genesummary`
+#' @param proteins_long long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimted values)
 #' @param hgnc HGNC lookup table from `hgnc_lookuptable()`
-#' @export
-protein2gene_by_symbol = function(x, hgnc) {
-  if(!is.data.frame(x) || nrow(x) == 0 || !all("symbol" %in% colnames(x) || !is.character(x$symbol)) ) {
-    append_log("x must be a data.frame with column 'symbol' (character type)", type = "error")
+#' @param idmap MGI or RGD lookup table from `mgi_lookuptable()` or `rgd_lookuptable()`
+#' @param use_symbols boolean; use symbols to map from proteins_long to the idmap table? if FALSE, only matches by uniprot identifier
+idmap_uniprotid = function(proteins_long, hgnc, idmap, use_symbols = TRUE) {
+  if(!is.data.frame(proteins_long) || nrow(proteins_long) == 0 || !all(c("uniprot_id", "symbol") %in% colnames(proteins_long)) ) {
+    append_log("proteins_long parameter must be a data.frame with columns 'protein_id' and 'symbol'", type = "error")
   }
   if(!is.data.frame(hgnc) || nrow(hgnc) == 0 || !all(c("hgnc_id", "hgnc_symbol", "type", "value") %in% colnames(hgnc)) ) {
-    append_log("hgnc must be a data.frame with columns 'hgnc_id', 'hgnc_symbol', 'type', 'value' as typically prepared using the hgnc_lookuptable() function", type = "error")
+    append_log("hgnc parameter must be a data.frame with columns 'hgnc_id', 'hgnc_symbol', 'type', 'value' as typically prepared using the hgnc_lookuptable() function", type = "error")
+  }
+  if(!is.data.frame(idmap) || nrow(idmap) == 0 || ncol(idmap) < 3 || !all(c("symbol", "uniprot_id") %in% colnames(idmap)[-1]) || !colnames(idmap)[1] %in% hgnc$type) {
+    append_log("idmap parameter must be a data.frame with columns 'symbol', 'uniprot_id' and the first column should contain identifiers that are also in the hgnc table (e.g. first column name should be 'mgi_id' or 'rgd_id'). e.g. as obtained from the mgi_lookuptable() function", type = "error")
+  }
+  if(length(use_symbols) != 1 || !all(use_symbols %in% c(TRUE, FALSE))) {
+    append_log("use_symbols parameter must be TRUE or FALSE", type = "error")
   }
 
-  x$symbol_input = x$symbol
-  rows_symbol_fail = is.na(x$symbol) | nchar(x$symbol) < 2
-  x$symbol = toupper(x$symbol)
+  # initialize result column, if missing
+  if(!"hgnc_id" %in% colnames(proteins_long)) {
+    proteins_long$hgnc_id = NA_character_
+  }
+  # overwrite xref column if exists
+  proteins_long$xref_id = NA_character_
 
-  # match directly by official gene symbol
-  i = match(x$symbol, hgnc$hgnc_symbol)
-  x$hgnc_id = hgnc$hgnc_id[i]
-
-  # for rows that failed to match, try matching against the HGNC synonym table
-  rows = is.na(x$hgnc_id)
-  if(any(rows)) {
-    hgnc_synonym = hgnc %>% filter(type == "synonym")
-    if(nrow(hgnc_synonym) > 0) {
-      i = match(x$symbol[rows], hgnc_synonym$value)
-      x$hgnc_id[rows] = hgnc_synonym$hgnc_id[i]
-    }
+  # XREF ID @ first column of idmap
+  XREF_ID_COLNAME = colnames(idmap)[1]
+  idmap$XREF_ID_VALUES__TEMPCOL = unlist(idmap[,1], recursive = F, use.names = F) # ensure we're a vector and not a tibble of 1 column
+  hgnc_subset_xref = hgnc %>% filter(type == XREF_ID_COLNAME)
+  if(nrow(hgnc_subset_xref) == 0) {
+    append_log(sprintf("assumed database type (from first idmap column): '%s'. However, values that match this crossreference database are not found as a 'type' in the provided hgnc table", colnames(idmap)[1]), type = "error")
   }
 
-  # erase whatever happened to invalid input
-  x$hgnc_id[rows_symbol_fail] = NA
 
-  # add hgnc_symbol and entrez/ensembl IDs if present in hgnc table
-  x = hgnc_add_xrefs(x, hgnc)
+  ### first map from input table to idmap; prio matching by uniprot identifier
+  rows = is.na(proteins_long$hgnc_id) & !is.na(proteins_long$uniprot_id)
+  proteins_long$xref_id[rows] = idmap$XREF_ID_VALUES__TEMPCOL[match(proteins_long$uniprot_id[rows], idmap$uniprot_id)]
 
-  # restore input symbols
-  x$symbol = x$symbol_input
-  x$symbol_input = NULL
+  # fallback to symbol matching (no `xref_id` yet)
+  rows = is.na(proteins_long$hgnc_id) & is.na(proteins_long$xref_id) & #
+    # double-check that we don't even attempt to match missing gene symbols
+    !is.na(proteins_long$symbol) & nchar(proteins_long$symbol) >= 2
+  proteins_long$xref_id[rows] = idmap$XREF_ID_VALUES__TEMPCOL[match(toupper(proteins_long$symbol[rows]), toupper(idmap$symbol))]
 
-  # log status to console. use distinct(protein_id) because some input tables might contain multiple entries for
-  # some protein_id, e.g. dataset$de_proteins is provided as-is when it contains 2 contrasts
-  tmp = x %>% filter(rows_symbol_fail == FALSE) %>% distinct(symbol, .keep_all = TRUE)
-  n_input = nrow(tmp)
-  n_fail = sum(is.na(tmp$hgnc_id))
-  cat(sprintf("%d / %d (%.1f%%) unique symbols could not be mapped to a HGNC human gene ID\n",
-              n_fail, n_input, n_fail / n_input * 100 ))
 
-  return(x)
+  ### map to HGNC using crossreference identifiers
+  rows = is.na(proteins_long$hgnc_id) & !is.na(proteins_long$xref_id) # can be all FALSE, no problem
+  proteins_long$hgnc_id[rows] = hgnc_subset_xref$hgnc_id[match(proteins_long$xref_id[rows], hgnc_subset_xref$value)]
+
+  idmap$XREF_ID_VALUES__TEMPCOL = NULL
+  return(proteins_long)
 }
 
 
@@ -415,23 +348,23 @@ protein2gene_by_symbol = function(x, hgnc) {
 hgnc_add_xrefs = function(x, hgnc) {
   # symbol
   i = match(x$hgnc_id, hgnc$hgnc_id)
-  x$hgnc_symbol = hgnc$hgnc_symbol[i]
+  x$symbol = hgnc$hgnc_symbol[i]
 
   # remove optional return values if present
-  x$entrez_id = NULL
   x$ensembl_id = NULL
+  x$entrez_id = NULL
 
   # subset HGNC lookup table by respective crossref IDs
   hgnc_entrez = hgnc %>% filter(type == "entrez_id")
   hgnc_ensembl = hgnc %>% filter(type == "ensembl_id")
 
-  if(nrow(hgnc_entrez) > 0) {
-    i = match(x$hgnc_id, hgnc_entrez$hgnc_id)
-    x$entrez_id = hgnc_entrez$value[i]
-  }
   if(nrow(hgnc_ensembl) > 0) {
     i = match(x$hgnc_id, hgnc_ensembl$hgnc_id)
     x$ensembl_id = hgnc_ensembl$value[i]
+  }
+  if(nrow(hgnc_entrez) > 0) {
+    i = match(x$hgnc_id, hgnc_entrez$hgnc_id)
+    x$entrez_id = hgnc_entrez$value[i]
   }
 
   return(x)

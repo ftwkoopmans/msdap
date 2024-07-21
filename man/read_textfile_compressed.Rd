@@ -9,6 +9,7 @@ read_textfile_compressed(
   as_table = FALSE,
   skip_empty_rows = FALSE,
   nrow = -1,
+  datatable_skip = NULL,
   ...
 )
 }
@@ -20,6 +21,8 @@ read_textfile_compressed(
 \item{skip_empty_rows}{ignore empty rows (default: FALSE)}
 
 \item{nrow}{optionally, integer specifying to only read first N rows}
+
+\item{datatable_skip}{hardcoded parameter for datatable_skip (set NULL to ignore; default)}
 
 \item{...}{sent to data.table::fread()}
 }

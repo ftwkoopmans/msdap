@@ -494,15 +494,21 @@ dea_results_to_wide = function(dataset) {
   }
 
   # first, get the number of peptides used in each contrast. next, add the results from each dea algorithm in each contrast
+  tmp = dataset$de_proteins %>% select(protein_id, dea_algorithm, contrast, foldchange.log2, tidyselect::any_of("effectsize"), pvalue, qvalue, signif)
+  if("effectsize" %in% colnames(tmp)) {
+    tmp = tmp %>% pivot_wider(names_from = c(dea_algorithm, contrast), values_from = c(foldchange.log2, effectsize, pvalue, qvalue, signif))
+  } else {
+    tmp = tmp %>% pivot_wider(names_from = c(dea_algorithm, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif))
+  }
+
+
   tib = left_join(dataset$de_proteins %>%
                     select(protein_id, contrast, peptides_used_for_dea) %>%
                     distinct(protein_id, contrast, .keep_all = T) %>%
                     pivot_wider(names_from = contrast, values_from = peptides_used_for_dea, names_prefix = "peptides_used_for_dea_") %>%
                     replace(is.na(.), 0),
                   #
-                  dataset$de_proteins %>%
-                    select(protein_id, dea_algorithm, contrast, foldchange.log2, pvalue, qvalue, signif) %>%
-                    pivot_wider(names_from = c(dea_algorithm, contrast), values_from = c(foldchange.log2, pvalue, qvalue, signif)),
+                  tmp,
                   by="protein_id")
 
   # if there are multiple DEA algorithms in the results, add a column that combines their results such that all proteins significant in 2 or more tests/algorithms are flagged

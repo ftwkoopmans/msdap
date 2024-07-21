@@ -12,7 +12,7 @@ summarise_stats__for_contrast(
   dea_algorithm,
   dea_logfc_as_effectsize,
   diffdetect_zscore_threshold,
-  remove_ambiguous_proteingroups
+  diffdetect_type
 )
 }
 \arguments{
@@ -30,7 +30,7 @@ summarise_stats__for_contrast(
 
 \item{diffdetect_zscore_threshold}{see \code{summarise_stats()}}
 
-\item{remove_ambiguous_proteingroups}{see \code{summarise_stats()}}
+\item{diffdetect_type}{see \code{summarise_stats()}}
 }
 \description{
 worker function for actual stats summary

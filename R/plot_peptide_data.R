@@ -32,7 +32,7 @@
 #' @param dataset your dataset
 #' @param select_all_proteins plot all proteins. This will take a long time. Default: FALSE
 #' @param select_diffdetect_candidates if "differential detection" was enabled (it is by default in `analysis_quickstart`), plot candidate proteins based on their zscores.
-#' Valid parameters are positive numeric values that are to be used as absolute z-score cutoffs (4 or 5 are typically reasonable; use `plot_differential_detect` to visualize the score distributions).
+#' Valid parameters are positive numeric values that are to be used as absolute z-score cutoffs (5 or higher is typically reasonable; use `plot_differential_detect` to visualize the score distributions).
 #' This selects all proteins that meet this criterium in any contrast, and plots these proteins in every contrast (include those where it is has a z-score below given threshold).
 #' Alternative, set to TRUE to use an absolute z-score cutoff value of 4. Default: NA (disable)
 #' @param select_dea_signif plot all significant proteins from DEA?

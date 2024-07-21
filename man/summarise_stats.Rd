@@ -9,8 +9,8 @@ summarise_stats(
   return_dea = TRUE,
   return_diffdetect = FALSE,
   dea_logfc_as_effectsize = FALSE,
-  diffdetect_zscore_threshold = 4,
-  remove_ambiguous_proteingroups = FALSE
+  diffdetect_zscore_threshold = 6,
+  diffdetect_type = "auto"
 )
 }
 \arguments{
@@ -24,48 +24,16 @@ summarise_stats(
 When including differential detection results this'll be a convenient approach to getting 1 standardized distribution of DEA+DD effectsizes that can be used in e.g. GO analyses.
 While this is unusual, one could e.g. use this for DEA algorithms that apply shrinkage to estimated foldchanges such as MSqRob}
 
-\item{diffdetect_zscore_threshold}{differential detect z-score cutoff. A typical value would be \code{diffdetect_zscore_threshold=4} , or 5~6 for stringent filtering.
+\item{diffdetect_zscore_threshold}{differential detect z-score cutoff. A typical value would be 5 or 6 (default)
 To plot histograms of the respective z-score distributions and inspect potential cutoff values for this relatively arbitrary metric, see below example code}
 
-\item{remove_ambiguous_proteingroups}{boolean parameter indicating whether proteingroups that contain shared gene symbols (e.g. GRIA1;GRIA2) should be removed}
-}
-\value{
-\itemize{
-\item The effectsize column data depends on the user parameters/configuration;
-When only differential detect is used, this contains the z-scores. When only DEA is used, this contains effectsizes from DEA as-is.
-However, when DEA and differential detect are combined, the effectsizes from DEA are standardized (divided by std) such that effectsizes from
-both statistics are integrated into 1 distribution (and thus these can be compared/ranked in downstream analyses).
-\item 'gene_symbols_or_id' contains the uniprot gene symbols for respective accessions in the proteingroup (protein_id column) as per usual in MS-DAP.
-\item The 'symbol' column contains the first gene symbol thereof (e.g. in ambiguous groups where gene_symbols_or_id='GRIA1;GRIA2', this'll yield 'GRIA1').
-\item the 'dea_algorithm' column shows the DEA algorithm that was used. Importantly, even differential detect results that were merged into results for this DEA algorithm have the same dea_algorithm value so you can group/filter by the entire analysis downstream.
-}
+\item{diffdetect_type}{type of differential detect scores. options:
+'auto' = set to 'detect' if this score is available, 'quant' otherwise
+'detect' = differential detection z-scores computed from only "detected" peptides (no MBR)
+'quant' = differential detection z-scores computed from all quantified peptides (uses MBR)}
 }
 \description{
-For differential detection, the z-scores are converted to p-values by \code{pnorm(abs(zscore), lower.tail = F)} ,
-assuming these are normally distributed, and multiple testing correction by FDR is applied.
-However, this is just an approximation; the differential detection scores are inferior to DEA analyses and should be treated with care.
-Stringent cutoffs (diffdetect_zscore_threshold of at least 4 ~ 6) are encouraged when using differential detection results.
-
-For DEA, the criteria for significance that were previously configured when performing DEA using \code{dea()} or
-\code{analysis_quickstart()} functions are reused here (i.e. cutoffs for adjusted p-value and log2 foldchange).
-
-If \code{return_dea} and \code{return_diffdetect} are both set to TRUE, the effectsizes from each statistic/result are standardized.
-This makes both statistics more comparable but the downside is that the effectsizes are no longer the exact effectsizes returned by the DEA model.
-
-Note that if your dataset contains results for multiple contrasts and multiple DEA algorithms,
-these will all be appended into the result table so make sure to filter the results by 'contrast' and
-'dea_algorithm' columns where appropriate.
-}
-\examples{
-\dontrun{
-  # summarise the DEA results (and ignore the more speculative differential detect data)
-  x = summarise_stats(dataset, return_dea = TRUE, return_diffdetect = FALSE,
-                      remove_ambiguous_proteingroups = FALSE)
-
-  # first plot all differential detect results as histograms to verify the zscore cutoff
-  tmp = lapply(plot_differential_detect(dataset), print)
-  # merge both DEA and differential-detect 'extremes' into a gene-level stats summary
-  x = summarise_stats(dataset, return_dea = TRUE, return_diffdetect = TRUE,
-                      diffdetect_zscore_threshold = 5, remove_ambiguous_proteingroups = FALSE)
-}
+In most cases, you probably want to use the \code{export_stats_genesummary()} function instead.
+That is a wrapper function that uses this function but also adds additional functionality.
+For documentation on the output table, also refer to that function.
 }
