@@ -37,10 +37,18 @@ fasta_id_short = function(id, fasta_id_type = "uniprot") {
 
 #' extract gene symbol from fasta header string
 #'
+#' GN tag contains the gene symbol.
+#' example; >sp|Q9Y2S6|TMA7_HUMAN Translation machinery-associated protein 7 OS=Homo sapiens (Human) OX=9606 GN=TMA7 PE=1 SV=1
+#'
+#' uniprot headers may contain "GN=-" or no GN tag at all !
+#' example; >sp|Q6ZSR9|YJ005_HUMAN Uncharacterized protein FLJ45252 OS=Homo sapiens (Human) OX=9606 GN=- PE=2 SV=2
+#' example; >sp|P15252|REF_HEVBR Rubber elongation factor protein OS=Hevea brasiliensis PE=1 SV=2
+#'
 #' @param x array of fasta headers
 #' @param fasta_id_type fasta type. unused argument atm
 fasta_header_to_gene = function(x, fasta_id_type = "uniprot") {
-  res = sub(".* GN=([^ ]+).*", "\\1", x)
+  # if multiple GN=XXX tags are present (should never occur for uniprot), the last element is taken
+  res = sub(".* GN=([^ ]{2,}).*", "\\1", x) # require at least 2 characters
   res[res == x] = ""
   toupper(res)
 }
@@ -67,12 +75,90 @@ fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot") {
     fasta = c(fasta, l[char1 == ">"]) # only fasta header lines
   }
 
-  # distinct() at the end ensures we use data from the first fasta file for each unique accession, in case it's found in multiple
   tibble(
     idlong = fasta_header_to_id(fasta),
     gene = fasta_header_to_gene(fasta, fasta_id_type),
     header = fasta
   ) %>%
     mutate(idshort = fasta_id_short(idlong, fasta_id_type)) %>%
-    distinct(idshort, .keep_all = T)
+    # distinct() at the end ensures we use data from the first fasta file for each unique accession, in case it's found in multiple
+    # use the idlong because reverse/decoy tags might be prepended. e.g. "rev_tr|U3KQF4|U3KQF4_HUMAN"
+    distinct(idlong, .keep_all = T) %>%
+    mutate(isdecoy = fasta_identifier_isdecoy(idlong) | fasta_identifier_isdecoy(idshort))
 }
+
+
+
+#' regex test if a protein identifier or fasta header is a decoy
+#'
+#' @examples \dontrun{
+#' # decoy examples (should yield TRUE)
+#' fasta_identifier_isdecoy(c(
+#' ">rev_sp|A0A023PZB3|FMP49_YEAST Protein FMP49, mitochondrial ...",
+#' "rev_sp|A0A023PYF4|YE145_YEAST",
+#' "decoy_A0A023PZF2",
+#' "P63044_decoy",
+#' "P63044_rev",
+#' "P63044_reverse",
+#' ">sp|Q02956|KPCZ_MOUSE_decoy",
+#' ">decoy_sp|Q02956|KPCZ_MOUSE"
+#' ))
+#' # non-decoy examples (should yield FALSE)
+#' fasta_identifier_isdecoy(c(
+#' ">sp|A0A023PZB3|FMP49_YEAST Protein FMP49, mitochondrial ...",
+#' "sp|A0A023PYF4|YE145_YEAST",
+#' "A0A023PZF2",
+#' "P63044",
+#' ">sp|Q02956|KPCZ_MOUSE"
+#' ))
+#' }
+#' @param x strings to test
+fasta_identifier_isdecoy = function(x) {
+  !is.na(x) & is.character(x) & grepl("^>{0,1}REV_|_REV$|^>{0,1}REVERSE_|_REVERSE$|^>{0,1}DECOY_|_DECOY$", x, ignore.case = T)
+}
+
+
+
+#' lookup table for proteingroup identifiers (in long or short ID form) to idshort and isdecoy
+#'
+#' @examples \dontrun{
+#' proteingroup_to_idshort_lookuptable(c(
+#'   NA, "", # empty values are skipped
+#'   "P36578", "P36578", "P36578", "P36578", # unique values are returned
+#'   "P55011-3;P55011",
+#'   "Q5TF21;rev_E9PJP2", "decoy_Q5TF21;E9PJP2",
+#'   "sp|P63027|VAMP2_HUMAN;tr|K7ENK9|K7ENK9_HUMAN",
+#'   "sp|P63027|VAMP2_HUMAN;rev_tr|K7ENK9|K7ENK9_HUMAN",
+#'   "rev_sp|P63027|VAMP2_HUMAN;tr|K7ENK9|K7ENK9_HUMAN"
+#' ))
+#' }
+#' @param x array of proteingroup identifiers
+proteingroup_to_idshort_lookuptable = function(x) {
+  x = unique(x)
+  x = x[!is.na(x) & is.character(x)]
+  if(length(x) == 0) return(NULL)
+
+  tib_uprot = tibble(protein_id = x) %>%
+    mutate(idlong = strsplit(protein_id, "[ ,;]+")) %>%
+    # only empty strings are removed, which we don't have; tibble(id = letters[1:3], test = c("", "x;y", "z")) %>% mutate(test_list = strsplit(test, ";")) %>% unnest(cols = test_list, keep_empty = F)
+    unchop(cols = idlong, keep_empty = FALSE)  %>%
+    mutate(
+      idshort = fasta_id_short(idlong),
+      isdecoy = fasta_identifier_isdecoy(idlong) | fasta_identifier_isdecoy(idshort)
+    )
+
+  # rename decoy identifiers; strip current decoy flag (if any within idshort) and replace with standardized
+  tmp = tib_uprot$idshort[tib_uprot$isdecoy]
+  if(length(tmp) > 0) {
+    tmp = gsub("^>{0,1}REV_|_REV$|^>{0,1}REVERSE_|_REVERSE$|^>{0,1}DECOY_|_DECOY$", "", tmp, ignore.case = T)
+    tib_uprot$idshort[tib_uprot$isdecoy] = paste0("decoy_", tmp)
+  }
+
+  tib_uprot %>%
+    group_by(protein_id) %>%
+    summarise(idshort = paste(idshort, collapse = ";"),
+              isdecoy = any(isdecoy)) %>%
+    ungroup()
+}
+
+

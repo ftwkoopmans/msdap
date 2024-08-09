@@ -274,7 +274,7 @@ update_protein_mapping = function(tib, pep2prot) {
 #'
 #' @importFrom data.table as.data.table chmatch setkey setorder
 #' @export
-import_dataset_in_long_format = function(filename=NULL, x = NULL, attributes_required=list(), attributes_optional = list(), confidence_threshold = 0.01,
+import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_required=list(), attributes_optional = list(), confidence_threshold = 0.01,
                                          remove_peptides_never_above_confidence_threshold = TRUE, select_unique_precursor_per_modseq = TRUE,
                                          custom_func_manipulate_DT_onload = NULL,
                                          return_decoys = TRUE, do_plot = TRUE) {

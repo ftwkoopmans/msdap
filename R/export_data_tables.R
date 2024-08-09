@@ -94,9 +94,10 @@ export_protein_abundance_matrix = function(dataset, rollup_algorithm, output_dir
 
     # add protein metadata
     tib = dataset$proteins %>%
-      select(protein_id, fasta_headers, gene_symbols_or_id) %>%
+      select(protein_id, fasta_headers, gene_symbols_or_id, gene_symbol_ucount) %>%
       inner_join(as_tibble(m) %>% add_column(protein_id = rownames(m)), by="protein_id") %>%
-      arrange(gene_symbols_or_id!=protein_id, gene_symbols_or_id) # proteins without gene symbol first, then sort by symbol
+      arrange(gene_symbol_ucount > 0, gene_symbols_or_id) %>% # proteins without gene symbol first, then sort by symbol
+      select(-gene_symbol_ucount)
 
     ## write to file
     # generate filename. if very long (eg; huge contrast name + long path in output_dir), try to shorting with md5 hash
@@ -135,11 +136,12 @@ export_peptide_abundance_matrix = function(dataset, output_dir) {
     tibw = tib %>%
       pivot_wider(id_cols = c(protein_id, peptide_id), names_from = "sample_id", values_from = "intensity") %>%
       # add protein metadata
-      left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by = "protein_id") %>%
+      left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id, gene_symbol_ucount), by = "protein_id") %>%
       # sort columns by order in sample metadata table
-      select(gene_symbols_or_id, protein_id, peptide_id, !!sid) %>%
+      select(gene_symbols_or_id, gene_symbol_ucount, protein_id, peptide_id, !!sid) %>%
       # sort output table
-      arrange(gene_symbols_or_id!=protein_id, gene_symbols_or_id, protein_id, peptide_id) # proteins without gene symbol first, then sort by symbol
+      arrange(gene_symbol_ucount > 0, gene_symbols_or_id, protein_id, peptide_id) %>% # proteins without gene symbol first, then sort by symbol
+      select(-gene_symbol_ucount)
 
     ## write to file
     # generate filename. if very long (eg; huge contrast name + long path in output_dir), try to shorting with md5 hash

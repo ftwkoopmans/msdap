@@ -12,5 +12,11 @@ fasta_header_to_gene(x, fasta_id_type = "uniprot")
 \item{fasta_id_type}{fasta type. unused argument atm}
 }
 \description{
-extract gene symbol from fasta header string
+GN tag contains the gene symbol.
+example; >sp|Q9Y2S6|TMA7_HUMAN Translation machinery-associated protein 7 OS=Homo sapiens (Human) OX=9606 GN=TMA7 PE=1 SV=1
+}
+\details{
+uniprot headers may contain "GN=-" or no GN tag at all !
+example; >sp|Q6ZSR9|YJ005_HUMAN Uncharacterized protein FLJ45252 OS=Homo sapiens (Human) OX=9606 GN=- PE=2 SV=2
+example; >sp|P15252|REF_HEVBR Rubber elongation factor protein OS=Hevea brasiliensis PE=1 SV=2
 }

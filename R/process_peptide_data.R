@@ -116,37 +116,43 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
 #' @param fasta_files todo
 #' @param fasta_id_type todo
 #' @param protein_separation_character todo
+#' @return table where
+#' protein_id = provided proteingroup identifier,
+#' accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
+#' fasta_headers = analogous to accessions, but matching the full FASTA header to each 'accessions' element,
+#' gene_symbols = full set of gene symbols, '-' where missing in FASTA, matching each element in 'accessions',
+#' gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long ID when there is no gene information
+#' gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
 import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_type = "uniprot", protein_separation_character = ";") {
   protein_id = unique(protein_id)
 
   #### read data from fasta files into tibble
-  fasta = fasta_parse_file(fasta_files, fasta_id_type)
-  fasta$gene_symbols_or_id = ifelse(fasta$gene == "", fasta$idlong, fasta$gene)
+  fasta = fasta_parse_file(fasta_files, fasta_id_type) %>%
+    filter(isdecoy == FALSE) %>% # remove decoys from fasta file
+    select(-isdecoy)
+  fasta$gene_symbols_or_id = ifelse(nchar(fasta$gene) < 2, fasta$idlong, fasta$gene)
 
   #### protein-to-accession mapping table
   # convert protein_id to a list of respective accessions  -->>  long-format tibble
   l = strsplit(protein_id, protein_separation_character, fixed = T)
   prot2acc = tibble(
     protein_id = rep(protein_id, lengths(l)),
-    acc_input = unlist(l, use.names = F)
+    acc_input = unlist(l, use.names = F),
+    isdecoy = FALSE
   )
 
   # extract the accession
   prot2acc$acc = fasta_id_short(prot2acc$acc_input, fasta_id_type = fasta_id_type)
   # accession cannot be less than 3 characters
   prot2acc$acc[nchar(prot2acc$acc) < 3] = NA
-  # Filter valid accessions by regex. contaminant or decoy entries are not allowed. eg; CON_ REV_ DECOY_
-  # Check for ids that start or end with CON, REV or DECOY. Do this for both the full protein id and idshort.
-  # eg; suppose that input software prefixes the full ID with reverse: REV_sp|abc123|HUMAN_EXAMPLE -->> the reverse tag is lost in fasta_id_short(...)
-  # note that we cannot blindly match "_CON" to protein identifiers as this could fail for uniprot long IDs, eg; sp|abc123|HUMAN_CONTACTIN or whatever
-  prot2acc$acc[!is.na(prot2acc$acc) & (grepl("^CON_|_CON$|^REV_|_REV$|^DECOY_|_DECOY$", prot2acc$acc, ignore.case = T) |
-                                       grepl("^CON_|_CON$|^REV_|_REV$|^DECOY_|_DECOY$", prot2acc$acc_input, ignore.case = T))] = NA
-  # prot2acc$acc[!grepl("^[[:alnum:]-]+$", prot2acc$acc)] = NA # previous implementation only supports uniprot/ensembl, but not refseq where fasta headers are like; >NP_000006.2 arylamine N-acetyltransferase 2 [Homo sapiens]
+  # Filter valid accessions by regex, decoy entries are not allowed. eg; REV_ DECOY_
+  # Check both full and "short" IDs. eg; suppose that input software prefixes the full ID with reverse: REV_sp|abc123|HUMAN_EXAMPLE -->> the reverse tag is lost in fasta_id_short(...)
+  prot2acc$isdecoy = !is.na(prot2acc$acc) & (fasta_identifier_isdecoy(prot2acc$acc_input) | fasta_identifier_isdecoy(prot2acc$acc))
 
   # finally, remove all invalid mappings and select unique elements (eg; protein-group with same protein accession listed twice is de-duped)
   prot2acc = prot2acc %>%
-    drop_na() %>%
-    distinct(.keep_all = T)
+    filter(!is.na(acc) & isdecoy == FALSE) %>%
+    distinct(protein_id, acc_input, .keep_all = T)
   # merge in the fasta metadata
   prot2acc = prot2acc %>% left_join(fasta, by = c(acc = "idshort"))
 
@@ -172,9 +178,9 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
     summarise(
       accessions = paste(acc, collapse = ";"),
       fasta_headers = paste(header, collapse = ";"),
-      # full list of gene symbols, NA where missing
-      gene_symbols = paste(ifelse(is.na(gene) | nchar(gene) < 2, "-", gene), collapse = ";"), # for consistency, collapse
-      # gene_symbols = list(ifelse(is.na(gene) | nchar(gene) < 2, NA_character_, gene)), # alternatively, store as list
+      # full list of gene symbols, '-' where missing, matching number-of-elements in accessions/fasta_headers
+      gene_symbols = paste(ifelse(nchar(gene) < 2, "-", gene), collapse = ";"),
+      gene_symbol_ucount = n_distinct(gene[nchar(gene) >= 2]),
       # gene_symbols_or_id; take unique values, remove NA, remove strings of less than 2 characters
       gene_symbols_or_id = paste(remove_by_charlength(unique(gene_symbols_or_id), minchar = 2), collapse = ";")
     )

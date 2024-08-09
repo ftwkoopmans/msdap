@@ -252,8 +252,8 @@ check_valid_tibble_samples = function(tib) {
 #'
 #' @param peptides peptide tibble in long format
 log_peptide_tibble_pep_prot_counts = function(peptides) {
-  report_unique = peptides %>% group_by(isdecoy) %>% summarise(n_precursor=n_distinct(peptide_id), n_seq=n_distinct(sequence_plain), n_prot=n_distinct(protein_id)) %>% arrange(isdecoy)
-  append_log(sprintf("%d target precursors, %d (plain)sequences, %d proteins", report_unique$n_precursor[1], report_unique$n_seq[1], report_unique$n_prot[1]), type = "info")
+  report_unique = peptides %>% group_by(isdecoy) %>% summarise(n_precursor=n_distinct(peptide_id), n_seq=n_distinct(sequence_plain), n_prot=n_distinct(protein_id), n_sample=n_distinct(sample_id)) %>% arrange(isdecoy)
+  append_log(sprintf("%d target precursors, %d (plain)sequences, %d proteins, %d samples", report_unique$n_precursor[1], report_unique$n_seq[1], report_unique$n_prot[1], report_unique$n_sample[1]), type = "info")
   if(nrow(report_unique) > 1) { # if there are decoys
     append_log(sprintf("%d decoy precursors, %d (plain)sequences, %d proteins", report_unique$n_precursor[2], report_unique$n_seq[2], report_unique$n_prot[2]), type = "info")
   }
@@ -275,7 +275,7 @@ tibble_peptides_reorder = function(tib) {
 #' @param peptides peptide tibble in long format
 empty_protein_tibble = function(peptides) {
   uprot = unique(peptides$protein_id)
-  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols = uprot, gene_symbols_or_id = uprot))
+  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols = uprot, gene_symbols_ucount = 0L, gene_symbols_or_id = uprot))
 }
 
 
