@@ -9,33 +9,6 @@ peptides_collapse_by_sequence = function(peptides, prop_peptide = "sequence_plai
 
 
 
-#' Import fasta file(s) that match your dataset.
-#'
-#' For fasta files from uniprot, we extract the gene symbols for each protein-group (not available for non-uniprot fasta files).
-#'
-#' @param dataset your dataset
-#' @param files an array of filenames, these should be the full path
-#' @param fasta_id_type what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)
-#' @param protein_separation_character the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)
-#' @export
-import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protein_separation_character = ";") {
-  if(length(files) == 0) {
-    append_log("no fasta files were provided, downstream analysis/code will use protein IDs as surrogate for fasta headers", type = "info")
-    dataset$proteins = empty_protein_tibble(peptides)
-  } else {
-    dataset$proteins = import_protein_metadata_from_fasta(
-      protein_id = dataset$peptides %>% filter({if("isdecoy" %in% names(.)) isdecoy else F} != TRUE) %>% distinct(protein_id) %>% pull(),
-      fasta_files = files,
-      fasta_id_type = fasta_id_type,
-      protein_separation_character = protein_separation_character
-    )
-  }
-
-  return(dataset)
-}
-
-
-
 #' Remove all peptides that match some protein-level filters
 #'
 #' @examples
@@ -111,11 +84,46 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
 
 
 
-#' placeholder title
-#' @param protein_id todo
-#' @param fasta_files todo
-#' @param fasta_id_type todo
-#' @param protein_separation_character todo
+#' Import fasta file(s) that match your dataset.
+#'
+#' For fasta files from uniprot, we extract the gene symbols for each protein-group (not available for non-uniprot fasta files).
+#'
+#' @param dataset your dataset
+#' @param files an array of filenames, these should be the full path
+#' @param fasta_id_type what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)
+#' @param protein_separation_character the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)
+#' @return table where
+#' protein_id = provided proteingroup identifier,
+#' accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
+#' fasta_headers = analogous to accessions, but matching the full FASTA header to each 'accessions' element,
+#' gene_symbols = full set of gene symbols, '-' where missing in FASTA, matching each element in 'accessions',
+#' gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long ID when there is no gene information
+#' gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
+#' @export
+import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protein_separation_character = ";") {
+  if(length(files) == 0) {
+    append_log("no fasta files were provided, downstream analysis/code will use protein IDs as surrogate for fasta headers", type = "info")
+    dataset$proteins = empty_protein_tibble(peptides)
+  } else {
+    dataset$proteins = import_protein_metadata_from_fasta(
+      protein_id = dataset$peptides %>% filter({if("isdecoy" %in% names(.)) isdecoy else F} != TRUE) %>% distinct(protein_id) %>% pull(),
+      fasta_files = files,
+      fasta_id_type = fasta_id_type,
+      protein_separation_character = protein_separation_character
+    )
+  }
+
+  return(dataset)
+}
+
+
+
+#' Parse fasta files and construct a protein metadata table for provided protein identifiers
+#'
+#' @param protein_id an array of protein identifiers (that should be available in provided `fasta_files`)
+#' @param fasta_files an array of filenames, these should be the full path
+#' @param fasta_id_type what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)
+#' @param protein_separation_character the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)
 #' @return table where
 #' protein_id = provided proteingroup identifier,
 #' accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
@@ -128,9 +136,9 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
 
   #### read data from fasta files into tibble
   fasta = fasta_parse_file(fasta_files, fasta_id_type) %>%
-    filter(isdecoy == FALSE) %>% # remove decoys from fasta file
+    # remove decoys from fasta file then drop column
+    filter(isdecoy == FALSE) %>%
     select(-isdecoy)
-  fasta$gene_symbols_or_id = ifelse(nchar(fasta$gene) < 2, fasta$idlong, fasta$gene)
 
   #### protein-to-accession mapping table
   # convert protein_id to a list of respective accessions  -->>  long-format tibble
@@ -152,9 +160,14 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
   # finally, remove all invalid mappings and select unique elements (eg; protein-group with same protein accession listed twice is de-duped)
   prot2acc = prot2acc %>%
     filter(!is.na(acc) & isdecoy == FALSE) %>%
+    # merge in the fasta metadata
+    left_join(fasta, by = c(acc = "idshort")) %>%
+    # take unique set, using input with `fasta` sorting as-is = for each idshort, use data from first fasta file (where idshort was found)
     distinct(protein_id, acc_input, .keep_all = T)
-  # merge in the fasta metadata
-  prot2acc = prot2acc %>% left_join(fasta, by = c(acc = "idshort"))
+
+  # replace invalid/missing gene symbols with a '-'
+  # also removed uniprot-provided gene symbols like MGI:1111. example; ">sp|Q8BR90|CE051_MOUSE UPF0600 protein C5orf51 homolog OS=Mus musculus (Mouse) OX=10090 GN=MGI:2146232 PE=1 SV=1"
+  prot2acc$gene[is.na(prot2acc$gene) | nchar(prot2acc$gene) < 2 | grepl("^(MGI|RGD|HGNC):", prot2acc$gene)] = "-"
 
   # report mapping success rate at accession and protein-group level
   n_acc = nrow(prot2acc)
@@ -172,6 +185,7 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
     print(prot2acc %>% filter(is.na(header)), n=25)
   }
 
+
   #### collapse at protein-group level
   tib_result = prot2acc %>%
     group_by(protein_id) %>%
@@ -179,10 +193,14 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
       accessions = paste(acc, collapse = ";"),
       fasta_headers = paste(header, collapse = ";"),
       # full list of gene symbols, '-' where missing, matching number-of-elements in accessions/fasta_headers
-      gene_symbols = paste(ifelse(nchar(gene) < 2, "-", gene), collapse = ";"),
-      gene_symbol_ucount = n_distinct(gene[nchar(gene) >= 2]),
-      # gene_symbols_or_id; take unique values, remove NA, remove strings of less than 2 characters
-      gene_symbols_or_id = paste(remove_by_charlength(unique(gene_symbols_or_id), minchar = 2), collapse = ";")
+      gene_symbols = paste(gene, collapse = ";"),
+      gene_symbol_ucount = n_distinct(gene[gene != "-"]),
+      # gene_symbols_or_id; take unique genes (remove missing/empty). If there are none, take (all) long-format accessions
+      gene_symbols_or_id = ifelse(
+        gene_symbol_ucount > 0,
+        paste(unique(gene[gene != "-"]), collapse = ";"), # protein_id without gene symbol are ignored / assumed same as gene symbols that we did find
+        paste(idlong, collapse = ";")
+      )
     )
 
   rows_fail = is.na(tib_result$gene_symbols_or_id) | tib_result$gene_symbols_or_id == ""
@@ -198,8 +216,11 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
   }
 
   rows_miss_fasta = is.na(tib_result$fasta_headers)
-  tib_result$fasta_headers[rows_miss_fasta] = tib_result$gene_symbols_or_id[rows_miss_fasta] = tib_result$protein_id[rows_miss_fasta]
+  if(any(rows_miss_fasta)) {
+    tib_result$fasta_headers[rows_miss_fasta] = tib_result$gene_symbols_or_id[rows_miss_fasta] = tib_result$protein_id[rows_miss_fasta]
+  }
 
+  # debug: tib_result %>% filter(gene_symbol_ucount ==0) %>% select(fasta_headers) %>% print(n=100)
   return(tib_result)
 }
 

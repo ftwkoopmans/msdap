@@ -2,7 +2,7 @@
 % Please edit documentation in R/process_peptide_data.R
 \name{import_protein_metadata_from_fasta}
 \alias{import_protein_metadata_from_fasta}
-\title{placeholder title}
+\title{Parse fasta files and construct a protein metadata table for provided protein identifiers}
 \usage{
 import_protein_metadata_from_fasta(
   protein_id,
@@ -12,13 +12,13 @@ import_protein_metadata_from_fasta(
 )
 }
 \arguments{
-\item{protein_id}{todo}
+\item{protein_id}{an array of protein identifiers (that should be available in provided \code{fasta_files})}
 
-\item{fasta_files}{todo}
+\item{fasta_files}{an array of filenames, these should be the full path}
 
-\item{fasta_id_type}{todo}
+\item{fasta_id_type}{what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)}
 
-\item{protein_separation_character}{todo}
+\item{protein_separation_character}{the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)}
 }
 \value{
 table where
@@ -30,5 +30,5 @@ gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long I
 gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
 }
 \description{
-placeholder title
+Parse fasta files and construct a protein metadata table for provided protein identifiers
 }

@@ -20,6 +20,15 @@ import_fasta(
 
 \item{protein_separation_character}{the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)}
 }
+\value{
+table where
+protein_id = provided proteingroup identifier,
+accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
+fasta_headers = analogous to accessions, but matching the full FASTA header to each 'accessions' element,
+gene_symbols = full set of gene symbols, '-' where missing in FASTA, matching each element in 'accessions',
+gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long ID when there is no gene information
+gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
+}
 \description{
 For fasta files from uniprot, we extract the gene symbols for each protein-group (not available for non-uniprot fasta files).
 }

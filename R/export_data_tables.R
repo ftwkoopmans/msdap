@@ -94,8 +94,13 @@ export_protein_abundance_matrix = function(dataset, rollup_algorithm, output_dir
 
     # add protein metadata
     tib = dataset$proteins %>%
-      select(protein_id, fasta_headers, gene_symbols_or_id, gene_symbol_ucount) %>%
-      inner_join(as_tibble(m) %>% add_column(protein_id = rownames(m)), by="protein_id") %>%
+      select(protein_id, fasta_headers, gene_symbols_or_id, tidyselect::any_of("gene_symbol_ucount")) %>%
+      inner_join(as_tibble(m) %>% add_column(protein_id = rownames(m)), by="protein_id")
+    # if gene symbol count is lacking (i.e. dataset from old MS-DAP version), sort such that proteingroups without a symbol go on top (by guessing if gene_symbols_or_id is a long-format accession)
+    if( ! "gene_symbol_ucount" %in% colnames(tib)) {
+      tib$gene_symbol_ucount = as.integer(!grepl("|", tib$gene_symbols_or_id, fixed = TRUE) & tib$protein_id != tib$gene_symbols_or_id) # count = 1 when not a protein identifier, 0 otherwise
+    }
+    tib = tib %>%
       arrange(gene_symbol_ucount > 0, gene_symbols_or_id) %>% # proteins without gene symbol first, then sort by symbol
       select(-gene_symbol_ucount)
 

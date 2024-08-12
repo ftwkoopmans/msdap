@@ -275,7 +275,7 @@ tibble_peptides_reorder = function(tib) {
 #' @param peptides peptide tibble in long format
 empty_protein_tibble = function(peptides) {
   uprot = unique(peptides$protein_id)
-  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols = uprot, gene_symbols_ucount = 0L, gene_symbols_or_id = uprot))
+  return(tibble(protein_id = uprot, fasta_headers = uprot, gene_symbols = uprot, gene_symbol_ucount = 0L, gene_symbols_or_id = uprot))
 }
 
 

@@ -140,7 +140,7 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
   if(!(is.list(dataset) && "de_proteins" %in% names(dataset))) {
     append_log("dataset parameter should be a dataset that contains DEA results (did you forget to setup contrasts and run the analysis_quickstart function, or dea() ?)", type = "error")
   }
-  if(!(is.list(dataset) && "proteins" %in% names(dataset) && all(c("protein_id", "gene_symbols") %in% colnames(dataset$proteins)) && !all(dataset$proteins$protein_id == dataset$proteins$gene_symbols))) {
+  if(!(is.list(dataset) && "proteins" %in% names(dataset) && all(c("protein_id", "gene_symbols") %in% colnames(dataset$proteins)))) {
     append_log("dataset is missing essential information in the 'gene_symbols' column of the protein table. No FASTA has been imported for this dataset or the dataset was analyzed with an outdated MS-DAP version.\nTo use this function you won't have to re-run the entire analysis pipeline for this dataset, just run the import_fasta() function prior to applying export_stats_genesummary() to update the current dataset object (assuming this is a dataset searched against a uniprot FASTA)", type = "error")
   }
   if(!(length(gene_ambiguity) == 1 && all(gene_ambiguity %in% c("leading_gene", "prio_specific", "only_specific")))) {

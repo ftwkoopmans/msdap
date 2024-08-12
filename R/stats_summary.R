@@ -92,6 +92,9 @@ summarise_stats__for_contrast = function(dataset, return_dea, return_diffdetect,
   if(!all(c("protein_id", "gene_symbols_or_id") %in% colnames(dataset$proteins)) || !is.character(dataset$proteins$gene_symbols_or_id) || any(dataset$proteins$gene_symbols_or_id == "") ) {
     append_log("requires MS-DAP dataset where the proteins table contains gene symbols (did you forget to import_fasta() ?)", type = "error")
   }
+  if(!(is.list(dataset) && "proteins" %in% names(dataset) && all(c("protein_id", "gene_symbols") %in% colnames(dataset$proteins)))) {
+    append_log("dataset is missing essential information in the 'gene_symbols' column of the protein table. No FASTA has been imported for this dataset or the dataset was analyzed with an outdated MS-DAP version.\nTo use this function you won't have to re-run the entire analysis pipeline for this dataset, just run the import_fasta() function prior to applying export_stats_genesummary() to update the current dataset object (assuming this is a dataset searched against a uniprot FASTA)", type = "error")
+  }
   if(length(return_dea) != 1 || ! return_dea %in% c(TRUE, FALSE)) {
     append_log("return_dea must be single boolean", type = "error")
   }
