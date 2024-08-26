@@ -13,7 +13,7 @@ import_dataset_diann(
 )
 }
 \arguments{
-\item{filename}{the full file path of the input file}
+\item{filename}{the full file path of the DIA-NN report; this can be either the report.tsv file or the report.parquet file (new since DIA-NN 1.9.1)}
 
 \item{confidence_threshold}{confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)}
 

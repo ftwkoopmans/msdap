@@ -92,6 +92,7 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
 #' @param files an array of filenames, these should be the full path
 #' @param fasta_id_type what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)
 #' @param protein_separation_character the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)
+#' @param uppercase_symbols convert all gene symbols to upper case? default: TRUE
 #' @return table where
 #' protein_id = provided proteingroup identifier,
 #' accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
@@ -100,7 +101,7 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
 #' gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long ID when there is no gene information
 #' gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
 #' @export
-import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protein_separation_character = ";") {
+import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protein_separation_character = ";", uppercase_symbols = TRUE) {
   if(length(files) == 0) {
     append_log("no fasta files were provided, downstream analysis/code will use protein IDs as surrogate for fasta headers", type = "info")
     dataset$proteins = empty_protein_tibble(peptides)
@@ -109,7 +110,8 @@ import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protei
       protein_id = dataset$peptides %>% filter({if("isdecoy" %in% names(.)) isdecoy else F} != TRUE) %>% distinct(protein_id) %>% pull(),
       fasta_files = files,
       fasta_id_type = fasta_id_type,
-      protein_separation_character = protein_separation_character
+      protein_separation_character = protein_separation_character,
+      uppercase_symbols = uppercase_symbols
     )
   }
 
@@ -124,6 +126,7 @@ import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protei
 #' @param fasta_files an array of filenames, these should be the full path
 #' @param fasta_id_type what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)
 #' @param protein_separation_character the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)
+#' @param uppercase_symbols convert all gene symbols to upper case? default: TRUE
 #' @return table where
 #' protein_id = provided proteingroup identifier,
 #' accessions = result from fasta_id_short applied to each semicolon-delimited element in protein_id (result is a semicolon-collapsed string),
@@ -131,11 +134,29 @@ import_fasta = function(dataset, files = NULL, fasta_id_type = "uniprot", protei
 #' gene_symbols = full set of gene symbols, '-' where missing in FASTA, matching each element in 'accessions',
 #' gene_symbols_or_id = unique set of valid 'gene_symbol', or the FASTA full/long ID when there is no gene information
 #' gene_symbol_ucount = number of unique gene_symbols for this proteingroup (i.e. unique valid elements in 'gene_symbols')
-import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_type = "uniprot", protein_separation_character = ";") {
+import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_type = "uniprot", protein_separation_character = ";", uppercase_symbols = TRUE) {
+  if(length(protein_id) == 0 || !all(!is.na(protein_id) & is.character(protein_id) & nchar(protein_id) > 0)) {
+    append_log('protein_id parameter must be an array of non-empty strings (no NA values, no "")', type = "error")
+  }
+  # valid paths for `fasta_files` is checked downstream and includes guessing compressed files / filename variations
+  if(length(fasta_files) == 0 || !all(!is.na(fasta_files) & is.character(fasta_files) & nchar(fasta_files) > 0)) {
+    append_log('fasta_files parameter must be an array of non-empty strings (no NA values, no "")', type = "error")
+  }
+  if(length(fasta_id_type) != 1 || is.na(fasta_id_type) || !is.character(fasta_id_type) || nchar(fasta_id_type) == 0) {
+    append_log('fasta_id_type parameter must be a non-empty string (no NA values, no "")', type = "error")
+  }
+  if(length(protein_separation_character) != 1 || is.na(protein_separation_character) || !is.character(protein_separation_character) || nchar(protein_separation_character) == 0) {
+    append_log('protein_separation_character parameter must be a non-empty string (no NA values, no "")', type = "error")
+  }
+  if(!uppercase_symbols %in% c(TRUE, FALSE)) {
+    append_log('uppercase_symbols parameter must be a boolean value (TRUE or FALSE)', type = "error")
+  }
+
+
   protein_id = unique(protein_id)
 
   #### read data from fasta files into tibble
-  fasta = fasta_parse_file(fasta_files, fasta_id_type) %>%
+  fasta = fasta_parse_file(fasta_files, fasta_id_type, uppercase_symbols) %>%
     # remove decoys from fasta file then drop column
     filter(isdecoy == FALSE) %>%
     select(-isdecoy)

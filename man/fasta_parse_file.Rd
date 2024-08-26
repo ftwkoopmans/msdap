@@ -4,12 +4,18 @@
 \alias{fasta_parse_file}
 \title{Read non-redundant headers from all fasta files}
 \usage{
-fasta_parse_file(fasta_files, fasta_id_type = "uniprot")
+fasta_parse_file(
+  fasta_files,
+  fasta_id_type = "uniprot",
+  uppercase_symbols = TRUE
+)
 }
 \arguments{
 \item{fasta_files}{array of fill paths to fasta files}
 
 \item{fasta_id_type}{fasta type, typically this is 'uniprot'}
+
+\item{uppercase_symbols}{convert all gene symbols to upper case? default: TRUE}
 }
 \description{
 Read non-redundant headers from all fasta files

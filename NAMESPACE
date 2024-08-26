@@ -3,6 +3,7 @@
 export(analysis_quickstart)
 export(append_log)
 export(as_matrix_except_first_column)
+export(assert_lme4_functional)
 export(cache_filtering_data)
 export(check_dataset_hascache)
 export(check_dataset_integrity)

@@ -4,10 +4,12 @@
 \alias{hgnc_lookuptable}
 \title{Parse HGNC gene identifier lookup table that was downloaded from genenames.org}
 \usage{
-hgnc_lookuptable(f)
+hgnc_lookuptable(f, uppercase_symbols = TRUE)
 }
 \arguments{
 \item{f}{full path to the downloaded table (expected to be tsv format)}
+
+\item{uppercase_symbols}{convert all gene symbols to upper case? default: TRUE}
 }
 \value{
 a long-format table with columns; hgnc_id, hgnc_symbol, type, value

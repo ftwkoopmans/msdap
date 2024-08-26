@@ -603,3 +603,34 @@ fit_t_dist_fixed_mu = function(x) {
   )
   if(!is.null(fit)) return(c(sigma=fit$par[1], df=fit$par[2]))
 }
+
+
+
+#' Throw an error if lme4::lmer() cannot be executed
+#'
+#' @description
+#' `stop()` is called when lme4 or Matrix is not installed, or when `lme4::lmer()`
+#' cannot be executed (with default settings and mock data).
+#' If this function does not throw an error, we may assume `lme4::lmer()` is operational.
+#' @export
+assert_lme4_functional = function() {
+  if(!requireNamespace("lme4", quietly = TRUE)) {
+    stop("required package lme4 is not installed", call. = FALSE)
+  }
+  if(!requireNamespace("Matrix", quietly = TRUE)) {
+    stop("required package Matrix is not installed", call. = FALSE)
+  }
+
+  result = tryCatch({
+    suppressMessages(lme4::lmer(formula = expression ~ (1 | condition), data = data.frame(
+      expression = c(14.19, 16.09, 14.94, 15.51, 14.82, 14.87),
+      condition = c(1, 1, 1, 2, 2, 2)
+    )))
+  }, error = function(e) {
+    return(e)
+  })
+
+  if("error" %in% class(result)) {
+    stop(paste0("error while executing function lme4::lmer(), the installed version of R packages lme4 and Matrix are possibly incompatible -> ", result$message))
+  }
+}

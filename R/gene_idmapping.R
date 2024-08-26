@@ -11,11 +11,13 @@
 #' filename is typically something like non_alt_loci_set.txt
 #'
 #' @param f full path to the downloaded table (expected to be tsv format)
+#' @param uppercase_symbols convert all gene symbols to upper case? default: TRUE
 #' @returns a long-format table with columns; hgnc_id, hgnc_symbol, type, value
 #' @export
-hgnc_lookuptable = function(f) {
+hgnc_lookuptable = function(f, uppercase_symbols = TRUE) {
   result = NULL
   check_parameter_is_string(f)
+  check_parameter_is_boolean(uppercase_symbols)
 
   # parse HGNC table from disk
   f = path_exists(f, NULL, try_compressed = TRUE)
@@ -39,7 +41,9 @@ hgnc_lookuptable = function(f) {
   )
   hgnc = robust_header_matching(hgnc, column_spec = cols, columns_required = c("hgnc_id", "hgnc_symbol"))
 
-  hgnc$hgnc_symbol = toupper(hgnc$hgnc_symbol)
+  if(uppercase_symbols) {
+    hgnc$hgnc_symbol = toupper(hgnc$hgnc_symbol)
+  }
 
   # remove invalid rows (this shouldn't occur but check anyway)
   hgnc = hgnc %>% filter(!is.na(hgnc_id) & hgnc_id != "" & !is.na(hgnc_symbol) & nchar(hgnc_symbol) >= 2)

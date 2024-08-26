@@ -85,6 +85,13 @@ msqrobsum <- function(
   # df_failed <- filter(df, is.na(df))### FRANK
   # df <- filter(df, !is.na(df))### FRANK
   if(!nrow(df)) {warning("No models could be fitted"); return(df_prot_failed)}
+
+  ### FRANK: identify issues with lme4::lmer() when all proteins/models failed to help users diagnose R installation issues. Related to MS-DAP GitHub issue #36
+  if(!"sigma" %in% colnames(df)) { # if all fit_fun() calls throw errors, the 'mm' column is NULL/empty and unnest() does not yield a sigma column
+    assert_lme4_functional() # util function, new in MS-DAP 1.1.3
+    stop("msqrob model estimation failed for all proteins") # halt even if we didn't find lme4::lmer() issues because below code will fail when 'sigma' column is missing
+  }
+
   ## Squeeze variance
   df <- mutate(df, sigma_post = sigma, df_prior = 0, sigma_prior = 0)
   if(squeeze_variance) {
@@ -160,7 +167,7 @@ do_mm <- function(d, formulas, contrasts, mode ='msqrobsum', robust_lmer_iter = 
     out$data_summarized <- list(d)
   }
   if (mode == 'sum') return(new_tibble(out ,nrow = 1L))
-  for (form in c(formulas)){
+  for (form in c(formulas)) {
     ## TODO do lm fit if there are no random effects (all output inside loop, do while loop)
     model <- try(do_lmerfit(d, form,  robust_lmer_iter,lmer_args), silent = TRUE)
     if (is(model,"lmerMod")) break #else message(paste0('Cannot fit ', format(form)))

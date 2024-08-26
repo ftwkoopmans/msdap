@@ -8,7 +8,8 @@ import_fasta(
   dataset,
   files = NULL,
   fasta_id_type = "uniprot",
-  protein_separation_character = ";"
+  protein_separation_character = ";",
+  uppercase_symbols = TRUE
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ import_fasta(
 \item{fasta_id_type}{what type of fasta files are these? options: "uniprot" (highly recommended) or otherwise any other character string (as we have no special rules for generic fasta files)}
 
 \item{protein_separation_character}{the separation character for protein identifiers in your dataset. Most commonly this is a semicolon (eg; in maxquant/metamorpheus/skyline/etc.)}
+
+\item{uppercase_symbols}{convert all gene symbols to upper case? default: TRUE}
 }
 \value{
 table where

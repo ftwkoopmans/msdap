@@ -78,7 +78,7 @@ import_dataset_skyline = function(filename, acquisition_mode, confidence_thresho
 
 #' Import a label-free proteomics dataset from DIA-NN
 #'
-#' @param filename the full file path of the input file
+#' @param filename the full file path of the DIA-NN report; this can be either the report.tsv file or the report.parquet file (new since DIA-NN 1.9.1)
 #' @param confidence_threshold confidence score threshold at which a peptide is considered 'identified', default: 0.01 (target value must be lesser than or equals)
 #' @param do_plot logical indicating whether to create QC plots that are shown in the downstream PDF report (if enabled)
 #' @param use_irt logical indicating whether to use standardized (IRT) or the empirical (RT) retention times
@@ -88,22 +88,37 @@ import_dataset_diann = function(filename, confidence_threshold = 0.01, use_norma
   reset_log()
   append_log("reading DIA-NN report...", type = "info")
 
-  rt_col = "iRT"
-  if(!use_irt) rt_col = "RT"
+  rt_col = ifelse(use_irt, "iRT", "RT")
 
-  ds = import_dataset_in_long_format(filename,
-                                       attributes_required = list(sample_id = "File.Name",
-                                                                  protein_id = "Protein.Group",
-                                                                  sequence_modified = "Modified.Sequence",
-                                                                  sequence_plain = "Stripped.Sequence",
-                                                                  charge = "Precursor.Charge",
-                                                                  rt = rt_col,
-                                                                  # isdecoy = "",
-                                                                  intensity = ifelse(use_normalized_intensities, "Precursor.Normalised", "Precursor.Quantity"),
-                                                                  confidence = "Q.Value",
-                                                                  confidence_score = "Evidence"),
-                                       # attributes_optional = list(confidence_score = "Evidence"),
-                                       confidence_threshold = confidence_threshold,
+  # if the filename ends with ".parquet", use the Apache arrow library to read the DIA-NN report in parquet format
+  f = df = NULL
+  if(grepl("\\.parquet$", filename)) {
+    append_log(paste("input file:", filename), type = "info")
+    df = arrow::read_parquet(
+      filename,
+      col_select = NULL,
+      as_data_frame = TRUE,
+      props = arrow::ParquetArrowReaderProperties$create(),
+      mmap = TRUE
+    )
+  } else { # not a parquet file, assume input file is a .tsv file
+    f = filename
+  }
+
+  ds = import_dataset_in_long_format(filename = f,
+                                     x = df,
+                                     attributes_required = list(sample_id = c("File.Name", "Run"),
+                                                                protein_id = "Protein.Group",
+                                                                sequence_modified = "Modified.Sequence",
+                                                                sequence_plain = "Stripped.Sequence",
+                                                                charge = "Precursor.Charge",
+                                                                rt = rt_col,
+                                                                # isdecoy = "",
+                                                                intensity = ifelse(use_normalized_intensities, "Precursor.Normalised", "Precursor.Quantity"),
+                                                                confidence = "Q.Value",
+                                                                confidence_score = "Evidence"),
+                                     # attributes_optional = list(confidence_score = "Evidence"),
+                                     confidence_threshold = confidence_threshold,
                                      return_decoys = F,
                                      do_plot = do_plot)
 
@@ -325,6 +340,10 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
   # this code is also checking for required data, so run even if data table is already in memory
   map_required = map_headers(headers, attributes_required, error_on_missing = T, allow_multiple = T)
   map_optional = map_headers(headers, attributes_optional, error_on_missing = F, allow_multiple = T)
+  # collect all column indices and their desired names
+  col_indices = c(map_required, map_optional)
+  col_indices_dupe = duplicated(as.integer(col_indices))
+  col_indices_unique = col_indices[!col_indices_dupe] # don't use unique(), it'll drop the names
 
   if (is_file) {
     ### try to detect data tables with a comma as decimal separation character
@@ -342,11 +361,6 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
 
 
     ### read table
-    # collect all column indices and their desired names
-    col_indices = c(map_required, map_optional)
-    col_indices_dupe = duplicated(as.integer(col_indices))
-    col_indices_unique = col_indices[!col_indices_dupe] # don't use unique(), it'll drop the names
-
     # only read columns of interest to speed up file parsing
     # don't parse first row as header and then skip it to avoid issues with tables that have mismatched headers (e.g. MetaMorpheus files that have extra trailing tab on header row)
     DT = read_textfile_compressed(filename, skip_empty_rows = F, as_table = T, select = as.integer(col_indices_unique), header = F, skip = 1, stringsAsFactors = F, dec = dec_char, data.table = T)
@@ -354,22 +368,27 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
       append_log("failed to read data table from file", type = "error")
     }
     colnames(DT) = names(col_indices_unique) # overwrite column names from file with the desired names from column specification
-
-    # suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
-    # j = index in 'col_indices' where we should borrow content from other column
-    for(j in which(col_indices_dupe)) {
-      j_source_column = names(col_indices_unique)[as.integer(col_indices_unique) == as.integer(col_indices[j])]
-      DT[,names(col_indices)[j]] = DT[[j_source_column]] # use column names !
-    }
-
-
-    ### inject function for custom manipulation of DT. example; for some input format, repair a column. for FragPipe, the modified peptide column is empty for peptides without a modification, so there is no column with proper modseq available. have to 'manually repair', but other than that we want to maintain this generic function
-    if(length(custom_func_manipulate_DT_onload) == 1 && is.function(custom_func_manipulate_DT_onload)) {
-      DT = custom_func_manipulate_DT_onload(DT)
-    }
   } else {
+    x = x[,as.integer(col_indices_unique)]
+    colnames(x) = names(col_indices_unique) # overwrite column names from file with the desired names from column specification
+
     DT = data.table::as.data.table(x) # cast input table to data.table type
   }
+
+
+  ### suppose the same column from input table is assigned to multiple attributes (eg; Spectronaut FG.Id as input for both charge and modseq)
+  # j = index in 'col_indices' where we should borrow content from other column
+  for(j in which(col_indices_dupe)) {
+    j_source_column = names(col_indices_unique)[as.integer(col_indices_unique) == as.integer(col_indices[j])]
+    DT[,names(col_indices)[j]] = DT[[j_source_column]] # use column names !
+  }
+
+
+  ### inject function for custom manipulation of DT. example; for some input format, repair a column. for FragPipe, the modified peptide column is empty for peptides without a modification, so there is no column with proper modseq available. have to 'manually repair', but other than that we want to maintain this generic function
+  if(length(custom_func_manipulate_DT_onload) == 1 && is.function(custom_func_manipulate_DT_onload)) {
+    DT = custom_func_manipulate_DT_onload(DT)
+  }
+
 
 
   ### decoys

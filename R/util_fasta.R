@@ -50,7 +50,7 @@ fasta_header_to_gene = function(x, fasta_id_type = "uniprot") {
   # if multiple GN=XXX tags are present (should never occur for uniprot), the last element is taken
   res = sub(".* GN=([^ ]{2,}).*", "\\1", x) # require at least 2 characters
   res[res == x] = ""
-  toupper(res)
+  return(res)
 }
 
 
@@ -59,7 +59,8 @@ fasta_header_to_gene = function(x, fasta_id_type = "uniprot") {
 #
 #' @param fasta_files array of fill paths to fasta files
 #' @param fasta_id_type fasta type, typically this is 'uniprot'
-fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot") {
+#' @param uppercase_symbols convert all gene symbols to upper case? default: TRUE
+fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot", uppercase_symbols = TRUE) {
   # first, validate input files
   ff = NULL
   for (f in fasta_files) {
@@ -75,7 +76,7 @@ fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot") {
     fasta = c(fasta, l[char1 == ">"]) # only fasta header lines
   }
 
-  tibble(
+  result = tibble(
     idlong = fasta_header_to_id(fasta),
     gene = fasta_header_to_gene(fasta, fasta_id_type),
     header = fasta
@@ -85,6 +86,11 @@ fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot") {
     # use the idlong because reverse/decoy tags might be prepended. e.g. "rev_tr|U3KQF4|U3KQF4_HUMAN"
     distinct(idlong, .keep_all = T) %>%
     mutate(isdecoy = fasta_identifier_isdecoy(idlong) | fasta_identifier_isdecoy(idshort))
+
+  if(uppercase_symbols) {
+    result$gene = toupper(result$gene)
+  }
+  return(result)
 }
 
 
