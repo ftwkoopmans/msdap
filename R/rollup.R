@@ -204,7 +204,7 @@ rollup_pep2prot_maxlfq = function(tib, intensity_is_log2, implementation = "iq",
       filter(is.finite(intensity) & intensity > 0)
   }
 
-  append_log_timestamp(sprintf("peptide to protein rollup with MaxLFQ (implementation: %s)", implementation), start_time)
+  # append_log_timestamp(sprintf("peptide to protein rollup with MaxLFQ (implementation: %s)", implementation), start_time)
   return(result)
 
   # debug;

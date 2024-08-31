@@ -30,8 +30,7 @@ summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE
     append_log("have to set at least one of 'return_dea' and 'return_diffdetect' parameters to TRUE", type = "error")
   }
 
-  all_contrasts = dataset_contrasts(dataset)
-  if(length(all_contrasts) == 0) {
+  if(!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
     append_log("summarise_stats(); no contrasts in the dataset, returning empty result", type = "warning")
     return(NULL)
   }
@@ -51,12 +50,12 @@ summarise_stats = function(dataset, return_dea = TRUE, return_diffdetect = FALSE
 
   result = list()
   for(iter_algo_de in all_algo_dea) {
-    for(iter_contr in all_contrasts) {
+    for(contr in dataset$contrasts) {
       tmp = summarise_stats__for_contrast(
         dataset,
         return_dea = return_dea,
         return_diffdetect = return_diffdetect,
-        contr = iter_contr,
+        contr = contr$label,
         dea_algorithm = iter_algo_de,
         dea_logfc_as_effectsize = dea_logfc_as_effectsize,
         diffdetect_zscore_threshold = diffdetect_zscore_threshold,

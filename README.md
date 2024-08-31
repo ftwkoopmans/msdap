@@ -102,10 +102,11 @@ write_template_for_sample_metadata(dataset, "sample_metadata.xlsx")
 dataset = import_sample_metadata(dataset, filename = "sample_metadata.xlsx")
 
 # 5) Optionally, describe a statistical contrast; in this example we compare sample groups "WT" and "KO".
-# - You should use exact same labels as "group" column in sample metadata table.
-# - If you don't want to do stats, simply remove or comment this line (e.g. just look at QC report, or maybe your dataset has 1 experimental group only).
+# - you should use exact same labels as "group" column in sample metadata table.
+# - if you don't want to do stats, simply remove or comment this line (e.g. just look at QC report, or maybe your dataset has 1 only experimental group).
 # - example for multiple contrasts; dataset = setup_contrasts(dataset, contrast_list = list( c("control", "condition_a"),  c("control", "condition_b")  ) )
-# - example for adding random variables to eBayes/DEqMS/MSqRob regressions to i.e. counter batch effects (note; these variables must be column names present in sample metadata table. double-check with; print(dataset$samples,n=Inf)): dataset = setup_contrasts(dataset, contrast_list = list(  c("WT","KO")  ), random_variables = c("induction", "batch") )
+# - alternatively, use the more flexible function add_contrast()  (requires MS-DAP version 1.2 or newer)
+#     - check the extensive set of examples with R command: ?add_contrast
 dataset = setup_contrasts(dataset, contrast_list = list(  c("WT","KO")  ) )
 
 # 6) Main function that runs the entire pipeline
@@ -265,11 +266,11 @@ Differential Expression Analysis (DEA).
   detection](doc/differential_detection.md)
 - [bioinformatics: plugin custom normalization or
   DEA](doc/custom_norm_dea.md)
+- [bioinformatics: advanced statistical models with
+  limma](doc/custom_limma.md)
 
 ## Roadmap
 
-- advanced experimental designs for eBayes/DEqMS (i.e. more flexibility
-  in creating design matrices for limma)
 - implement various imputation approaches
 - plugins for more statistical methods
   - e.g. existing methods / new tools currently in development in other

@@ -270,7 +270,7 @@ fragpipe_modseq_compose = function(x) {
     )
 
   x_unlisted = x_result %>%
-    unchop(col = mods_list) %>%
+    unchop(cols = mods_list) %>%
     mutate(
       is_nterm = grepl("N-term", mods_list, fixed = TRUE),
       is_cterm = grepl("C-term", mods_list, fixed = TRUE),

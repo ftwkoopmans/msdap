@@ -286,6 +286,10 @@ merge_fractionated_samples = function(dataset) {
     append_log("to collapse sample fractions, the sample metadata table must contain columns 'fraction' and 'shortname' (eg; sample_id is unique sample/measurement, whereas shortname is the identifier to which respective fractions are collapsed to)", type = "error")
   }
 
+
+  # prior to replacing sample_id, store mappings
+  sid_shortname = dataset$samples %>% distinct(sample_id, shortname)
+
   # 1) replace sample_id by shortname in both the samples and peptides tibbles
   dataset$peptides$sample_id = dataset$samples$shortname[data.table::chmatch(dataset$peptides$sample_id, dataset$samples$sample_id)]
   dataset$samples = dataset$samples %>% mutate(sample_id = shortname) %>% select(-fraction) %>% distinct(sample_id, .keep_all = T)
@@ -296,6 +300,28 @@ merge_fractionated_samples = function(dataset) {
   # 3) update peptide/protein counts per sample and remove any caching, if present
   dataset$samples = peptide_and_protein_counts_per_sample(dataset$peptides, dataset$samples, is_dia_dataset(dataset))
   dataset = invalidate_cache(dataset)
+
+  # 4) if any contrasts are present, update the respective sample identifiers
+  if(is.list(dataset$contrasts) && length(dataset$contrasts) > 0) {
+    for(index in seq_along(dataset$contrasts)) {
+      contr = dataset$contrasts[[index]]
+      # replace sample_id with shortname
+      contr$sampleid_condition1 = unique(sid_shortname$shortname[match(contr$sampleid_condition1, sid_shortname$sample_id)])
+      contr$sampleid_condition2 = unique(sid_shortname$shortname[match(contr$sampleid_condition2, sid_shortname$sample_id)])
+      contr$sample_table = contr$sample_table %>% mutate(sample_id = sid_shortname$shortname[match(sample_id, sid_shortname$sample_id)])
+      # keep track of removed samples (duplicates) @ `sample_table` --> sync with `model_matrix` which should be aligned
+      row_isdupe = duplicated(contr$sample_table$sample_id)
+      contr$sample_table = contr$sample_table[!row_isdupe,]
+      contr$model_matrix = contr$model_matrix[!row_isdupe,]
+      if(!is_tibble(contr$sample_table)) { # setting rownames on a tibble is deprecated, but we can/should on data.frame
+        rownames(contr$sample_table) = seq_len(nrow(contr$sample_table))
+      }
+      rownames(contr$model_matrix) = seq_len(nrow(contr$sample_table))
+      # update contrast
+      dataset$contrasts[[index]] = contr
+    }
+  }
+
 
   return(dataset)
 }

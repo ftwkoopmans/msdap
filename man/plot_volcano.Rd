@@ -11,7 +11,8 @@ plot_volcano(
   mtitle = "",
   label_mode = "topn_pvalue",
   label_target = 25,
-  label_avoid_overlap = TRUE
+  label_avoid_overlap = TRUE,
+  show_plots = FALSE
 )
 }
 \arguments{
@@ -28,12 +29,14 @@ plot_volcano(
 \item{label_target}{further specification of the label_mode parameter. For instance, if 'topn_pvalue' is set, here you can set the number of proteins that should be labeled. Analogously, if label_mode='protein_id' is set you can here provide an array of protein_id values (that are available in the stats_de data table)}
 
 \item{label_avoid_overlap}{use the ggrepel R package to try and place labels with minimal overlap (only works when the number of labeled proteins is relatively low and sparse, e.g. for topN 25). Options: TRUE, FALSE}
+
+\item{show_plots}{boolean parameter; should each plot be printed/shown immediately? If \code{FALSE} (default) you'll have to extract the ggplot objects from the resulting list in order to print the plots}
 }
 \value{
 returns a named list that contains a list, with properties 'ggplot' and 'ggplot_data', for each unique 'dea_algorithm' in the input stats_de table
 }
 \description{
-If there are multiple contrasts in your DEA results, you should first subset the DEA result table for 1 contrast before calling this plot function (i.e. don't plot multiple contrasts into 1 volcano plot), see Example 5 below.
+If there are multiple contrasts in your DEA results you should either use the 'wrapper function' plot_volcano_allcontrast(), OR, first subset the DEA result table for 1 contrast before calling this plot function (i.e. don't plot multiple contrasts into 1 volcano plot).
 }
 \examples{
 ### Exampes. Note that these assume that prior, the MS-DAP pipeline was successfully run
@@ -46,10 +49,8 @@ If there are multiple contrasts in your DEA results, you should first subset the
   plot_list = msdap::plot_volcano(dataset$de_proteins \%>\% left_join(dataset$proteins),
     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
     mtitle = "volcano, label top 10", label_mode = "topn_pvalue", label_target = 10,
-    label_avoid_overlap = TRUE
+    label_avoid_overlap = TRUE, show_plots = TRUE
   )
-  # for each unique 'dea_algorithm' in the stats_de table, list of ggplot objects and data
-  lapply(plot_list, "[[", "ggplot")
 }
 
 ## example 2: analogous, but now show all significant proteins and disable "repelled labels"
@@ -58,9 +59,8 @@ If there are multiple contrasts in your DEA results, you should first subset the
   plot_list = msdap::plot_volcano(dataset$de_proteins \%>\% left_join(dataset$proteins),
     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
     mtitle = "volcano, label all significant", label_mode = "signif",
-    label_avoid_overlap = FALSE
+    label_avoid_overlap = FALSE, show_plots = TRUE
   )
-  lapply(plot_list, "[[", "ggplot")
 }
 
 ## example 3: show labels for some set of protein IDs. First line selects all proteins where symbol
@@ -73,9 +73,8 @@ If there are multiple contrasts in your DEA results, you should first subset the
   plot_list = msdap::plot_volcano(dataset$de_proteins \%>\% left_join(dataset$proteins),
     log2foldchange_threshold = 1, qvalue_threshold = 0.01,
     mtitle = "volcano, label selected proteins", label_mode = "protein_id",
-    label_target = pid_label, label_avoid_overlap = FALSE
+    label_target = pid_label, label_avoid_overlap = FALSE, show_plots = TRUE
   )
-  lapply(plot_list, "[[", "ggplot")
 }
 
 ## example 4: plot all significant labels as before, then add custom labels for some subset of
@@ -86,7 +85,7 @@ If there are multiple contrasts in your DEA results, you should first subset the
   plot_list = msdap::plot_volcano(dataset$de_proteins \%>\% left_join(dataset$proteins),
     log2foldchange_threshold = 1, qvalue_threshold = 0.01, mtitle = "volcano,
     label all significant + custom labels", label_mode = "signif",
-    label_avoid_overlap = FALSE
+    label_avoid_overlap = FALSE, show_plots = FALSE
   )
   l = plot_list[[1]]
   l$ggplot + ggrepel::geom_text_repel(
@@ -97,7 +96,8 @@ If there are multiple contrasts in your DEA results, you should first subset the
   )
 }
 
-# example 5: iterate over contrasts before calling plot_volcano()
+# example 5: iterate over contrasts before calling plot_volcano().
+# this is essentially the same as using helper function plot_volcano_allcontrast()
 \dontrun{
   contrasts = unique(dataset$de_proteins$contrast)
   for(contr in contrasts) {
@@ -107,14 +107,9 @@ If there are multiple contrasts in your DEA results, you should first subset the
     # volcano plot function (compared to above example, now include the contrast in the title)
     plot_list = msdap::plot_volcano(tib_volcano, log2foldchange_threshold = 1,
       qvalue_threshold = 0.01, mtitle = paste(contr, "volcano, label top 10"),
-      label_mode = "topn_pvalue", label_target = 10, label_avoid_overlap = TRUE
+      label_mode = "topn_pvalue", label_target = 10, label_avoid_overlap = TRUE,
+      show_plots = TRUE
     )
-
-    # grab ggplot objects and print plot
-    ggplot_list = lapply(plot_list, "[[", "ggplot")
-    for(p in ggplot_list) {
-      print(p)
-    }
   }
 }
 

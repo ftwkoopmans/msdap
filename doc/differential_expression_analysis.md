@@ -45,7 +45,8 @@ dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys =
 dataset = sample_metadata_custom(dataset, group_regex_array = c(A = "007|009|011", B = "008|010|012") )
 
 dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
-#> info: contrast: A vs B
+#> info: numeric variable: condition
+#> info: contrast: A vs B # condition_variable: group
 
 print(dataset$samples %>% select(sample_id, group))
 #> # A tibble: 6 × 2
@@ -95,7 +96,6 @@ dataset = filter_dataset(dataset,
                          norm_algorithm = c("vwmb", "modebetween_protein"),
                          by_group = F, all_group = T, by_contrast = F)
 #> progress: caching filter data took 2 seconds
-#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> info: filter dataset with settings: min_detect = 3; norm_algorithm = 'vwmb&modebetween_protein'; rollup_algorithm = 'maxlfq'
 #> 12756/34263 peptides were retained after filtering over all groups
 #> progress: peptide filtering and normalization took 3 seconds
@@ -105,9 +105,8 @@ dataset = filter_dataset(dataset,
 
 # apply limma's eBayes to each contrast and flag proteins as significant at 5% FDR and foldchange larger than a threshold estimated from bootstrap analyses (specified by parameter; fc_signif=NA)
 dataset = dea(dataset, dea_algorithm = "ebayes", qval_signif = 0.05, fc_signif = NA)
-#> info: differential expression analysis for contrast: A vs B
+#> info: differential expression analysis for contrast: A vs B # condition_variable: group
 #> info: using data from peptide filter: global data filter
-#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> info: log2 foldchange threshold estimated by bootstrap analysis: 0.652
 #> progress: eBayes took 1 seconds
 

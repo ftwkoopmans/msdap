@@ -11,17 +11,6 @@ is_dia_dataset = function(dataset) {
 }
 
 
-#' List the name of all contrasts in the samples table
-#'
-#' @param dataset a valid dataset
-#' @export
-dataset_contrasts = function(dataset) {
-  if(!"samples" %in% names(dataset)) {
-    append_log("invalid dataset, it lacks a samples table", type = "error")
-  }
-  grep("^contrast:", colnames(dataset$samples), ignore.case = T, value = T)
-}
-
 
 #' Print a short summary of a dataset to console
 #'
@@ -280,6 +269,95 @@ empty_protein_tibble = function(peptides) {
 
 
 
+#' rollup peptides to protein data matrix for selected intensity column
+#'
+#' @param dataset your dataset
+#' @param intensity_column column in `dataset$peptides` that should be used for the protein matrix
+#' @param include_npep if `TRUE` (default), returns a list with both the matrix and an array of peptide counts (for each row in the protein matrix). If `FALSE`, returns just the protein matrix
+#' @export
+get_protein_matrix = function(dataset, intensity_column, include_npep = TRUE) {
+  if(!is.list(dataset) || !"peptides" %in% names(dataset) || !is.data.frame(dataset$peptides)) {
+    append_log("Dataset does not contain a peptides table (dataset$peptides)", type = "error")
+  }
+  if(length(intensity_column) != 1 || is.na(intensity_column) || !is.character(intensity_column)) {
+    append_log("intensity_column parameter must be a single string", type = "error")
+  }
+  if(length(include_npep) != 1 || !include_npep %in% c(TRUE, FALSE)) {
+    append_log("include_npep parameter must be either TRUE or FALSE", type = "error")
+  }
+
+  cols_valid = get_peptide_filternorm_variants(dataset)
+  if(!intensity_column %in% cols_valid) {
+    append_log("intensity_column parameter is not valid. To see available options, run: print_available_filtering_results(dataset)", type = "error")
+  }
+
+  tib_pep = dataset$peptides %>%
+    select(sample_id, protein_id, peptide_id, intensity = !!as.symbol(intensity_column)) %>%
+    filter(is.finite(intensity)) # remove NA prior to rollup AND importantly, prior to peptide*protein pair counting
+
+  mat = rollup_pep2prot(tib = tib_pep, intensity_is_log2 = TRUE, rollup_algorithm = "maxlfq", return_as_matrix = TRUE)
+  if(!include_npep) {
+    return(mat)
+  }
+
+  # count the number of unique peptides per protein
+  npep = tib_pep %>%
+    distinct(protein_id, peptide_id) %>%
+    count(protein_id) %>%
+    # importantly, align with the protein matrix by protein_id
+    slice(match(rownames(mat), protein_id)) %>%
+    pull(n)
+
+  return(list(matrix = mat, npep = npep))
+}
+
+
+
+#' collect the respective subset of samples for selected protein data and prepare a metadata table for regression
+#'
+#' From sample metadata (dataset$samples), get the subset that is included in the
+#' parameter `protein_data`, select columns that contain potential regression variables
+#' (using `user_provided_metadata()`) and finally apply `enforce_sample_value_types()` to
+#' reformat all variables (except "sample_id") to factor or numeric.
+#'
+#' @param dataset your dataset
+#' @param protein_data output from `get_protein_matrix()`
+#' @export
+get_samples_for_regression = function(dataset, protein_data) {
+  if(!is.list(dataset) || !"samples" %in% names(dataset) || !is.data.frame(dataset$samples)) {
+    append_log("Dataset does not contain a sample metadata table (dataset$samples)", type = "error")
+  }
+  if(!is.matrix(protein_data) && !(is.list(protein_data) && "matrix" %in% names(protein_data) && is.matrix(protein_data$matrix))) {
+    append_log("protein_data parameter does not contain a matrix", type = "error")
+  }
+
+  sid = NULL
+  if(is.matrix(protein_data)) {
+    sid = colnames(protein_data)
+  } else {
+    sid = colnames(protein_data$matrix)
+  }
+
+  if(length(intersect(sid, dataset$samples$sample_id)) == 0) {
+    append_log("this function expects the column names in the protein_data parameter to match the sample_id column in dataset$samples: zero overlap was found", type = "error")
+  }
+
+  s = dataset$samples %>%
+    filter(sample_id %in% sid) %>%
+    select(sample_id, tidyselect::all_of(user_provided_metadata(dataset$samples)))
+
+
+  # importantly, ensure the matrix and sample tables align
+  stopifnot(length(sid) == nrow(s)) # double-check
+  s = s[match(sid, s$sample_id),]
+
+
+  # convert each column to factor/numeric
+  return( enforce_sample_value_types(s, redundant_columns = "warning") )
+}
+
+
+
 #' prettyprint table that summarizes differential detect results
 #'
 #' @param dataset dataset that includes DD results
@@ -304,7 +382,7 @@ diffdetect_summary_prettyprint = function(dataset, use_quant = FALSE, trim_contr
   }
 
   # array of all contrasts
-  column_contrasts = dataset_contrasts(dataset)
+  column_contrasts = unique(x$contrast)
 
   y = x %>%
     # add protein metadata
@@ -320,7 +398,7 @@ diffdetect_summary_prettyprint = function(dataset, use_quant = FALSE, trim_contr
     # sort contrasts in same order as defined by user
     arrange(match(contrast, column_contrasts)) %>%
     # for prettyprint, trim the contrast names
-    mutate(contrast = sub("^contrast: ", "", contrast))
+    mutate(contrast = gsub(" *#.*", "", sub("^contrast: ", "", contrast)))
 
   # optionally, limit contrast string length (evenly on each side by N characters)
   if(trim_contrast_names) {
@@ -354,7 +432,7 @@ dea_summary_prettyprint = function(dataset, trim_contrast_names = FALSE) {
   }
 
   # array of all contrasts
-  column_contrasts = dataset_contrasts(dataset)
+  column_contrasts = unique(x$contrast)
 
   y = x %>%
     # add protein metadata
@@ -373,7 +451,7 @@ dea_summary_prettyprint = function(dataset, trim_contrast_names = FALSE) {
     # sort contrasts in same order as defined by user
     arrange(match(contrast, column_contrasts)) %>%
     # for prettyprint, trim the contrast names
-    mutate(contrast = sub("^contrast: ", "", contrast))
+    mutate(contrast = gsub(" *#.*", "", sub("^contrast: ", "", contrast)))
 
   # optionally, limit contrast string length (evenly on each side by N characters)
   if(trim_contrast_names) {

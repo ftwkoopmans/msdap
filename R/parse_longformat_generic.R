@@ -300,7 +300,7 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
 
   # if filename is supplied, check if it's valid
   if(length(filename) == 1) {
-    if(!is(filename, "character") || nchar(filename) < 3) {
+    if(!is.character(filename) || nchar(filename) < 3) {
       append_log(paste("'filename' parameter is not valid:", filename), type = "error")
     }
 
@@ -312,10 +312,10 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
   if(length(x) > 0 && !is.data.frame(x)) {
     append_log("'x' parameter must be of type: data.frame, tibble or data.table):", type = "error")
   }
-  if(length(attributes_required) == 0 || !is(attributes_required, "list")) {
+  if(length(attributes_required) == 0 || !is.list(attributes_required)) {
     append_log("'attributes_required' parameter must be a list", type = "error")
   }
-  if(!is(attributes_optional, "list")) {
+  if(!is.list(attributes_optional)) {
     append_log("'attributes_optional' parameter must be a list", type = "error")
   }
   if(any(names(attributes_required) %in% names(attributes_optional))) {

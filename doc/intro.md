@@ -1,51 +1,34 @@
 
--   <a href="#abstract" id="toc-abstract">abstract</a>
--   <a href="#features" id="toc-features">Features</a>
--   <a
-    href="#computational-procedures-involved-in-differential-expression-analysis"
-    id="toc-computational-procedures-involved-in-differential-expression-analysis">Computational
-    procedures involved in differential expression analysis</a>
-    -   <a href="#dea-workflow-feature-selection"
-        id="toc-dea-workflow-feature-selection">DEA-workflow: feature
-        selection</a>
-    -   <a href="#dea-workflow-normalization"
-        id="toc-dea-workflow-normalization">DEA-workflow: normalization</a>
-    -   <a href="#dea-workflow-statistical-models"
-        id="toc-dea-workflow-statistical-models">DEA-workflow: statistical
-        models</a>
-    -   <a href="#differential-detection"
-        id="toc-differential-detection">differential detection</a>
-    -   <a href="#estimating-foldchange-thresholds"
-        id="toc-estimating-foldchange-thresholds">estimating foldchange
-        thresholds</a>
--   <a href="#quality-control" id="toc-quality-control">Quality Control</a>
-    -   <a href="#sample-metadata" id="toc-sample-metadata">sample metadata</a>
-    -   <a href="#detect-counts" id="toc-detect-counts">detect counts</a>
-    -   <a href="#chromatography" id="toc-chromatography">chromatography</a>
-    -   <a href="#within-group-foldchange-distributions"
-        id="toc-within-group-foldchange-distributions">within-group foldchange
-        distributions</a>
-    -   <a href="#cov-leave-one-out-analysis"
-        id="toc-cov-leave-one-out-analysis">CoV leave-one-out analysis</a>
-    -   <a href="#pca" id="toc-pca">PCA</a>
-    -   <a href="#use-the-ms-dap-multifaceted-analyses-in-qc-analysis"
-        id="toc-use-the-ms-dap-multifaceted-analyses-in-qc-analysis">use the
-        MS-DAP multifaceted analyses in QC analysis</a>
-    -   <a href="#volcano-plot" id="toc-volcano-plot">Volcano plot</a>
-    -   <a href="#protein-foldchanges-estimated-by-statistical-models"
-        id="toc-protein-foldchanges-estimated-by-statistical-models">protein
-        foldchanges estimated by statistical models</a>
--   <a href="#examples-of-full-reports"
-    id="toc-examples-of-full-reports">Examples of full reports</a>
-    -   <a href="#klaassen-et-al-apms-wildtype-vs-knockout-dda"
-        id="toc-klaassen-et-al-apms-wildtype-vs-knockout-dda">Klaassen et
-        al. APMS wildtype vs knockout (DDA)</a>
-    -   <a href="#oconnel-et-al-benchmark-dataset-dda"
-        id="toc-oconnel-et-al-benchmark-dataset-dda">O’Connel et al. benchmark
-        dataset (DDA)</a>
-    -   <a href="#bader-et-al-large-scale-adcontrol-csf-cohorts-dia"
-        id="toc-bader-et-al-large-scale-adcontrol-csf-cohorts-dia">Bader et
-        al. large-scale AD~control CSF cohorts (DIA)</a>
+- [abstract](#abstract)
+- [Features](#features)
+- [Computational procedures involved in differential expression
+  analysis](#computational-procedures-involved-in-differential-expression-analysis)
+  - [DEA-workflow: feature selection](#dea-workflow-feature-selection)
+  - [DEA-workflow: normalization](#dea-workflow-normalization)
+  - [DEA-workflow: statistical models](#dea-workflow-statistical-models)
+  - [differential detection](#differential-detection)
+  - [estimating foldchange
+    thresholds](#estimating-foldchange-thresholds)
+- [Quality Control](#quality-control)
+  - [sample metadata](#sample-metadata)
+  - [detect counts](#detect-counts)
+  - [chromatography](#chromatography)
+  - [within-group foldchange
+    distributions](#within-group-foldchange-distributions)
+  - [CoV leave-one-out analysis](#cov-leave-one-out-analysis)
+  - [PCA](#pca)
+  - [use the MS-DAP multifaceted analyses in QC
+    analysis](#use-the-ms-dap-multifaceted-analyses-in-qc-analysis)
+  - [Volcano plot](#volcano-plot)
+  - [protein foldchanges estimated by statistical
+    models](#protein-foldchanges-estimated-by-statistical-models)
+- [Examples of full reports](#examples-of-full-reports)
+  - [Klaassen et al. APMS wildtype vs knockout
+    (DDA)](#klaassen-et-al-apms-wildtype-vs-knockout-dda)
+  - [O’Connel et al. benchmark dataset
+    (DDA)](#oconnel-et-al-benchmark-dataset-dda)
+  - [Bader et al. large-scale AD~control CSF cohorts
+    (DIA)](#bader-et-al-large-scale-adcontrol-csf-cohorts-dia)
 
 This document provides an introduction to MS-DAP; what is it and how
 does it work, together with highlights from the MS-DAP quality control
@@ -76,23 +59,25 @@ innovations.
 
 ## Features
 
-![MS-DAP workflow](images/msdap-overview.png)
+<figure>
+<img src="images/msdap-overview.png" alt="MS-DAP workflow" />
+<figcaption aria-hidden="true">MS-DAP workflow</figcaption>
+</figure>
 
 MS-DAP, Mass Spectrometry Downstream Analysis Pipeline:
 
--   Analysis independent of RAW data processing software
--   Wide selection of normalization algorithms and statistical models
--   Plugin architecture to support future algorithms
--   Standardized workflow, regardless of configured feature selection
-    and data processing algorithms
--   Extensive data visualization, including both popular/common plots
-    and novelties introduced by MS-DAP, covering many quality control
-    aspects
--   The report is a single PDF, making your results easy to share online
--   The publication-grade figures are stored as vector graphics, so
-    simply open the report PDF in Adobe Illustrator to include any of
-    the MS-DAP visualizations as panels in your main figures
--   Available as a Docker container and R package
+- Analysis independent of RAW data processing software
+- Wide selection of normalization algorithms and statistical models
+- Plugin architecture to support future algorithms
+- Standardized workflow, regardless of configured feature selection and
+  data processing algorithms
+- Extensive data visualization, including both popular/common plots and
+  novelties introduced by MS-DAP, covering many quality control aspects
+- The report is a single PDF, making your results easy to share online
+- The publication-grade figures are stored as vector graphics, so simply
+  open the report PDF in Adobe Illustrator to include any of the MS-DAP
+  visualizations as panels in your main figures
+- Available as a Docker container and R package
 
 ## Computational procedures involved in differential expression analysis
 
@@ -115,15 +100,15 @@ which peptides represent reliable data that should be used in downstream
 statistical analysis. The following criteria are available to determine
 whether a peptide is ‘valid’ in a sample group:
 
--   identified in at least N samples
--   identified in at least x% of samples
--   quantified in at least N samples
--   quantified in at least x% of samples
--   topN peptides per protein; after above filters, rank peptides by the
-    number of samples where detected and their overall CoV and keep the
-    top N
--   the respective protein has at least N peptides that pass the above
-    filters
+- identified in at least N samples
+- identified in at least x% of samples
+- quantified in at least N samples
+- quantified in at least x% of samples
+- topN peptides per protein; after above filters, rank peptides by the
+  number of samples where detected and their overall CoV and keep the
+  top N
+- the respective protein has at least N peptides that pass the above
+  filters
 
 ‘identified’ refers to peptide *p* in sample *s* was identified through
 MS/MS for DDA datasets, or identified with a confidence qvalue \<= 0.01
@@ -138,44 +123,43 @@ are several normalization algorithms available in MS-DAP, below
 documentation is also available at MS-DAP function
 `msdap::normalization_algorithms()`:
 
--   median: scale each sample such that median abundance values are the
-    same for all samples in the dataset.
--   loess: Loess normalization as implemented in the limma R package
-    (<PMID:25605792>) [R
-    package](https://bioconductor.org/packages/release/bioc/html/limma.html).
-    code:
-    `limma::normalizeCyclicLoess(log2_data, iterations = 10, method = "fast")`.
-    Normalize the columns of a matrix, cyclicly applying loess
-    normalization to normalize each columns against the average over all
-    columns.
--   vsn: Variance Stabilizing Normalization (VSN) as implemented in the
-    vsn R package (<PMID:12169536>) [R
-    package](https://bioconductor.org/packages/release/bioc/html/vsn.html).
-    code: `vsn::justvsn()`. From bioconductor: “The model incorporates
-    data calibration step (a.k.a. normalization), a model for the
-    dependence of the variance on the mean intensity and a variance
-    stabilizing data transformation. Differences between transformed
-    intensities are analogous to ‘normalized log-ratios’”.
--   rlr: Robust Linear Regression normalization, as implemented in the
-    MSqRob package (<PMID:26566788>) [R
-    package](https://github.com/statOmics/msqrob). For each sample s,
-    perform a robust linear regression of all values (peptide
-    intensities) against overall median values (e.g. median value of
-    each peptide over all samples) to obtain the normalization factor
-    for sample s.
--   msempire: log-foldchange mode normalization, as implemented in the
-    msEmpiRe package (<PMID:31235637>) [R
-    package](https://github.com/zimmerlab/MS-EmpiRe). Instead of
-    computing all pairwise sample scaling factors (i.e. foldchange
-    distributions between all pairs of samples within a sample group),
-    MS-EmpiRe uses single linkage clustering to normalize to subsets of
-    ‘most similar’ samples and iteratively expands until all
-    within-group samples are covered.
--   vwmb: Variation Within, Mode Between (VWMB) normalization. In brief,
-    this minimizes the median peptide variation within each sample
-    group, then scales between all pairwise sample groups such that the
-    log-foldchange mode is zero. The normalization algorithm consists of
-    two consecutive steps:
+- median: scale each sample such that median abundance values are the
+  same for all samples in the dataset.
+- loess: Loess normalization as implemented in the limma R package
+  (<PMID:25605792>) [R
+  package](https://bioconductor.org/packages/release/bioc/html/limma.html).
+  code:
+  `limma::normalizeCyclicLoess(log2_data, iterations = 10, method = "fast")`.
+  Normalize the columns of a matrix, cyclicly applying loess
+  normalization to normalize each columns against the average over all
+  columns.
+- vsn: Variance Stabilizing Normalization (VSN) as implemented in the
+  vsn R package (<PMID:12169536>) [R
+  package](https://bioconductor.org/packages/release/bioc/html/vsn.html).
+  code: `vsn::justvsn()`. From bioconductor: “The model incorporates
+  data calibration step (a.k.a. normalization), a model for the
+  dependence of the variance on the mean intensity and a variance
+  stabilizing data transformation. Differences between transformed
+  intensities are analogous to ‘normalized log-ratios’”.
+- rlr: Robust Linear Regression normalization, as implemented in the
+  MSqRob package (<PMID:26566788>) [R
+  package](https://github.com/statOmics/msqrob). For each sample s,
+  perform a robust linear regression of all values (peptide intensities)
+  against overall median values (e.g. median value of each peptide over
+  all samples) to obtain the normalization factor for sample s.
+- msempire: log-foldchange mode normalization, as implemented in the
+  msEmpiRe package (<PMID:31235637>) [R
+  package](https://github.com/zimmerlab/MS-EmpiRe). Instead of computing
+  all pairwise sample scaling factors (i.e. foldchange distributions
+  between all pairs of samples within a sample group), MS-EmpiRe uses
+  single linkage clustering to normalize to subsets of ‘most similar’
+  samples and iteratively expands until all within-group samples are
+  covered.
+- vwmb: Variation Within, Mode Between (VWMB) normalization. In brief,
+  this minimizes the median peptide variation within each sample group,
+  then scales between all pairwise sample groups such that the
+  log-foldchange mode is zero. The normalization algorithm consists of
+  two consecutive steps:
 
 1)  samples are scaled within each group such that the median of
     variation estimates for all rows is minimized
@@ -184,27 +168,26 @@ documentation is also available at MS-DAP function
     sample-group-level to minimize the mode log-foldchange between all
     groups See further MS-DAP function `normalize_vwmb`.
 
--   mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of
-    VWMB. Normalize (/scale) samples within each sample group such that
-    their pairwise log-foldchange modes are zero, then scales between
-    groups such that the log-foldchange mode is zero (i.e. the
-    between-group part is the same as VWMB). If the dataset has
-    (unknown) covariates and a sufficient number of replicates, this
-    might be beneficial because covariate-specific effects are not
-    averaged out as they might be with `VWMB`. See further MS-DAP
-    function `normalize_vwmb`.
--   modebetween: only the “Mode Between” part of VWMB described earlier,
-    does not affect scaling between (replicate) samples within the same
-    sample group.
--   modebetween_protein (also referred to as “MBprot”, e.g. in the
-    MS-DAP manuscript and some documentation): only the “Mode Between”
-    part of VWMB described earlier, but the scaling factors are computed
-    at protein-level !! When this normalization function is used, the
-    `normalize_modebetween_protein` function will first rollup the
-    peptide data matrix to protein-level, then compute
-    between-sample-group scaling factors and finally apply those to the
-    input peptide-level data matrix to compute the normalized peptide
-    data.
+- mwmb: Mode Within, Mode Between (MWMB) normalization. A variant of
+  VWMB. Normalize (/scale) samples within each sample group such that
+  their pairwise log-foldchange modes are zero, then scales between
+  groups such that the log-foldchange mode is zero (i.e. the
+  between-group part is the same as VWMB). If the dataset has (unknown)
+  covariates and a sufficient number of replicates, this might be
+  beneficial because covariate-specific effects are not averaged out as
+  they might be with `VWMB`. See further MS-DAP function
+  `normalize_vwmb`.
+- modebetween: only the “Mode Between” part of VWMB described earlier,
+  does not affect scaling between (replicate) samples within the same
+  sample group.
+- modebetween_protein (also referred to as “MBprot”, e.g. in the MS-DAP
+  manuscript and some documentation): only the “Mode Between” part of
+  VWMB described earlier, but the scaling factors are computed at
+  protein-level !! When this normalization function is used, the
+  `normalize_modebetween_protein` function will first rollup the peptide
+  data matrix to protein-level, then compute between-sample-group
+  scaling factors and finally apply those to the input peptide-level
+  data matrix to compute the normalized peptide data.
 
 Multiple normalization algorithms can be applied subsequentially in
 MS-DAP, e.g. first apply “vsn” to normalize the dataset at peptide-level
@@ -286,22 +269,22 @@ of peptides identified in a sample in mind !
 
 Computational procedures for comparing sample groups *A* and *B*;
 
--   to account for sample loading etc., first scale the weight of all
-    peptides per sample as; 1 / total number of detected peptides in
-    sample *s*
--   *score_pA*: the score for protein *p* in sample group *A* is the sum
-    of the weighted score of all peptides that belong to protein *p* in
-    all samples (within group *A*)
--   ratio for protein *p* in *A vs B*: log2(*score_pB* + *minimum
-    non-zero score in group B*) - log2(*score_pA* + *minimum non-zero
-    score in group A*)
--   finally, we standardize all protein ratios by subtracting the
-    overall mean value, then dividing by the standard deviation
--   proteins of interest, *candidates*, are defined as proteins with an
-    absolute z-score of at least 2 AND at least a count difference
-    between groups *A* and *B* of *group size* \* 0.75 (the latter
-    guards against proteins with 0 detect in one group and 1 peptide in
-    1 sample in the other)
+- to account for sample loading etc., first scale the weight of all
+  peptides per sample as; 1 / total number of detected peptides in
+  sample *s*
+- *score_pA*: the score for protein *p* in sample group *A* is the sum
+  of the weighted score of all peptides that belong to protein *p* in
+  all samples (within group *A*)
+- ratio for protein *p* in *A vs B*: log2(*score_pB* + *minimum non-zero
+  score in group B*) - log2(*score_pA* + *minimum non-zero score in
+  group A*)
+- finally, we standardize all protein ratios by subtracting the overall
+  mean value, then dividing by the standard deviation
+- proteins of interest, *candidates*, are defined as proteins with an
+  absolute z-score of at least 2 AND at least a count difference between
+  groups *A* and *B* of *group size* \* 0.75 (the latter guards against
+  proteins with 0 detect in one group and 1 peptide in 1 sample in the
+  other)
 
 ### estimating foldchange thresholds
 
@@ -330,12 +313,12 @@ Satija at <https://doi.org/10.1186/s13059-019-1874-1>
 MS-DAP builds a report that allows in depth quality control (QC).
 Building blocks of the QC report are:
 
--   individual samples analyzed through identified peptides and
-    chromatographic effects
--   reproducibility & outliers visualized among replicates
--   presentation of dataset-wide effects; identification of batch
-    effects through PCA
--   information needed to reproduce results
+- individual samples analyzed through identified peptides and
+  chromatographic effects
+- reproducibility & outliers visualized among replicates
+- presentation of dataset-wide effects; identification of batch effects
+  through PCA
+- information needed to reproduce results
 
 The QC report can be used to evaluate data that thereafter is
 subsequently re-analyzed. For instance, after inspection the report
@@ -395,8 +378,12 @@ In this example, gel d clearly was the most successful ‘experiment
 batch’ and we observe a troublesome difference in peptide detection
 counts between gels.
 
-![detect counts, color-coded by sample
-metadata](images/qc-detect_counts.png)
+<figure>
+<img src="images/qc-detect_counts.png"
+alt="detect counts, color-coded by sample metadata" />
+<figcaption aria-hidden="true">detect counts, color-coded by sample
+metadata</figcaption>
+</figure>
 
 ### chromatography
 
@@ -424,11 +411,19 @@ minutes.
 
 **Typical sample:**
 
-![RT figures, typical results](images/qc-rt_wt4_typical.png)
+<figure>
+<img src="images/qc-rt_wt4_typical.png"
+alt="RT figures, typical results" />
+<figcaption aria-hidden="true">RT figures, typical results</figcaption>
+</figure>
 
 **Problematic sample; temporary drop in sensitivity**
 
-![RT figures, trouble in KO5](images/qc-rt_ko5_outlier.png)
+<figure>
+<img src="images/qc-rt_ko5_outlier.png"
+alt="RT figures, trouble in KO5" />
+<figcaption aria-hidden="true">RT figures, trouble in KO5</figcaption>
+</figure>
 
 **Figure legends:** The top panel shows the number of peptides in the
 input data, e.g. as recognized by the software that generated input for
@@ -492,8 +487,12 @@ for its outliers that nicely illustrate this figure), so a legend that
 shows the sample names and their respective color-coding is omitted here
 but available in any QC report of course.
 
-![within-group foldchange
-distributions](images/qc-foldchange_outlier.png)
+<figure>
+<img src="images/qc-foldchange_outlier.png"
+alt="within-group foldchange distributions" />
+<figcaption aria-hidden="true">within-group foldchange
+distributions</figcaption>
+</figure>
 
 ### CoV leave-one-out analysis
 
@@ -521,7 +520,10 @@ observe that the mode of the CoV distribution is much lower after
 removing the purple sample (already marked as ‘exclude’ in sample
 metadata).
 
-![leave-one-out](images/qc-cov_loo_outlier.png)
+<figure>
+<img src="images/qc-cov_loo_outlier.png" alt="leave-one-out" />
+<figcaption aria-hidden="true">leave-one-out</figcaption>
+</figure>
 
 **Figure legends:** Samples marked as ‘exclude’ in the provided sample
 metadata table are visualized as dashed lines.
@@ -594,7 +596,11 @@ with the SDS-PAGE gels used, demonstrating these dimension reductions
 capture a variation in peptide abundance values that coincides with
 phenotype not with the experiment technicality reviewed here.
 
-![PCA automatic color coding](images/qc-pca_color_codes.png)
+<figure>
+<img src="images/qc-pca_color_codes.png"
+alt="PCA automatic color coding" />
+<figcaption aria-hidden="true">PCA automatic color coding</figcaption>
+</figure>
 
 **Figure legends** The first 3 principle components compared visually (1
 *vs* 2, 1 *vs* 3, 2 *vs* 3) on the rows. Left- and right-side panels on
@@ -627,7 +633,12 @@ sample WT5: ![RT figures, trouble in WT5](images/qc-rt_wt5_outlier.png)
     above, we can infer this is most likely caused by technicalities and
     not due to biology!
 
-![PCA outliers corroborate earlier QC](images/qc-pca_outlier.png)
+<figure>
+<img src="images/qc-pca_outlier.png"
+alt="PCA outliers corroborate earlier QC" />
+<figcaption aria-hidden="true">PCA outliers corroborate earlier
+QC</figcaption>
+</figure>
 
 Without the detailed QC plots from MS-DAP that describe deviation in
 peptide quantity over HPLC elution time, one would not know why these
@@ -651,7 +662,10 @@ statistical comparison. Note that the title reveals these are results
 from the *MSqRob* statistical model; MS-DAP automatically generates
 figures for each statistical model \* each contast.
 
-![volcano](images/qc-volcano_Klaassen_shisa6ip.png)
+<figure>
+<img src="images/qc-volcano_Klaassen_shisa6ip.png" alt="volcano" />
+<figcaption aria-hidden="true">volcano</figcaption>
+</figure>
 
 ### protein foldchanges estimated by statistical models
 
@@ -677,7 +691,11 @@ described in the previous section. Besides the point above regarding
 MSqRob, we also observe a foldchange-mode at zero for both the
 peptide-level model MS-EmpiRe and the protein-level eBayes model.
 
-![volcano](images/qc-stat-fc-density_Klaassen_shisa6ip.png)
+<figure>
+<img src="images/qc-stat-fc-density_Klaassen_shisa6ip.png"
+alt="volcano" />
+<figcaption aria-hidden="true">volcano</figcaption>
+</figure>
 
 ## Examples of full reports
 
@@ -696,7 +714,7 @@ The MS-DAP report of the O’Connel 2018 DDA benchmark dataset
 shows application to a MaxQuant dataset: [O’Connel 2018
 dataset](/examples/data/OConnel2018_pmid29635916_report.pdf)
 
-### Bader et al. large-scale AD\~control CSF cohorts (DIA)
+### Bader et al. large-scale AD~control CSF cohorts (DIA)
 
 Demonstration of MS-DAP application to a large-scale biofluid dataset
 (<PMID:32485097>). Input data are the Spectronaut report made available

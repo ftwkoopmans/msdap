@@ -228,11 +228,14 @@ filter_dataset = function(dataset,
                           norm_algorithm = "",
                           rollup_algorithm = "maxlfq",
                           # which filters to apply
-                          by_group = T, all_group = T, by_contrast = F) {
+                          by_group = FALSE, all_group = FALSE, by_contrast = FALSE) {
 
   start_time = Sys.time()
 
   ##### input validation
+  # check if the user is trying to apply filtering/dea on a dataset object that is incompatible with MS-DAP version 1.2 or later
+  error_legacy_contrast_definitions(dataset)
+
   # validate function parameters
   check_parameter_is_numeric(filter_min_detect, filter_fraction_detect, filter_min_quant, filter_fraction_quant, filter_min_peptide_per_prot, filter_topn_peptides)
   check_parameter_is_boolean(by_group, all_group, by_contrast)
@@ -343,53 +346,47 @@ filter_dataset = function(dataset,
 
 
   #### filter and normalize by contrast
-  # get all contrasts from sample table
-  column_contrasts = dataset_contrasts(dataset)
-  # if there are no contrasts setup, disable 'by_contrast'
-  by_contrast = by_contrast && length(column_contrasts) > 0
+  # if there are no contrasts, disable 'by_contrast'
+  by_contrast = by_contrast && is.list(dataset$contrasts) && length(dataset$contrasts) > 0
 
   if(by_contrast) {
-    for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-      # only keep the current contrast in samples table, so downstream code tests this contrast only
-      # note; outlier samples are not included in contrasts as at all in upstream 'contrasts implementation'
-      col_contr_samples = dataset$samples %>% select(key_sample, key_group, group, contrast = !!col_contr) %>% filter(contrast != 0)
-      grp1_key = col_contr_samples %>% filter(contrast == 1) %>% distinct(key_group) %>% pull()
-      grp2_key = col_contr_samples %>% filter(contrast == 2) %>% distinct(key_group) %>% pull()
-      # grp1 = col_contr_samples %>% filter(contrast == 1) %>% pull(group)
-      # grp2 = col_contr_samples %>% filter(contrast == 2) %>% pull(group)
-      # grp1_key = dataset$groups %>% filter(group %in% grp1) %>% distinct(key_group) %>% pull()
-      # grp2_key = dataset$groups %>% filter(group %in% grp2) %>% distinct(key_group) %>% pull()
+    for(contr in dataset$contrasts) {
+      grp1_sid = contr$sampleid_condition1
+      grp2_sid = contr$sampleid_condition2
 
-      if(length(grp1_key) == 1) {
-        grp1_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude[[as.character(grp1_key)]] ]
-      } else {
-        # if multi-group, select all columns for this group and test that all are true
-        dt_filter_group_wide_noexclude[, temp := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(as.character(grp1_key)))]
-        # dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp1_key)))]
-        grp1_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude$temp == length(grp1_key) ]
-      }
+      # contrast-specific minimum number of samples where a peptide should be detected/quantified, per side-of-the-contrast
+      grp1_mindetect = max(filter_min_detect, ceiling(length(grp1_sid) * filter_fraction_detect))
+      grp2_mindetect = max(filter_min_detect, ceiling(length(grp2_sid) * filter_fraction_detect))
+      grp1_minquant = max(filter_min_quant, ceiling(length(grp1_sid) * filter_fraction_quant))
+      grp2_minquant = max(filter_min_quant, ceiling(length(grp2_sid) * filter_fraction_quant))
 
-      if(length(grp2_key) == 1) {
-        grp2_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude[[as.character(grp2_key)]] ]
-      } else {
-        # if multi-group, select all columns for this group and test that all are true
-        dt_filter_group_wide_noexclude[, temp := matrixStats::rowSums2(as.matrix(.SD)), .SDcols=eval(quote(as.character(grp2_key)))]
-        # dt_filter_group_wide_noexclude[, `:=`(temp = matrixStats::rowSums2(as.matrix(.SD))), .SDcols=eval(quote(as.character(grp2_key)))]
-        grp2_mask = dataset$peptides$key_peptide %in% dt_filter_group_wide_noexclude$key_peptide[ dt_filter_group_wide_noexclude$temp == length(grp2_key) ]
-      }
+      grp1_counts = dataset$peptides %>%
+        filter(sample_id %in% grp1_sid) %>%
+        group_by(peptide_id) %>%
+        summarise(ndetect = sum(detect), nquant = n()) %>%
+        ungroup()
+
+      grp2_counts = dataset$peptides %>%
+        filter(sample_id %in% grp2_sid) %>%
+        group_by(peptide_id) %>%
+        summarise(ndetect = sum(detect), nquant = n()) %>%
+        ungroup()
+
+      # subset of peptides that matches the filtering criterium in both groups
+      pepid_valid = intersect(
+        grp1_counts %>% filter(ndetect >= grp1_mindetect & nquant >= grp1_minquant) %>% pull(peptide_id),
+        grp2_counts %>% filter(ndetect >= grp2_mindetect & nquant >= grp2_minquant) %>% pull(peptide_id)
+      )
 
 
-      intensity_col_contr = paste0("intensity_", col_contr)
+      intensity_col_contr = paste0("intensity_", contr$label)
       dataset$peptides[,intensity_col_contr] = dataset$peptides$intensity
-      dataset$peptides[!(grp1_mask & grp2_mask & dataset$peptides$key_sample %in% col_contr_samples$key_sample), intensity_col_contr] <- NA
+      rows = dataset$peptides$sample_id %in% c(grp1_sid, grp2_sid) & dataset$peptides$peptide_id %in% pepid_valid
+      dataset$peptides[!rows, intensity_col_contr] <- NA
 
       # log results
-      log_stats = c(log_stats, sprintf("%d/%d peptides were retained after filtering within %s", dataset$peptides %>% select(peptide_id, intensity = !!intensity_col_contr) %>% filter(!is.na(intensity)) %>% distinct(peptide_id) %>% nrow(), npep_input, col_contr))
-
-      # table(grp1_mask); table(grp2_mask); table(!(grp1_mask & grp2_mask & dataset$peptides$key_group %in% c(grp1_key,grp2_key))); dataset$peptides %>% select(value = !!intensity_col_contr, key_group, sample_id, peptide_id) %>% filter(!is.na(value)) %>% count(key_group, sample_id)
+      log_stats = c(log_stats, sprintf("%d/%d peptides were retained after filtering within %s", n_distinct(dataset$peptides$peptide_id[rows]), npep_input, gsub(" *#.*", "", contr$label)))
     }
-  # } else {
-  #   dataset$peptides[,paste0("intensity_", column_contrasts)] = NULL # drop column if pre-existing. eg; suppose user changes filters + normalization, then doesn't want this filter; cannot keep old data
   }
 
 

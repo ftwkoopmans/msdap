@@ -45,7 +45,8 @@ dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys =
 dataset = sample_metadata_custom(dataset, group_regex_array = c(A = "007|009|011", B = "008|010|012") )
 
 dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
-#> info: contrast: A vs B
+#> info: numeric variable: condition
+#> info: contrast: A vs B # condition_variable: group
 
 print(dataset$samples %>% select(sample_id, group))
 #> # A tibble: 6 × 2
@@ -265,11 +266,12 @@ dataset = analysis_quickstart(
 #> 12756/34263 peptides were retained after filtering over all groups
 #> 21591/34263 peptides were retained after filtering within each group independently ("by group")
 #> progress: peptide filtering and normalization took 3 seconds
-#> info: differential expression analysis for contrast: A vs B
+#> info: differential expression analysis for contrast: A vs B # condition_variable: group
 #> info: using data from peptide filter: global data filter
-#> progress: peptide to protein rollup with MaxLFQ (implementation: iq) took 1 seconds
 #> progress: eBayes took 1 seconds
-#> Example custom DEA implementation, my_dea_stats(), yielded 720 hits at qvalue<=0.01
+#> warning: an error occurred in "contrast: A vs B # condition_variable: group" during the execution of DEA function "my_dea_stats"
+#> warning: argument "input_intensities_are_log2" is missing, with no default
+#> language alg_fun(peptides = peptides_for_contrast, samples = samples_for_contrast,      eset_peptides = eset_peptides, eset_proteins = eset_proteins, model_matrix = contr$model_matrix,  ...
 #> warning: differential detection parameters set to NA, this analysis is cancelled
 ```
 
@@ -280,11 +282,10 @@ print(dataset$de_proteins %>%
         group_by(dea_algorithm) %>% 
         summarise(`1% FDR` = sum(qvalue <= 0.01),
                   `1% FDR AND foldchange threshold` = sum(qvalue <= 0.01 & signif)))
-#> # A tibble: 2 × 3
+#> # A tibble: 1 × 3
 #>   dea_algorithm `1% FDR` `1% FDR AND foldchange threshold`
 #>   <chr>            <int>                             <int>
 #> 1 ebayes            1045                              1045
-#> 2 my_dea_stats       720                               720
 ```
 
 A simple Venn diagram of proteins at 1% FDR for each method shows our
@@ -297,4 +298,4 @@ gplots::venn(list(ebayes=dataset$de_proteins %>% filter(dea_algorithm=="ebayes" 
                   my_dea_stats=dataset$de_proteins %>% filter(dea_algorithm=="my_dea_stats" & qvalue <= 0.01) %>% pull(protein_id)))
 ```
 
-![](images/dea-unnamed-chunk-8-1.png)<!-- -->
+![](images/custnorm-venn-1.png)<!-- -->

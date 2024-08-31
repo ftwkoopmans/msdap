@@ -23,26 +23,26 @@ container.
 
 Advantages of using the Docker container:
 
--   perfect reproducibility of data analysis results, the entire
-    software stack is always the same
--   only tool that needs to be installed on your computer is Docker
+- perfect reproducibility of data analysis results, the entire software
+  stack is always the same
+- only tool that needs to be installed on your computer is Docker
 
 Disadvantages of using the Docker container:
 
--   if you’re already working with R/RStudio, getting up-and-running by
-    just installing the MS-DAP R package is much easier
--   there’s a learning curve to use Docker, even though we provide
-    launcher scripts to make things easier you may need to consult with
-    your local IT support if things don’t go smoothly
-    -   dealing with files / sharing files between computer and Docker
-        container can be especially tricky
--   performing additional analyses outside standard MS-DAP workflows
-    might take some extra work if you want to use R packages that aren’t
-    available within the Docker container
-    -   i.e. you don’t want to install new/extra R packages into the
-        MS-DAP container as you might mistakingly update other packages
-        that MS-DAP depends on, thereby breaking the reproducibility
-        aspect of working with containers
+- if you’re already working with R/RStudio, getting up-and-running by
+  just installing the MS-DAP R package is much easier
+- there’s a learning curve to use Docker, even though we provide
+  launcher scripts to make things easier you may need to consult with
+  your local IT support if things don’t go smoothly
+  - dealing with files / sharing files between computer and Docker
+    container can be especially tricky
+- performing additional analyses outside standard MS-DAP workflows might
+  take some extra work if you want to use R packages that aren’t
+  available within the Docker container
+  - i.e. you don’t want to install new/extra R packages into the MS-DAP
+    container as you might mistakingly update other packages that MS-DAP
+    depends on, thereby breaking the reproducibility aspect of working
+    with containers
 
 *note; this is intended as a very brief introduction and only highlights
 some common (dis)advantages from the perspective of MS-DAP users. This
@@ -53,31 +53,30 @@ thorough examination of the pros and cons of working with containers.*
 
 ## install Docker for Windows or macOS
 
--   download and install Docker for Windows/macOS at:
-    <https://www.docker.com/products/docker-desktop>
-    -   *windows; If WSL2 has not not been installed on your system yet,
-        a popup notification with installation instructions may appear.
-        Follow the presented link, or [click
-        here](https://docs.microsoft.com/en-us/windows/wsl/wsl2-kernel)
-        to “download the latest WSL2 Linux kernel”. Finally, install
-        this file and reboot.*
--   configure Docker
-    -   start Docker Desktop
-    -   open the settings screen
-        -   windows; right-click the Docker icon in the taskbar at
-            bottom-right of the screen (looks like a whale, you may need
-            to click the little arrow on the windows taskbar if icons
-            are hidden) \> click settings
-        -   macOS; Docker \> menu bar \> Preferences
-    -   update settings
-        -   resources \> advanced: set number of CPU cores to use (if in
-            doubt, set to 4 or more)
-        -   resources \> advanced: set amount of RAM to use (if in
-            doubt, set to 4\~8GB)
-        -   resources \> file sharing: click the + symbol and select the
-            directory that holds all your experimental data (eg;
-            C:/data)
--   reboot your computer after installing Docker Desktop
+- download and install Docker for Windows/macOS at:
+  <https://www.docker.com/products/docker-desktop>
+  - *windows; If WSL2 has not not been installed on your system yet, a
+    popup notification with installation instructions may appear. Follow
+    the presented link, or [click
+    here](https://docs.microsoft.com/en-us/windows/wsl/wsl2-kernel) to
+    “download the latest WSL2 Linux kernel”. Finally, install this file
+    and reboot.*
+- configure Docker
+  - start Docker Desktop
+  - open the settings screen
+    - windows; right-click the Docker icon in the taskbar at
+      bottom-right of the screen (looks like a whale, you may need to
+      click the little arrow on the windows taskbar if icons are hidden)
+      \> click settings
+    - macOS; Docker \> menu bar \> Preferences
+  - update settings
+    - resources \> advanced: set number of CPU cores to use (if in
+      doubt, set to 4 or more)
+    - resources \> advanced: set amount of RAM to use (if in doubt, set
+      to 4~8GB)
+    - resources \> file sharing: click the + symbol and select the
+      directory that holds all your experimental data (eg; C:/data)
+- reboot your computer after installing Docker Desktop
 
 ## install and test Docker on Linux
 
@@ -91,35 +90,35 @@ Ubuntu live-USB;
     <https://docs.docker.com/engine/install/ubuntu/> and using the
     “convenience script” for installation provided by Docker;
 
--   `curl -fsSL https://get.docker.com -o get-docker.sh`
--   `sudo sh get-docker.sh`
+- `curl -fsSL https://get.docker.com -o get-docker.sh`
+- `sudo sh get-docker.sh`
 
 2)  Setting up users following
     <https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user>
 
--   `sudo groupadd docker` \# might get a warning that group already
-    exists, which is fine
--   `sudo usermod -aG docker $USER` \# or instead of `$USER` , enter
-    your username
--   `newgrp docker` \# update group
--   Now we’ll need to log out (the current user) and log back in so the
-    group membership is re-evaluated. (in the Ubuntu live-USB example
-    this could be done by; `sudo -i` then `su ubuntu` )
--   `docker run hello-world` \# test if docker works. Should see Docker
-    downloading an image, print “Hello from Docker !” among other
-    info/text
+- `sudo groupadd docker` \# might get a warning that group already
+  exists, which is fine
+- `sudo usermod -aG docker $USER` \# or instead of `$USER` , enter your
+  username
+- `newgrp docker` \# update group
+- Now we’ll need to log out (the current user) and log back in so the
+  group membership is re-evaluated. (in the Ubuntu live-USB example this
+  could be done by; `sudo -i` then `su ubuntu` )
+- `docker run hello-world` \# test if docker works. Should see Docker
+  downloading an image, print “Hello from Docker !” among other
+  info/text
 
 3)  run the MS-DAP docker launcher script (you can download it from this
     GitHub repository, there’s a versioned script attached to each
     release at <https://github.com/ftwkoopmans/msdap/releases> )
 
--   `mkdir -m 777 ~/msdap_data` \# importantly, check the permission
-    flags used here. Create a folder in your home directory where data
-    is exchanged between host system and the Docker container
--   `cd ~/msdap_data` \# we want to run the launcher script from within
-    the directory where data is exchanged
--   `~/Downloads/msdap_launcher_unix.sh` \# assume the launcher script
-    is here and already made executable
+- `mkdir -m 777 ~/msdap_data` \# importantly, check the permission flags
+  used here. Create a folder in your home directory where data is
+  exchanged between host system and the Docker container
+- `cd ~/msdap_data` \# we want to run the launcher script from within
+  the directory where data is exchanged
+- `~/Downloads/msdap_launcher_unix.sh` \# assume the launcher script is
+  here and already made executable
 
 ## Start the Docker container
 
@@ -134,28 +133,26 @@ A launcher script is provided for user convenience; it executes all
 commands needed to run the MS-DAP docker container. To do this manually
 instead, consult the next section for a step-by-step guide.
 
--   download the script for the MS-DAP version you want to use at the
-    [‘releases’ section of this github
-    repository](https://github.com/ftwkoopmans/msdap/releases)
--   copy/move the launcher script to the directory that holds your
-    experiment data (eg; `C:/data/proteomics/`)
-    -   the file location is important: only data with the directory
-        that contains the launcher script will be accessible within the
-        Docker container. See further, subsection **Locating your
-        mounted data within Docker containers**
--   run the script to launch MS-DAP
-    -   windows; right-click `msdap_launcher_windows.ps1` and select
-        “Run with PowerShell”
-        -   *note; upon first use, you may see a security warning
-            because this script was downloaded from the internet (If
-            it’s a “Execution Policy Change” warning, enter “Y” to
-            proceed)*
-    -   macOS and Linux; execute the `msdap_launcher_unix.sh` script
-        -   *note; if you are unfamiliar with using scripts,* [here is a
-            macOS
-            guide](https://support.apple.com/guide/terminal/make-a-file-executable-apdd100908f-06b3-4e63-8a87-32e71241bab4/mac)
-        -   *note; on Linux, you need to make sure the Docker daemon is
-            running prior to starting the script*
+- download the script for the MS-DAP version you want to use at the
+  [‘releases’ section of this github
+  repository](https://github.com/ftwkoopmans/msdap/releases)
+- copy/move the launcher script to the directory that holds your
+  experiment data (eg; `C:/data/proteomics/`)
+  - the file location is important: only data with the directory that
+    contains the launcher script will be accessible within the Docker
+    container. See further, subsection **Locating your mounted data
+    within Docker containers**
+- run the script to launch MS-DAP
+  - windows; right-click `msdap_launcher_windows.ps1` and select “Run
+    with PowerShell”
+    - *note; upon first use, you may see a security warning because this
+      script was downloaded from the internet (If it’s a “Execution
+      Policy Change” warning, enter “Y” to proceed)*
+  - macOS and Linux; execute the `msdap_launcher_unix.sh` script
+    - *note; if you are unfamiliar with using scripts,* [here is a macOS
+      guide](https://support.apple.com/guide/terminal/make-a-file-executable-apdd100908f-06b3-4e63-8a87-32e71241bab4/mac)
+    - *note; on Linux, you need to make sure the Docker daemon is
+      running prior to starting the script*
 
 To use a different MS-DAP version, simply change the version number at
 the top of the launcher script. To view all available MS-DAP Docker
@@ -164,13 +161,13 @@ containers versions, go to:
 
 **what does the script do?**
 
--   if Docker is not up-and-running, start Docker
--   the launcher script will automatically download the MS-DAP container
-    (if needed)
--   if MS-DAP is already up-and-running, stop it
--   start the MS-DAP docker container
--   your default web browser is launched and navigates to a local
-    webserver within the Docker container @ <http://localhost:3839>
+- if Docker is not up-and-running, start Docker
+- the launcher script will automatically download the MS-DAP container
+  (if needed)
+- if MS-DAP is already up-and-running, stop it
+- start the MS-DAP docker container
+- your default web browser is launched and navigates to a local
+  webserver within the Docker container @ <http://localhost:3839>
 
 ### commandline
 
@@ -183,12 +180,12 @@ with the launcher script).
 1)  First, make sure that Docker is up and running. For Windows and
     macOS, simply start the Docker Desktop application.
 
--   On Windows, you may hover the mouse cursor over the Docker tray icon
-    that looks like a whale in the bottom-right section of the taskbar
-    to confirm its status is “Docker Desktop is running” (if no icon is
-    visible but you did start Docker, maybe the icon is hidden and you
-    have to click the icon on the bottom-right of the Windows taskbar to
-    “Show hidden icons”).
+- On Windows, you may hover the mouse cursor over the Docker tray icon
+  that looks like a whale in the bottom-right section of the taskbar to
+  confirm its status is “Docker Desktop is running” (if no icon is
+  visible but you did start Docker, maybe the icon is hidden and you
+  have to click the icon on the bottom-right of the Windows taskbar to
+  “Show hidden icons”).
 
 2)  Next, start a terminal. On Windows, start powershell (start \> type:
     `powershell` \> click `Windows PowerShell` icon). On macOS, open
@@ -249,24 +246,23 @@ Use a snippet of R code that uses the MS-DAP R package to analyse the
 Klaassen et al. (2018) dataset that was pre-processed with MetaMorpheus
 and included with MS-DAP:
 
--   To immediately view the expected results, [click here to download
-    the PDF
-    report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf)
-    we already prepared and uploaded.
+- To immediately view the expected results, [click here to download the
+  PDF
+  report](/examples/data/dataset_Klaassen2018_pmid26931375_report.pdf)
+  we already prepared and uploaded.
 
 Data analysis steps:
 
--   assuming the MS-DAP Docker container is running and you accessed it
-    using a web-browser at <http://localhost:3839>
--   in the RStudio menu on the top-left; file \> New File \> R Script
--   copy/paste the below code snippet to the panel in center of the
-    screen
--   run all lines of code: select all (by mouse drag or click anywhere
-    then `control+A`) \> click the `run` button on top of the code panel
-    to run all selected lines
--   output log and result summary are shown at the bottom of the screen
--   output files can be found in the *mapped directory* that you defined
-    when launching MS-DAP
+- assuming the MS-DAP Docker container is running and you accessed it
+  using a web-browser at <http://localhost:3839>
+- in the RStudio menu on the top-left; file \> New File \> R Script
+- copy/paste the below code snippet to the panel in center of the screen
+- run all lines of code: select all (by mouse drag or click anywhere
+  then `control+A`) \> click the `run` button on top of the code panel
+  to run all selected lines
+- output log and result summary are shown at the bottom of the screen
+- output files can be found in the *mapped directory* that you defined
+  when launching MS-DAP
 
 ``` r
 library(msdap)
@@ -306,8 +302,8 @@ print_dataset_summary(dataset)
 
 **documentation from Docker to verify your Docker installation is ok**
 
--   <https://docs.docker.com/docker-for-windows/>
--   <https://docs.docker.com/docker-for-mac/>
+- <https://docs.docker.com/docker-for-windows/>
+- <https://docs.docker.com/docker-for-mac/>
 
 **permission denied while trying to connect to the Docker daemon**
 

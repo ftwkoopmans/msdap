@@ -46,6 +46,9 @@
 #' @param norm_algorithm normalization algorithms. This should be exactly the same as the parameter your provided to `analysis_quickstart`
 #' @export
 plot_peptide_data = function(dataset, select_all_proteins = FALSE, select_diffdetect_candidates = NA, select_dea_signif = FALSE, filter_protein_ids = NA, filter_genes = NA, output_dir, show_unused_datapoints = FALSE, norm_algorithm = NA) {
+  # check if the user is trying to apply filtering/dea on a dataset object that is incompatible with MS-DAP version 1.2 or later
+  error_legacy_contrast_definitions(dataset)
+
   if(length(select_diffdetect_candidates) == 1 && select_diffdetect_candidates %in% TRUE) {
     select_diffdetect_candidates = 4 # default z-score
   }
@@ -136,14 +139,12 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     append_log(paste("failed to create temp directory at;", output_dir__temp), type = "error")
   }
 
-  ucontr = dataset_contrasts(dataset)
-
   # error if there are no contrasts
-  if(length(ucontr) == 0) {
+  if(!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
     append_log("no contrasts in this dataset", type = "error")
   }
 
-  output_pdf_filenames = sprintf("%s/MS-DAP_peptide-data_contrast-%s.pdf", output_dir, seq_along(ucontr))
+  output_pdf_filenames = sprintf("%s/MS-DAP_peptide-data_contrast-%s.pdf", output_dir, seq_along(dataset$contrasts))
   for(f in output_pdf_filenames) {
     remove_file_if_exists(f)
   }
@@ -155,6 +156,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
 
   # figure out where the filtered&norm peptide intensity data is at for each contrast
   # = named array with 'intensity post-processing type' and column names, per contrast
+  ucontr = unlist(lapply(dataset$contrasts, "[[", "label"))
   ucontr_col_intensity = ucontr_col_intensity__reintroduced = sapply(ucontr, function(x) get_column_intensity(dataset$peptides, x))
 
   ## borrow data for peptides removed during filtering, but skip data directly from the raw input data column ("intensity")
@@ -182,8 +184,8 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
   }
 
 
-  for(index in seq_along(ucontr)) {
-    contr = ucontr[index]
+  for(index in seq_along(dataset$contrasts)) {
+    contr = dataset$contrasts[[index]]
 
     # prepare a minimal peptide-level tibble that holds all required data for downstream plots
     contr_col_int = as.character(ucontr_col_intensity[index]) # don't forget to dump the 'name' from this variable, or dplyr::select() will trip out while using !! downstream
@@ -191,12 +193,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
 
     ## samples to plot; not only those used in statistical contrast but also 'exclude' samples that match the current contrast
     # for datasets where 'all groups' filtering was used, show all samples. If by-contrast filtering, show only samples in contrast's sample groups
-    samples_contr = dataset$samples
-    if(grepl("contrast:", contr_col_int, ignore.case = T)) {
-      contr_sample_groups = unlist(decompose_contrast_name(contr))
-      samples_contr = dataset$samples %>% filter(group %in% contr_sample_groups)
-      rm(contr_sample_groups)
-    }
+    samples_contr = dataset$samples %>% filter(sample_id %in% c(contr$sampleid_condition1, contr$sampleid_condition2))
 
     peptides_contr = peptides %>%
       select(peptide_id, protein_id, sample_id, detect, intensity_filtered = !!contr_col_int, intensity_reintroduced = !!contr_col_int_reintroduced, peptide_id_group = key_peptide_group) %>%
@@ -225,7 +222,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     # gather differential testing results, if any
     de_proteins_contr = tibble()
     if("de_proteins" %in% names(dataset)) {
-      de_proteins_contr = dataset$de_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr)
+      de_proteins_contr = dataset$de_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr$label)
 
       # infer order in which to plot proteins
       contr_protein_id__ordered = de_proteins_contr %>% arrange(pvalue) %>% distinct(protein_id) %>% pull()
@@ -242,7 +239,7 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     }
 
     if("dd_proteins" %in% names(dataset)) {
-      tib_dd = dataset$dd_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr & is.finite(zscore))
+      tib_dd = dataset$dd_proteins %>% filter(protein_id %in% proteins_contr$protein_id & contrast == contr$label & is.finite(zscore))
       if(nrow(tib_dd) > 0) {
         # infer order in which to plot proteins
         contr_protein_id__ordered = c(contr_protein_id__ordered, tib_dd %>% arrange(desc(abs(zscore))) %>% pull(protein_id))
@@ -335,8 +332,8 @@ plot_peptide_data_by_contrast_to_pdf = function(dataset, filter_protein_id, outp
     fname_documentation_page = sprintf("%s/peptideplot_%s_%s.pdf", output_dir__temp, index, "docs")
     pdf(fname_documentation_page, width=7, height=9)
     graphics::plot.new()
-    # mtext(paste0(contr, "\n\nhorizontal line = peptide average intensity within 'sample group'\n\nconfidently identified peptides: solid/filled symbols\nquantified but not identified (match-between-runs): open symbols\n\npeptides that _fail_ the filter criteria for this contrast:\nsmall symbols & dashed line for average\n(note; these were not used for statistics)\n\nfor proteins with many peptides, legends are shown on a separate page for legibility"), padj = 1, cex = .75)
-    mtext(paste0(contr, "
+
+    mtext(paste0(contr$label, "
 
 Peptides can be quantified AND detected (eg; by MS/MS or DIA confidence score) in a sample,
 or only quantified (eg; match-between-runs or poor DIA confidence score).

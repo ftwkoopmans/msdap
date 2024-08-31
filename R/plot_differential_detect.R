@@ -11,8 +11,8 @@ plot_differential_detect = function(dataset, zscore_threshold = 6) {
     return(result)
   }
 
-  for(contr in dataset_contrasts(dataset)) {
-    tib_contr = dataset$dd_proteins %>% filter(contrast == contr & is.finite(zscore))
+  for(contr in dataset$contrasts) {
+    tib_contr = dataset$dd_proteins %>% filter(contrast == contr$label & is.finite(zscore))
     if(nrow(tib_contr) == 0) {
       next
     }
@@ -32,13 +32,13 @@ plot_differential_detect = function(dataset, zscore_threshold = 6) {
       geom_histogram(bins=25, boundary = 0, colour = "black", fill="lightgrey", na.rm=T) +
       geom_vline(xintercept = c(-zscore_threshold, zscore_threshold), colour = "red") +
       facet_wrap(.~type_label, ncol = 1, scales = "free") +
-      labs(x="Differential z-score for observed peptides", y="Protein count", colour = "", title = contr) +
+      labs(x="Differential z-score for observed peptides", y="Protein count", colour = "", title = paste("contrast:", contr$label_contrast)) +
       theme_bw() +
       theme(plot.title = element_text(hjust = 0.5, size=9),
             plot.subtitle = element_text(hjust = 0.5, size=9),
             legend.position = "none")
 
-    result[[contr]] = p_hist
+    result[[contr$label]] = p_hist
   }
 
   return(result)

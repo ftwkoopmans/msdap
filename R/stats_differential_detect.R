@@ -130,8 +130,7 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
     append_log("you have to merge fractionated samples prior to differential detection. Typically, you want to simply use the analysis_quickstart() to process the dataset first. Advanced users may call merge_fractionated_samples(dataset) manually.", type = "error")
   }
 
-  column_contrasts = dataset_contrasts(dataset)
-  if (length(column_contrasts) == 0) {
+  if(!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
     append_log("no contrasts have been defined, differential detection analysis is cancelled", type = "warning")
     return(dataset)
   }
@@ -205,25 +204,20 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
   ### compare counts within each contrast
 
   tib_results = NULL
-  for(col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-    ### sample_id per condition ('side of each contrast')
-    contr_samples = dataset$samples %>%
-      select(sample_id, exclude, condition=!!col_contr) %>%
-      filter(exclude == FALSE & condition != 0) %>%
-      arrange(condition)
+  for(contr in dataset$contrasts) {
     # set of sample_id for condition 1 and 2
-    sid1 = contr_samples %>% filter(condition == 1) %>% pull(sample_id)
-    sid2 = contr_samples %>% filter(condition == 2) %>% pull(sample_id)
+    sid1 = contr$sampleid_condition1
+    sid2 = contr$sampleid_condition2
 
     # compute summary stats and z-score for each protein_id
     z_detect = summarize_proteins(count_detect, count_detect__scaled, sid1, sid2, min_peptides_observed, min_samples_observed, min_fraction_observed, rescale_counts_per_sample)
     # append to results
-    tib_results = bind_rows(tib_results, z_detect %>% mutate(contrast = col_contr, type = "detect"))
+    tib_results = bind_rows(tib_results, z_detect %>% mutate(contrast = contr$label, type = "detect"))
 
     # analogous
     if(compute_quant_counts) {
       z_quant = summarize_proteins(count_quant, count_quant__scaled, sid1, sid2, min_peptides_observed, min_samples_observed, min_fraction_observed, rescale_counts_per_sample)
-      tib_results = bind_rows(tib_results, z_quant %>% mutate(contrast = col_contr, type = "quant"))
+      tib_results = bind_rows(tib_results, z_quant %>% mutate(contrast = contr$label, type = "quant"))
     }
   }
 

@@ -468,20 +468,419 @@ sample_metadata_sort_and_filter = function(df, sample_exclude_regex = "", group_
 
 
 
-compose_contrast_name = function(a, b) {
-  paste("contrast:", paste(unique(a), collapse = ","), "vs", paste(unique(b), collapse = ","))
+#' test if the dataset has contrast definitions that are incompatible with MS-DAP version 1.2
+#'
+#' @param dataset your dataset
+#' @export
+has_legacy_contrast_definitions = function(dataset) {
+  is.list(dataset) && (
+    ("samples" %in% names(dataset) && is.data.frame(dataset$samples) && any(grepl("^contrast:", colnames(dataset$samples), ignore.case = TRUE))) ||
+      # regex: has intensity_contrast column that does not contain a hashtag
+      # (all new-style contrast names do because the dataset$samples column with "condition" is encoded in contrast labels since MS-DAP release 1.2)
+      ("peptides" %in% names(dataset) && is.data.frame(dataset$peptides) && any(grepl("^intensity_contrast[^#]+$", colnames(dataset$samples), ignore.case = TRUE)))
+  )
 }
 
 
 
-decompose_contrast_name = function(x) {
-  x = sub("^contrast: *", "", x)
-  lapply(strsplit(x, split = " *vs *"), strsplit, split = " *, *")
+#' throw an error if has_legacy_contrast_definitions() is TRUE
+#'
+#' @param dataset your dataset
+error_legacy_contrast_definitions = function(dataset) {
+  if(has_legacy_contrast_definitions(dataset)) {
+    append_log("this dataset was constructed with an older, incompatible MS-DAP version. To fix this, remove and then redefine all contrasts with the following 2 steps:\ndataset = remove_contrasts(dataset)\ndataset = setup_contrasts(dataset, ... same definitions you used before ...)\nDone! you may now use the updated dataset in MS-DAP as per usual", type = "error")
+  }
+}
+
+
+
+#' Remove all contrast definitions and respective filtering and DEA results
+#'
+#' @description
+#' also removes contrast-related information from the dataset that was used in older MS-DAP version (prior to version 1.2)
+#'
+#' @param dataset your dataset
+#' @seealso [print_contrasts()], [add_contrast()]
+#' @export
+remove_contrasts = function(dataset) {
+  if(!is.list(dataset)) {
+    append_log("dataset parameter must be a list", type = "error")
+  }
+  # remove legacy random variables specification if it exists
+  dataset$dea_random_variables = NULL
+  # remove legacy contrast definitions in dataset$samples
+  if("samples" %in% names(dataset) && is.data.frame(dataset$samples)) {
+    dataset$samples = dataset$samples %>% select(-tidyselect::starts_with("contrast:"))
+  }
+  # remove all contrast-filters from peptide table
+  if("peptides" %in% names(dataset) && is.data.frame(dataset$peptides)) {
+    dataset$peptides = dataset$peptides %>% select(-tidyselect::starts_with("intensity_contrast"))
+  }
+  # remove all dea and dd results
+  dataset$de_proteins = NULL
+  dataset$dd_proteins = NULL
+  # init empty list
+  dataset$contrasts = list()
+  return(dataset)
+}
+
+
+
+#' Print an overview of all defined contrasts and their respective sample metadata tables to the console
+#'
+#' @param dataset your dataset
+#' @seealso [add_contrast()], [remove_contrasts()]
+#' @export
+print_contrasts = function(dataset) {
+  if(!is.list(dataset)) {
+    append_log("dataset parameter must be a list", type = "error")
+  }
+
+  if(!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
+    append_log("no contrasts have been defined", type = "info")
+  }
+
+  for(i in seq_along(dataset$contrasts)) {
+    contr = dataset$contrasts[[i]]
+    cat(ifelse(i > 1, "\n", ""), contr$label, "\n")
+    print(inner_join(
+      dataset$samples %>% select(sample_id, shortname), # optionally, include 'fraction': tidyselect::any_of("fraction")
+      contr$sample_table,
+      by = "sample_id"
+    ))
+  }
+}
+
+
+
+#' Create a contrast for differential expression analysis
+#'
+#' @description
+#' Note that a MS-DAP contrast for "A vs B" will return foldchanges for B/A in downstream output
+#' tables and data visualizations. For example, for the contrast "control vs disease" a positive
+#' log2 foldchange implies protein abundances are higher in the "disease" sample group.
+#'
+#' Throughout this function, all samples where the column "exclude" is set to TRUE are disregarded.
+#'
+#' @examples \dontrun{
+#'   # first, remove all existing contrasts (and their respecive DEA results)
+#'   dataset = remove_contrasts(dataset)
+#'
+#'   # Assume that column "group" in your sample metadata table specifies sample groups
+#'   # The following example will create the contrast "WT vs KO"
+#'   dataset = add_contrast(dataset, "group", "WT", "KO")
+#'
+#'   # If the sample metadata table contains a column "batch" that should be used as
+#'   # a regression variable (works for ebayes/deqms/msqrob), we can add it as follows:
+#'   dataset = add_contrast(dataset, "group", "WT", "KO", colname_additional_variables = "batch")
+#'
+#'   # Elaborate example; create a contrast while matching multiple values per group.
+#'   # Testing all motor- and visual-cortex samples (described in the "brain_region"
+#'   # column) against prefrontal cortex samples, with additional regression variables
+#'   # batch and age.
+#'   # In this example, the sample metadata table must contain columns
+#'   # "brain_region", "batch", "age"
+#'   dataset = add_contrast(
+#'     dataset,
+#'     # this parameter describes 1 column name in `dataset$samples`
+#'     colname_condition_variable = "brain_region",
+#'     # values in "brain_region" that are the first group in A/B testing
+#'     values_condition1 = c("motor_cortex", "visual_cortex"),
+#'     # analogous, but for the second group in A/B testing.
+#'     # note that you may alternatively this to `NA` to indicate
+#'     # "everything except values in values_condition1"
+#'     values_condition2 = c("prefrontal_cortex"),
+#'     # a vector/array of 0 or more column names in dataset$samples
+#'     # that should be used as additional regression variables
+#'     colname_additional_variables = c("batch", "age")
+#'   )
+#'
+#'   # Assume that the sample metadata table contains a column "group" with values
+#'   # "A", "B", "C", "D". The following code will create the contrast "A vs B,C,D"
+#'   # by setting the second set of values to `NA`
+#'   dataset = add_contrast(
+#'     dataset,
+#'     colname_condition_variable = "group",
+#'     values_condition1 = "A",
+#'     values_condition2 = NA
+#'   )
+#'
+#'   ## The "group" column in the sample table is used for group definitions in
+#'   ## "all group" filtering. We here create two contrasts based on different
+#'   ## regression variables in the sample tabel.
+#'   dataset = remove_contrasts(dataset) # optionally, remove previously defined contrasts
+#'   dataset = add_contrast(
+#'     dataset,
+#'     colname_condition_variable = "genotype",
+#'     values_condition1 = "control",
+#'     values_condition2 = "knockout",
+#'     colname_additional_variables = "batch"
+#'   )
+#'   dataset = add_contrast(
+#'     dataset,
+#'     colname_condition_variable = "genotype",
+#'     values_condition1 = "control",
+#'     values_condition2 = c("knockout", "mutant1"),
+#'     # note that we have the flexibility to add different regression variables per contrast
+#'     colname_additional_variables = "batch"
+#'   )
+#'   # print an overview of all contrasts
+#'   print_contrasts(dataset)
+#'   # apply typical MS-DAP pipeline
+#'   dataset = analysis_quickstart(
+#'     dataset,
+#'     filter_min_detect = 0, ## if DDA, we might not require minimum MS/MS counts
+#'     filter_min_quant = 3,
+#'     filter_fraction_detect = 0,
+#'     filter_fraction_quant = 0.75,
+#'     filter_by_contrast = FALSE,      ## we only want filtering across all groups
+#'     filter_min_peptide_per_prot = 2, ## 2 peptides per protein
+#'     dea_algorithm = "deqms",
+#'     norm_algorithm = c("vwmb", "modebetween_protein"),
+#'     output_qc_report = TRUE,
+#'     output_abundance_tables = TRUE,
+#'     output_dir = "C:/temp",         ## you may set this to NA to skip the QC report
+#'     output_within_timestamped_subdirectory = TRUE
+#'   )
+#' }
+#' @param dataset your dataset. Make sure you've already imported sample metadata
+#' @param colname_condition_variable sample metadata column name that should be used for the experimental condition. Typically, this is the "group" column. Should be any of the values in `user_provided_metadata(dataset$samples)`
+#' @param values_condition1 array of values from column `colname_condition_variable` that are the first group in the contrast. Note that
+#' @param values_condition2 analogous to `values_condition1`, but for the second group. Note that you can set this to NA to indicate "everything except values in values_condition1"
+#' @param colname_additional_variables optionally, sample metadata column names that should be used as additional regression variables (only the subset of `user_provided_metadata(dataset$samples)`, NOT including the value provided as parameter `colname_condition_variable`)
+#' @seealso [print_contrasts()] to print an overview of defined contrasts, [remove_contrasts()] to remove all current contrasts (and respective filtering and DEA results)
+#' @export
+add_contrast = function(dataset, colname_condition_variable, values_condition1, values_condition2, colname_additional_variables = NULL) {
+  # validate dataset
+  if(!is.list(dataset) || !"samples" %in% names(dataset) || !is.data.frame(dataset$samples)) {
+    append_log("Dataset does not contain a sample metadata table (dataset$samples)", type = "error")
+  }
+  if(!all(c("sample_id", "exclude") %in% colnames(dataset$samples)) || !all(dataset$samples$exclude %in% c(TRUE, FALSE))) {
+    append_log("Expected column 'sample_id' and boolean column 'exclude' in dataset$samples", type = "error")
+  }
+  if("contrasts" %in% names(dataset) && !is.list(dataset$contrasts)) {
+    append_log("dataset$contrasts must be a list. Overwriting this variable", type = "warning")
+    dataset = remove_contrasts(dataset) # inits a new list
+  }
+  if(!"contrasts" %in% names(dataset)) {
+    dataset = remove_contrasts(dataset) # inits a new list
+  }
+
+  # validate condition colname
+  valid_sample_metadata_columns = user_provided_metadata(dataset$samples)
+  if(length(colname_condition_variable) != 1 || is.na(colname_condition_variable) || colname_condition_variable == "" || !colname_condition_variable %in% valid_sample_metadata_columns) {
+    append_log(paste0(
+      'Invalid colname_condition_variable parameter: this should be a sample metadata column name that indicates the experimental condition, but provided value "', colname_condition_variable,
+      '" does not exist in the sample metadata table! Note that matching is case-sensitive\nAvailable column names are: ',
+      paste(valid_sample_metadata_columns, collapse=",")), type = "error")
+  }
+  tmp = unlist(dataset$samples[,colname_condition_variable], recursive = FALSE, use.names = FALSE)
+  if(anyNA(tmp) || !is.character(tmp) || any(tmp == "")) {
+    append_log('The sample metadata column provided in parameter colname_condition_variable must contain character values and not any NA or empty strings', type = "error")
+  }
+
+  # validate additional variables colnames
+  if(!is.null(colname_additional_variables)) {
+    if(anyNA(colname_additional_variables) || !is.character(colname_additional_variables) || any(colname_additional_variables %in% c("", "condition")) || anyDuplicated(colname_additional_variables)) {
+      append_log('Invalid colname_additional_variables parameter: must be a character array. Cannot be NA, empty string or "condition". Duplicated not allowed.  (leave to default NULL if there are no additional regression variables)', type = "error")
+    }
+    if(colname_condition_variable %in% colname_additional_variables) {
+      append_log('Parameter colname_additional_variables should not overlap with parameter colname_condition_variable', type = "error")
+    }
+    tmp = setdiff(colname_additional_variables, valid_sample_metadata_columns)
+    if(length(tmp) > 0) {
+      append_log(paste0(
+        'Invalid colname_additional_variables parameter: this should be an array of sample metadata column names that indicate additional regression variables, but provided value(s) "',
+        paste(tmp, collapse = ","),
+        '" do not exists in the sample metadata table! Note that matching is case-sensitive\nAvailable column names are: ',
+        paste(valid_sample_metadata_columns, collapse=",")), type = "error")
+    }
+  }
+
+  # sorted sample metadata table only for samples in current contrast + transform condition into [1,2] classification
+  samples = dataset$samples %>%
+    filter(exclude == FALSE) %>%
+    # importantly, select relevant regression variable columns **in order of priority** (with sample identifiers in front)
+    select(sample_id, condition = !!as.symbol(colname_condition_variable), tidyselect::all_of(colname_additional_variables))
+
+  # validate
+  if(length(values_condition1) == 0 || anyNA(values_condition1) || !is.character(values_condition1) || any(values_condition1 == "" | !values_condition1 %in% unique(samples$condition)) || anyDuplicated(values_condition1)) {
+    append_log(sprintf('parameter values_condition1 contains invalid values. Must match a value in sample metadata column "%s" (conform your provided column name specified in parameter colname_condition_variable). Must not be NA nor empty strings, no duplicates allowed', colname_condition_variable), type = "error")
+  }
+  if(length(values_condition2) == 1 && is.na(values_condition2)) { # infer second group
+    values_condition2 = setdiff(unique(samples$condition), values_condition1)
+    if(length(values_condition2) == 0) {
+      append_log(paste0('parameter values_condition2 is set to NA but all unique values in sample metadata column "', colname_condition_variable, '" are already provided at parameter values_condition1 (note that "exclude" samples are disregarded)'), type = "error")
+    }
+  } else {
+    if(length(values_condition2) == 0 || anyNA(values_condition2) || !is.character(values_condition2) || any(values_condition2 == "" | !values_condition2 %in% unique(samples$condition)) || anyDuplicated(values_condition2)) {
+      append_log(sprintf('parameter values_condition2 contains invalid values. Must match a value in sample metadata column "%s" (conform your provided column name specified in parameter colname_condition_variable). Must not be NA nor empty strings, no duplicates allowed', colname_condition_variable), type = "error")
+    }
+  }
+  tmp = intersect(values_condition1, values_condition2)
+  if(length(tmp) > 0) {
+    append_log(paste0('there must not be any overlap between parameters values_condition1 and values_condition2. Redundant values: ', paste(tmp, collapse = ",")), type = "error")
+  }
+
+  samples = samples %>%
+    filter(condition %in% c(values_condition1, values_condition2)) %>%
+    mutate(condition = as.integer((condition %in% values_condition2) + 1)) %>%
+    arrange(condition)
+
+  if(sum(samples$condition == 1L) < 2) {
+    append_log(paste0('less than 2 samples (that are not set to "exclude") in sample metadata column "', colname_condition_variable, '" match the values_condition1 parameter; contrasts need at least 2 samples in each group'), type = "error")
+  }
+  if(sum(samples$condition == 2L) < 2) {
+    append_log(paste0('less than 2 samples (that are not set to "exclude") in sample metadata column "', colname_condition_variable, '" match the values_condition2 parameter; contrasts need at least 2 samples in each group'), type = "error")
+  }
+
+  # convert each column to factor/numeric
+  samples = enforce_sample_value_types(samples, redundant_columns = "error", show_log = TRUE)
+
+  # check that each variable has condition-unique values
+  for(col in colname_additional_variables) {
+    y = samples %>% pull(!!col)
+    if(n_distinct(y[samples$condition == 1L]) == 1 && n_distinct(y[samples$condition == 2L]) == 1) {
+      append_log(paste0('"Invalid regression variable "', col, '" has no unique values in either condition  (solution: remove it from the colname_additional_variables parameter for the current contrast)'), type = "error")
+    }
+  }
+
+  # compose label
+  lbl_contrast = sprintf(
+    "%s vs %s",
+    paste(values_condition1, collapse=","),
+    paste(values_condition2, collapse=",")
+  )
+  lbl = sprintf(
+    "contrast: %s vs %s # condition_variable: %s",
+    paste(values_condition1, collapse=","),
+    paste(values_condition2, collapse=","),
+    colname_condition_variable
+  )
+  if(length(colname_additional_variables) > 0) {
+    lbl = paste0(lbl, " # additional_variables: ", paste(colname_additional_variables, collapse=","))
+  }
+
+  lbl = sub(" *$", "", lbl) # trim trailing whitespace
+  append_log(lbl, type = "info")
+
+  # double-check duplicates
+  isdupe = FALSE
+  for(i in seq_along(dataset$contrasts)) {
+    if(dataset$contrasts[[i]]$label == lbl) {
+      append_log(paste0("skipping a contrast that was already added to the dataset: ", lbl), type = "warning")
+      isdupe = TRUE
+      break
+    }
+  }
+
+  if(!isdupe) {
+    # finally, store the data
+    dataset$contrasts[[length(dataset$contrasts) + 1]] = list(
+      label = lbl,
+      label_contrast = lbl_contrast,
+      colname_condition_variable = colname_condition_variable,
+      colname_additional_variables = colname_additional_variables,
+      values_condition1 = values_condition1,
+      values_condition2 = values_condition2,
+      sampleid_condition1 = samples %>% filter(condition == 1) %>% pull(sample_id),
+      sampleid_condition2 = samples %>% filter(condition == 2) %>% pull(sample_id),
+      # the samples table is essential: we've added a 'condition' column and included additional variables relevant for the (user-specified) linear regression
+      sample_table = samples,
+      model_matrix = stats::model.matrix(~ . , data = samples %>% select(-sample_id)),
+      # in the way the samples table is currently constructed,
+      # we'd always need the "condition" regression variable as our main result
+      regression_coefficient_name = "condition"
+    )
+  }
+
+  return(dataset)
+}
+
+
+
+#' convert the data type of column in a sample metadata table to factors or numeric type
+#'
+#' @description importantly, columns "sample_index", "sample_id" and "shortname" are ignored alltogether
+#' @param samples dataset$samples or a subset thereof. Typically, only columns sample_id and user-defined regression variables are included as columns
+#' @param redundant_columns how to deal with columns in `samples` that are redundant with other columns. Options: "error" (default), "warning", "ignore"
+#' @param show_log boolean, show data type per column in console? Default: `TRUE`
+enforce_sample_value_types = function(samples, redundant_columns = "error", show_log = TRUE) {
+  if(!is.data.frame(samples) || ncol(samples) == 0 || nrow(samples) == 0) {
+    append_log("samples parameter must be a non-empty data.frame", type = "error")
+  }
+  if(length(redundant_columns) != 1 || !redundant_columns %in% c("error", "warning", "ignore")) {
+    append_log('redundant_columns parameter must be any of these options: "error", "warning", "ignore"', type = "error")
+  }
+  if(length(show_log) != 1 || !show_log %in% c(TRUE, FALSE)) {
+    append_log("show_log parameter must be either TRUE or FALSE", type = "error")
+  }
+
+  colnames_check = setdiff(colnames(samples), c("sample_index", "sample_id", "shortname"))
+  for(col in colnames_check) {
+    values = unlist(samples[,col], recursive = FALSE, use.names = FALSE)
+    # input validation
+    if(anyNA(values) || any(is.character(values) & values == "")) {
+      append_log(paste0(
+        "Invalid values (NA or empty string) in sample metadata (dataset$samples) column: ", col,
+        "\n(solution: edit your sample metadata Excel table and replace empty values, then re-import it in R with import_sample_metadata() and finally re-run this function)"
+      ), type = "error")
+    }
+
+    # transform data types to numeric/factor
+    if(all(is.numeric(values) | is.factor(values))) {
+      # nothing to do. i.e. we don't want to recast integers (which are valid is.numeric() nor factors)
+      is_numeric = is.numeric(values)
+    } else {
+      values_recast = suppressWarnings(as.numeric(values))
+      is_numeric = all(is.finite(values_recast))
+      if(is_numeric) {
+        samples[,col] = values_recast
+      } else {
+        values_recast = factor(values, levels = unique(values)) # don't resort, set levels according to input table sorting
+        samples[,col] = values_recast
+      }
+    }
+
+    # print data type
+    if(show_log) {
+      if(is_numeric) {
+        append_log(paste0("numeric variable: ", col), type = "info")
+      } else {
+        append_log(paste0("categorical variable (R factor): ", col), type = "info")
+      }
+    }
+  }
+
+  # check that each variable is unique
+  if(redundant_columns != "ignore") {
+    # cast to numeric matrix so factors are checked as integer values (i.e. this helps spot patterns like A,A,B,B vs C,C,D,D - albeit not perfectly)
+    m = as.matrix(
+      samples %>%
+        select(-tidyselect::any_of(c("sample_index", "sample_id", "shortname")) ) %>%
+        mutate(across(tidyselect::where(is.factor), as.numeric))
+    )
+    # check if any of the previous columns is the same
+    if(ncol(m) > 1) {
+      for(i in 2L:ncol(m)) {
+        for(j in 1L:(i-1L)) {
+          if(all(m[,i] == m[,j])) {
+            append_log(sprintf('Invalid regression variable "%s" is redundant, the same data is also encoded in regression variable "%s"  (solution: do not use this variable in your regression model/design)',
+                               colnames(m)[i], colnames(m)[j]), type = redundant_columns)
+          }
+        }
+      }
+    }
+  }
+
+  return(samples)
 }
 
 
 
 #' Setup contrasts for downstream Differential Expression Analysis
+#'
+#' For more fine-grained control over specified contrasts, use the functions `remove_contrasts()` and `add_contrast()`.
 #'
 #' Note that a MS-DAP contrast for "A vs B" will return foldchanges for B/A in downstream output tables and data visualizations. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group.
 #'
@@ -504,97 +903,30 @@ decompose_contrast_name = function(x) {
 #' @export
 setup_contrasts = function(dataset, contrast_list, random_variables = NULL) {
   if(!"samples" %in% names(dataset) || !is.data.frame(dataset$samples) || length(dataset$samples) == 0) {
-    append_log("sample metadata table ('samples') is missing from the dataset. Run import_sample_metadata() prior to this function.", type="error")
+    append_log("sample metadata table ('samples') is missing from the dataset. Run import_sample_metadata() prior to this function.", type = "error")
   }
-
   if(!"group" %in% colnames(dataset$samples)) {
-    append_log("sample metadata table ('samples') must contain the column 'group'. Run import_sample_metadata() prior to this function.", type="error")
+    append_log("sample metadata table ('samples') must contain the column 'group'. Run import_sample_metadata() prior to this function.", type = "error")
   }
+  if(length(contrast_list) == 0 || !is.list(contrast_list)) {
+    append_log("contrast_list parameter must be a non-empty list", type = "error")
+  }
+  if(length(dataset$contrasts) > 0) {
+    append_log("removing previous contrasts", type = "info")
+  }
+  dataset = remove_contrasts(dataset)
 
-  ## random variables
   random_variables = unique(random_variables)
 
-  if(length(random_variables) > 0 && !all(random_variables %in% colnames(dataset$samples))) {
-    append_log(paste("random_variables are case-sensitive and may only contain sample metadata (each value must match a column name in dataset$samples). Provided random_variables that are _not_ found in sample metadata table:", paste(setdiff(random_variables, colnames(dataset$samples)), collapse=", ")), type="error")
-  }
-  # not strictly needed, but help out the user by catching common mistakes; random effects as used in this pipeline must be 'additional metadata' besides the predefined contrasts
-  ranvar_blacklist = c("sample_id", "group", "condition")
-  if(any(ranvar_blacklist %in% random_variables)) {
-    append_log(paste("random_variables should only contain 'additional metadata' that can be used to control for batch effects etc _besides_ the predefined contrasts in contrast_list, and _not_ contain these terms;", paste(intersect(random_variables, ranvar_blacklist), collapse=", ")), type="error")
-  }
-
-  # there can be no NA values or empty strings for sample metadata to be used as random variables in any downstream regression ('exclude' samples disregarded, these are never used in downstream DEA)
-  if(length(random_variables) > 0) {
-    ranvar_missing_values = NULL
-    # iterate respective columns of sample metadata
-    s = dataset$samples %>% filter(exclude == FALSE) %>% select(!!random_variables)
-    for(v in colnames(s)) {
-      x = s %>% pull(v)
-      if(any(is.na(x) | x == "")) {
-        # collect columns that contain missing values
-        ranvar_missing_values = c(ranvar_missing_values, v)
-      }
-    }
-    # report errors
-    if(length(ranvar_missing_values) > 0) {
-      append_log(paste("sample metadata table must not contain any missing values for columns that match the random_variables provided to this function. Sample metadata columns with missing values:", paste(ranvar_missing_values, collapse=", ")), type="error")
-    }
-  }
-
-  # simply store list as dataset attribute
-  # removes this variable (assign NULL) if no random_variables are supplied, as it should
-  dataset$dea_random_variables = random_variables
-
-
-  # reset cache
-  dataset = invalidate_cache(dataset)
-
-  column_contrasts = dataset_contrasts(dataset)
-  # drop previous contrasts, if any
-  tib = dataset$samples %>% select(-matches(column_contrasts))
-
-  for (index in seq_along(contrast_list)) {
+  for(index in seq_along(contrast_list)) {
     contr = contrast_list[[index]]
-    if (length(contr) != 2 || any(lengths(contr) == 0)) {
+    if(length(contr) != 2 || any(lengths(contr) == 0)) {
       append_log("each contrast should be a list with 2 elements (each is a non-empty array of sample group names)", type = "error")
     }
 
-    # pretty-print labels
-    groups_a = contr[[1]]
-    groups_b = contr[[2]]
-    lbl = compose_contrast_name(groups_a, groups_b)
-
-    # input validation (is this a valid contrast list?)
-    if (all(groups_a %in% groups_b) && all(groups_b %in% groups_a)) {
-      append_log(paste("same group(s) on both sides of the", lbl), type = "error")
-    }
-    if (any(groups_a %in% groups_b) || any(groups_b %in% groups_a)) {
-      append_log(paste("the same group cannot be on both sides of the", lbl), type = "error")
-    }
-    if (any(!groups_a %in% tib$group) || any(!groups_b %in% tib$group)) {
-      append_log(paste("contrast definition contains a sample group that is not part of your dataset (i.e. not present in sample metadata table dataset$samples) @ ", lbl), type = "error")
-    }
-
-    # conditions are stored as integers
-    # 1 = group A, 2 = group B, 0 = samples from other groups or those flagged as 'exclude'
-    mask = as.integer(tib$group %in% groups_a)
-    mask[tib$group %in% groups_b] = 2L
-    if ("exclude" %in% colnames(tib)) {
-      mask[tib$exclude %in% TRUE] = 0L
-    }
-    tib[, lbl] = as.integer(mask)
-
-    ## QC: must have 2+ samples on both sides of the contrast
-    count_samples_condition_a = sum(mask == 1)
-    count_samples_condition_b = sum(mask == 2)
-    if(count_samples_condition_a < 2 || count_samples_condition_b < 2) {
-      append_log(sprintf("invalid contrast; '%s' vs '%s'. The former contains %d samples, the latter %d samples, while both should have at least 2 samples (disregarding samples that are flagged as 'exclude')",
-                         paste(groups_a, collapse = ","), paste(groups_b, collapse = ","), count_samples_condition_a, count_samples_condition_b), type = "error")
-    }
-
-    append_log(lbl, type = "info")
+    dataset = add_contrast(dataset, colname_condition_variable = "group", values_condition1 = contr[[1]], values_condition2 = contr[[2]], colname_additional_variables = random_variables)
   }
-  dataset$samples = tib
+
   return(dataset)
 }
 

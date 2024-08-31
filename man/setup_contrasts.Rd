@@ -14,6 +14,9 @@ setup_contrasts(dataset, contrast_list, random_variables = NULL)
 \item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream. Note that not all DEA algorithms may support this, consult documentation on individual methods for more info (start at \code{dea_algorithms()} )}
 }
 \description{
+For more fine-grained control over specified contrasts, use the functions \code{remove_contrasts()} and \code{add_contrast()}.
+}
+\details{
 Note that a MS-DAP contrast for "A vs B" will return foldchanges for B/A in downstream output tables and data visualizations. For example, for the contrast "control vs disease" a positive log2 foldchange implies protein abundances are higher in the "disease" sample group.
 }
 \examples{

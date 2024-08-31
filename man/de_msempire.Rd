@@ -4,20 +4,20 @@
 \alias{de_msempire}
 \title{MS-EmpiRe implementation, a wrapper function for msEmpiRe::de.ana()}
 \usage{
-de_msempire(eset, input_intensities_are_log2 = F)
+de_msempire(eset, model_matrix, model_matrix_result_prop)
 }
 \arguments{
-\item{eset}{a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition}
+\item{eset}{a Biobase ExpressionSet that contains the peptide log2 intensities}
 
-\item{input_intensities_are_log2}{whether the provided intensities are already log2 transformed}
+\item{model_matrix}{a \code{stats::model.matrix()} result that is supplied to \code{limma::lmFit()}}
+
+\item{model_matrix_result_prop}{the column name in \code{model_matrix} that should be returned as the resulting coefficient estimated by \code{eBayes()}. In MS-DAP workflows this is typically "condition"}
 }
 \description{
 ref; PMID:31235637
 ref; https://github.com/zimmerlab/MS-EmpiRe
 }
 \details{
-input data should NOT be log2 transformed (if it is, make sure to set parameter \code{input_intensities_are_log2} so we can revert this prior to passing data to MS-EmpiRe)
-
 note; MS-EmpiRe crashes when all proteins have the same number of peptides (eg; filtering topn=1 or topn=3 and minpep=3)
 
 TODO: proper standarderror computation

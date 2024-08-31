@@ -92,7 +92,8 @@ dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys =
 dataset = sample_metadata_custom(dataset, group_regex_array = c(A = "007|009|011", B = "008|010|012") )
 
 dataset = setup_contrasts(dataset, contrast_list = list(c("A", "B")))
-#> info: contrast: A vs B
+#> info: numeric variable: condition
+#> info: contrast: A vs B # condition_variable: group
 
 print(dataset$samples %>% select(sample_id, group))
 #> # A tibble: 6 × 2

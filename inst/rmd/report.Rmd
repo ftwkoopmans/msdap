@@ -481,11 +481,16 @@ if(length(l_contrast) > 0) {
     contr = names(l_contrast)[contr_index]
     
     # cat('\n## ', contr, '\n\n')
-    cat('\n## ', unlist(lapply(strsplit(sub("^contrast:\\s*", "", contr), " vs ", fixed = T), function(x) paste(stringr::str_trunc(x, 35, "right"), collapse = " vs "))), '\n\n') # analogous to formatting contrast shortnames for table tib_report_stats_summary @ report main function
+    cat('\n## ', unlist(lapply(strsplit(gsub(" *#.*", "", sub("^contrast:\\s*", "", contr)), " vs ", fixed = T), function(x) paste(stringr::str_trunc(x, 35, "right"), collapse = " vs "))), '\n\n') # analogous to formatting contrast shortnames for table tib_report_stats_summary @ report main function
 
 
     col_contr_intensity = get_column_intensity(dataset$peptides, contr)
     cat("*", sprintf("**user setting:** using '%s' peptide filtering approach", names(col_contr_intensity)), " \n\n")
+    if(length(dataset$contrasts) >= contr_index && 
+       dataset$contrasts[[contr_index]]$label == contr &&
+       length(dataset$contrasts[[contr_index]]$colname_additional_variables) > 0) {
+      cat("*", sprintf("**user setting:** additional regression variables: %s", paste(dataset$contrasts[[contr_index]]$colname_additional_variables, collapse = ", ")), " \n\n")
+    }
   
     tib_log = dataset$peptides %>% 
       select(peptide_id, protein_id, intensity = !!as.character(col_contr_intensity)) %>%

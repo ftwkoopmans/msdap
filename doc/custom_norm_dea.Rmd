@@ -8,7 +8,7 @@ output:
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  fig.path = "images/dea-",
+  fig.path = "images/custnorm-",
   comment = "#>"
 )
 ```
@@ -203,7 +203,7 @@ print(dataset$de_proteins %>%
 
 
 A simple Venn diagram of proteins at 1% FDR for each method shows our custom function identifies a subset of the results from limma's ebayes function, so we verified that the example implementation doesn't yield random stuff.
-```{r}
+```{r venn}
 gplots::venn(list(ebayes=dataset$de_proteins %>% filter(dea_algorithm=="ebayes" & qvalue <= 0.01) %>% pull(protein_id),
                   my_dea_stats=dataset$de_proteins %>% filter(dea_algorithm=="my_dea_stats" & qvalue <= 0.01) %>% pull(protein_id)))
 ```

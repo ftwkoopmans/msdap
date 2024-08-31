@@ -88,22 +88,23 @@ generate_pdf_report = function(dataset, output_dir, norm_algorithm = "vwmb", rol
     append_log("report: constructing plots specific for each contrast", type = "progress")
     de_proteins = dataset$de_proteins %>% left_join(dataset$proteins, by="protein_id")
 
-    column_contrasts = dataset_contrasts(dataset)
-    for(contr in column_contrasts) {
-      stats_contr = de_proteins %>% filter(contrast == contr)
+    for(contr in dataset$contrasts) {
+      stats_contr = de_proteins %>% filter(contrast == contr$label)
       if(nrow(stats_contr) == 0) {
         next
       }
 
-      mtitle = contr
-      if("contrast_ranvars" %in% colnames(stats_contr) && length(stats_contr$contrast_ranvars[1]) > 0 && !is.na(stats_contr$contrast_ranvars[1]) && stats_contr$contrast_ranvars[1] != "") {
-        mtitle = paste0(mtitle, "\nuser-specified random variables added to regression model: ", stats_contr$contrast_ranvars[1])
+      mtitle = paste0("contrast: ", contr$label_contrast)
+      if(length(contr$colname_additional_variables) > 0) {
+        mtitle = paste0(mtitle, "\nuser-specified random variables added to regression model: ", paste(contr$colname_additional_variables, collapse = ", "))
       }
 
       # optionally, provide thresholds for foldchange and qvalue so the volcano plot draws respective lines
-      l_contrast[[contr]] = list(p_volcano_contrast = lapply(plot_volcano(stats_de = stats_contr, log2foldchange_threshold = stats_contr$signif_threshold_log2fc[1], qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle), "[[", "ggplot"),
-                                 p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr),
-                                 p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = dea_algorithm), mtitle=contr) )
+      l_contrast[[contr$label]] = list(
+        p_volcano_contrast = lapply(plot_volcano(stats_de = stats_contr, log2foldchange_threshold = stats_contr$signif_threshold_log2fc[1], qvalue_threshold = stats_contr$signif_threshold_qvalue[1], mtitle = mtitle), "[[", "ggplot"),
+        p_pvalue_hist = plot_pvalue_histogram(stats_contr %>% mutate(color_code = dea_algorithm), mtitle = mtitle),
+        p_foldchange_density = plot_foldchanges(stats_contr %>% mutate(color_code = dea_algorithm), mtitle = mtitle)
+      )
     }
 
 

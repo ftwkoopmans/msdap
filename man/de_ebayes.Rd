@@ -2,22 +2,31 @@
 % Please edit documentation in R/stats_differential_abundance.R
 \name{de_ebayes}
 \alias{de_ebayes}
-\title{apply limma::eBayes() function to a protein-level ExpressionSet}
+\title{Apply limma::eBayes() function to a protein-level ExpressionSet}
 \usage{
-de_ebayes(
-  eset_proteins,
-  input_intensities_are_log2 = TRUE,
-  random_variables = NULL
-)
+de_ebayes(eset, model_matrix, model_matrix_result_prop)
 }
 \arguments{
-\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet}
+\item{eset}{protein-level log2 intensity matrix stored as a Biobase ExpressionSet}
 
-\item{input_intensities_are_log2}{boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)}
+\item{model_matrix}{a \code{stats::model.matrix()} result that is supplied to \code{limma::lmFit()}}
 
-\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream}
+\item{model_matrix_result_prop}{the column name in \code{model_matrix} that should be returned as the resulting coefficient estimated by \code{eBayes()}. In MS-DAP workflows this is typically "condition"}
 }
 \description{
 ref; PMID:25605792
 ref; https://bioconductor.org/packages/release/bioc/html/limma.html
+}
+\examples{
+\dontrun{
+  # Minimal example:
+  # Let `m` be a log2 protein intensity matrix matrix where
+  # columns are samples and rows proteins.
+  # Let `eset` be a Biobase::ExpressionSet that contains `m`.
+  # Let `m_groups` be a character vector that describes the
+  # sample group/condition for each column in `m`.
+  # e.g. m_groups = c("WT", "WT", "WT", "KO", "KO", "KO")
+  model_matrix = stats::model.matrix(~m_groups)
+  de_ebayes(eset, model_matrix, colnames(model_matrix)[2])
+}
 }

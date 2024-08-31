@@ -6,28 +6,22 @@
 \usage{
 de_msqrobsum_msqrob(
   eset,
-  eset_proteins = NULL,
-  use_peptide_model = T,
-  input_intensities_are_log2 = T,
-  protein_rollup_robust = T,
-  random_variables = NULL,
-  log2fc_without_shrinkage = FALSE
+  model_matrix,
+  model_matrix_result_prop,
+  use_peptide_model,
+  random_variables = NULL
 )
 }
 \arguments{
-\item{eset}{a Biobase ExpressionSet that contains the peptide intensities. required attributes; fData(): protein_id and pData(): condition}
+\item{eset}{a Biobase ExpressionSet that contains the peptide log2 intensities}
 
-\item{eset_proteins}{only required if \code{log2fc_without_shrinkage == TRUE}}
+\item{model_matrix}{a \code{stats::model.matrix()} result that is supplied to \code{limma::lmFit()}}
 
-\item{use_peptide_model}{if true, apply msqrob. if false, apply msqrobsum}
+\item{model_matrix_result_prop}{the column name in \code{model_matrix} that should be returned as the resulting coefficient estimated by \code{eBayes()}. In MS-DAP workflows this is typically "condition"}
 
-\item{input_intensities_are_log2}{whether the provided intensities are already log2 transformed}
+\item{use_peptide_model}{if \code{TRUE}, apply msqrob. if \code{FALSE}, apply msqrobsum}
 
-\item{protein_rollup_robust}{for msqrobsum analyses, whether to use 'robust' protein rollup (TRUE) or traditional peptide intensity summation (FALSE)}
-
-\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms}
-
-\item{log2fc_without_shrinkage}{boolean parameter, if FALSE (default) returns msqrob estimated log2 foldchanges. if TRUE, uses \code{protein_foldchange_from_ebayes()} instead (affecting log2fc and effectsize results)}
+\item{random_variables}{optionally, an array of column names in the sample metadata table that should be used as additional regression variables}
 }
 \description{
 note that this is the final version of this algorithm provided by its authors, and is no longer maintained; https://github.com/statOmics/msqrob

@@ -137,6 +137,8 @@ analysis_quickstart = function(
     dump_all_data = FALSE
 ) {
 
+  # check if the user is trying to apply filtering/dea on a dataset object that is incompatible with MS-DAP version 1.2 or later
+  error_legacy_contrast_definitions(dataset)
 
   output_disabled = length(output_dir) == 0 || (length(output_dir) == 1 && all(is.na(output_dir)))
   if(output_disabled) {

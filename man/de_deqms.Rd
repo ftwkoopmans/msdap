@@ -2,21 +2,16 @@
 % Please edit documentation in R/stats_differential_abundance.R
 \name{de_deqms}
 \alias{de_deqms}
-\title{apply DEqMS to a protein-level ExpressionSet}
+\title{Apply DEqMS to a protein-level ExpressionSet}
 \usage{
-de_deqms(
-  eset_proteins,
-  input_intensities_are_log2 = TRUE,
-  random_variables = NULL,
-  doplot = FALSE
-)
+de_deqms(eset, model_matrix, model_matrix_result_prop, doplot = FALSE)
 }
 \arguments{
-\item{eset_proteins}{protein-level dataset stored as a Biobase ExpressionSet. Note that it must contain protein metadata column 'npep' that holds integer peptide counts and sample metadata column 'condition'}
+\item{eset}{protein-level log2 intensity matrix stored as a Biobase ExpressionSet. Note that it must contain protein metadata column 'npep' that holds integer peptide counts}
 
-\item{input_intensities_are_log2}{boolean indicating whether the ExpressionSet's intensity values are already log2 scaled (default: TRUE)}
+\item{model_matrix}{a \code{stats::model.matrix()} result that is supplied to \code{limma::lmFit()}}
 
-\item{random_variables}{a vector of column names in your sample metadata table that are added as additional(!) regression terms in each statistical contrast tested downstream}
+\item{model_matrix_result_prop}{the column name in \code{model_matrix} that should be returned as the resulting coefficient estimated by \code{eBayes()}. In MS-DAP workflows this is typically "condition"}
 
 \item{doplot}{create a QC plot?}
 }

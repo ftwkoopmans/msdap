@@ -79,6 +79,38 @@ get_column_intensity = function(peptides, contr_lbl = NA) {
 
 
 
+#' Return column names in peptide table that hold intensity values
+#'
+#' @param dataset your dataset
+#' @export
+get_peptide_filternorm_variants = function(dataset) {
+  grep("^intensity", colnames(dataset$peptides), value = TRUE)
+}
+
+
+
+#' Return column names in peptide table that hold intensity values
+#'
+#' @param dataset your dataset
+#' @export
+print_available_filtering_results = function(dataset) {
+  for(col in get_peptide_filternorm_variants(dataset)) {
+    lbl = ""
+    if(col == "intensity") lbl = "input data as-is"
+    if(col == "intensity_all_group") lbl = "global data filter ('all_group')"
+    if(col == "intensity_by_group") lbl = "filtering applied within-group only ('by_group')"
+    if(grepl("intensity_contrast", col)) lbl = "filter by user-defined contrast ('by_contrast')"
+
+    if(lbl != "") {
+      cat(sprintf('"%s" = %s\n', col, lbl))
+    } else {
+      cat(sprintf('"%s"\n', col))
+    }
+  }
+}
+
+
+
 #' return sample groups for a given contrast (column name in dataset$samples)
 #'
 #' @param dataset your dataset
@@ -105,6 +137,9 @@ contrast_to_samplegroups = function(dataset, contr_lbl) {
 #' @export
 dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqms", rollup_algorithm = "maxlfq", output_dir_for_eset = "") {
   ### input validation
+  # check if the user is trying to apply filtering/dea on a dataset object that is incompatible with MS-DAP version 1.2 or later
+  error_legacy_contrast_definitions(dataset)
+
   if (length(qval_signif) != 1 || !is.finite(qval_signif) || qval_signif <= 0) {
     append_log("q-value threshold must be a single numerical value above 0 (parameter qval_signif)", type = "error")
   }
@@ -136,8 +171,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
     append_log(paste("invalid options for dea_algorithm:", paste(dea_algorithm_invalid, collapse=", ")), type = "error")
   }
 
-  column_contrasts = dataset_contrasts(dataset)
-  if (length(column_contrasts) == 0) {
+  if (!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
     append_log("no contrasts have been defined, differential expression analysis is cancelled", type = "warning")
     return(dataset)
   }
@@ -148,68 +182,26 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
   result_stats = tibble()
 
   ### iterate contrasts
-  for (col_contr in column_contrasts) { # col_contr = column_contrasts[1]
-    append_log(paste("differential expression analysis for", col_contr), type = "info")
+  for(contr in dataset$contrasts) {
+    append_log(paste("differential expression analysis for", contr$label), type = "info")
+
+    # sample table: only relevant samples (no exclude, only samples selected for contrast) and only relevant sample metadata for DEA
+    # !! below code depends on proper sample selection, order and selected column
+    samples_for_contrast = contr$sample_table
 
     # returns named variable (label=column_name) indicating which type of intensity data is used
-    col_contr_intensity = get_column_intensity(dataset$peptides, col_contr)
+    col_contr_intensity = get_column_intensity(dataset$peptides, contr$label)
     append_log(paste("using data from peptide filter:", names(col_contr_intensity)), type = "info")
 
-    # if there are no intensity values, there is nothing to do
+    # input validation
     if(sum(!is.na(dataset$peptides %>% pull(!!col_contr_intensity))) < 2) {
       append_log("no peptides with an intensity value are available (perhaps filtering was too stringent?)", type = "warning")
       next
     }
 
-    # select the current contrast as column 'condition' and remove irrelevant samples (when defining our contrasts in upstream code, irrelevant samples were designated a 0)
-    # ! sorting by 'condition' here is important, as it aligns the samples by the groups specified by the user. if we don't enforce this, an intended WT-vs-KO might actually be analyzed as KO-vs-WT depending on the input data's sample ordering
-    samples_for_contrast = dataset$samples %>%
-      select(sample_id, shortname, group, condition = !!col_contr, tidyselect::everything()) %>%
-      filter(condition != 0) %>%
-      arrange(condition)
-
-    if(!all(samples_for_contrast$sample_id %in% dataset$peptides$sample_id)) {
+    # input validation
+    if(!all(samples_for_contrast$sample_id %in% unique(dataset$peptides$sample_id))) {
       append_log("all samples from this contrast must be in the peptides tibble", type = "error")
-    }
-
-    ## determine which random variables can be added to this contrast
-    ranvars = ranvars_matrix = NULL
-    for(v in unique(dataset$dea_random_variables)) {
-      # v is a column name in dataset$samples (here we use the subset thereof for this contrast), x are the metadata values for respective column
-      x = samples_for_contrast %>% pull(!!v)
-      xu = unique(x) # don't re-arrange/sort !
-      xi = match(x, xu)
-      # because `samples_for_contrast` table was sorted by condition upstream, and condition are either 1 or 2, we can compare the random variables `x` using match(x, unique(x))
-      # debug; print(cbind(samples_for_contrast$condition, match(x, unique(x)), x))
-      x_aligns_with_condition = xi == samples_for_contrast$condition
-
-      if(
-        # 1) drop ranvars that align with the condition
-        # is the 'random variable' not the same as the condition/contrast? criterium: at least 10% of all samples in contrast must differ (or 2)
-        # May occur if user is testing many contrasts, one of which is a minor subset of the data (for which there are no differences in for instance the sample batch)
-        length(xu) > 1 && sum(!x_aligns_with_condition) >= max(2, ceiling(nrow(samples_for_contrast) * .1)) &&
-        # 2) drop duplicate ranvars. test the indices `xi` against ranvars from previous iterations (apply function to each column in matrix, test if all elements overlap with `xi`)
-        # we must check within contrast and cannot completely check while specifying ranvars upsteam, e.g. perhaps 2 metadata properties overlap in a subset of samples that are tested in some contrast
-        (length(ranvars_matrix) == 0 || !any(apply(ranvars_matrix, 2, function(col) all(col==xi))))
-      ) {
-        ranvars = c(ranvars, v)
-        ranvars_matrix = cbind(ranvars_matrix, xi)
-      }
-
-      ## alternatively, test # differences per sample condition. proof-of-concept;
-      #diff_per_condition = 0
-      #for(cond in unique(samples_for_contrast$condition)) {
-      #  rows = samples_for_contrast$condition == cond
-      #  diff_per_condition = diff_per_condition + as.integer(n_distinct(x[rows]) > 1)
-      #}
-    }
-
-
-    if(length(dataset$dea_random_variables) > 0 && length(ranvars) != length(dataset$dea_random_variables)) {
-      append_log(paste("random variables that are _not_ applicable for current contrast due to lack of unique values (compared to sample groups/condition): ", paste(setdiff(dataset$dea_random_variables, ranvars), collapse=", ")), type = "info")
-    }
-    if(length(ranvars) > 0) {
-      append_log(paste("random variables used in current contrast: ", paste(ranvars, collapse=", ")), type = "info")
     }
 
 
@@ -232,10 +224,11 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
     # cleanup
     rm(m, prot_pep_count)
 
+
     # if a directory for file storage was provided, store eset in a .RData file
     if(length(output_dir_for_eset) == 1 && !is.na(output_dir_for_eset) && nchar(output_dir_for_eset)>0 && dir.exists(output_dir_for_eset)) {
-      save(eset_peptides, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_peptides_", gsub("\\W+", " ", col_contr), ".RData")), compress = T)
-      save(eset_proteins, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_proteins_", gsub("\\W+", " ", col_contr), ".RData")), compress = T)
+      save(eset_peptides, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_peptides_", gsub("\\W+", " ", contr$label), ".RData")), compress = T)
+      save(eset_proteins, file=path_append_and_check(output_dir_for_eset, paste0("ExpressionSet_proteins_", gsub("\\W+", " ", contr$label), ".RData")), compress = T)
     }
 
     contr_fc_signif = fc_signif
@@ -254,22 +247,20 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
         alg_result = NULL
         alg_plugin = FALSE
         if(alg == "ebayes") {
-          alg_result = de_ebayes(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = de_ebayes(eset = eset_proteins, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name)
         } else if(alg == "deqms") {
-          alg_result = de_deqms(eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars)
+          alg_result = de_deqms(eset = eset_proteins, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name)
         } else if(alg == "msempire") {
           # ! compared to the other dea algorithms, MS-EmpiRe is not a regression model so we cannot add random variables
-          alg_result = de_msempire(eset_peptides, input_intensities_are_log2 = T)
+          alg_result = de_msempire(eset = eset_peptides, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name)
         } else if(alg == "msqrob") {
-          alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = NULL, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = FALSE)
-        # } else if(alg == "msqrob_fc") {
-        #   alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = eset_proteins, use_peptide_model = T, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = TRUE)
+          alg_result = de_msqrobsum_msqrob(eset = eset_peptides, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name, use_peptide_model = TRUE, random_variables = contr$colname_additional_variables)
         } else if(alg == "msqrobsum") {
-          alg_result = de_msqrobsum_msqrob(eset_peptides, eset_proteins = NULL, use_peptide_model = F, input_intensities_are_log2 = T, random_variables = ranvars, log2fc_without_shrinkage = FALSE)
+          alg_result = de_msqrobsum_msqrob(eset = eset_peptides, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name, use_peptide_model = FALSE, random_variables = contr$colname_additional_variables)
         } else {
           # for non-hardcoded functions, we call the function requested as a user parameter and pass all available data
           alg_fun = match.fun(alg) # throws error if not found
-          alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, input_intensities_are_log2 = T, random_variables = ranvars, dataset_name=dataset$name)
+          alg_result = alg_fun(peptides=peptides_for_contrast, samples=samples_for_contrast, eset_peptides=eset_peptides, eset_proteins=eset_proteins, model_matrix = contr$model_matrix, model_matrix_result_prop = contr$regression_coefficient_name, random_variables = contr$colname_additional_variables, dataset_name=dataset$name)
           alg_plugin = TRUE
         }
 
@@ -310,8 +301,8 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
 
       # error handling; a DEA function returned an error, show to user using our logging system
       if(inherits(err, "error")) {
-        append_log(sprintf("an error occurred in %s during the execution of DEA function '%s'", col_contr, alg), type="warning")
-        append_log_error(err, type="warning")
+        append_log(sprintf('an error occurred in "%s" during the execution of DEA function "%s"', contr$label, alg), type = "warning")
+        append_log_error(err, type = "warning")
       }
     }
 
@@ -328,7 +319,7 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
         result_stats,
         tib %>%
           left_join(prot_pep_count, by="protein_id") %>%
-          add_column(signif = s, signif_threshold_qvalue = qval_signif, signif_threshold_log2fc = contr_fc_signif, contrast = col_contr, .after = "qvalue")
+          add_column(signif = s, signif_threshold_qvalue = qval_signif, signif_threshold_log2fc = contr_fc_signif, contrast = contr$label, .after = "qvalue")
       )
     }
   }

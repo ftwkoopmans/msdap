@@ -14,9 +14,9 @@ filter_dataset(
   filter_topn_peptides = 0,
   norm_algorithm = "",
   rollup_algorithm = "maxlfq",
-  by_group = T,
-  all_group = T,
-  by_contrast = F
+  by_group = FALSE,
+  all_group = FALSE,
+  by_contrast = FALSE
 )
 }
 \arguments{
