@@ -242,7 +242,7 @@ rgd_lookuptable = function(f) {
 #' helper function to match a protein table to HGNC via gene symbols (and synonyms)
 #'
 #' @description typically called from `export_stats_genesummary`
-#' @param proteins_long long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimted values)
+#' @param proteins_long long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimited values)
 #' @param hgnc HGNC lookup table from `hgnc_lookuptable()`
 #' @param use_synonyms boolean; use synonyms? if FALSE, only uses hgnc_symbol
 idmap_symbols = function(proteins_long, hgnc, use_synonyms = TRUE) {
@@ -290,13 +290,13 @@ idmap_symbols = function(proteins_long, hgnc, use_synonyms = TRUE) {
 #' helper function to match a protein table to HGNC via an intermediate mapping table (e.g. MGI/RGD)
 #'
 #' @description typically called from `export_stats_genesummary`
-#' @param proteins_long long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimted values)
+#' @param proteins_long long-format data.frame with columns uniprot_id and symbol pairs (i.e. no semicolon-delimited values)
 #' @param hgnc HGNC lookup table from `hgnc_lookuptable()`
 #' @param idmap MGI or RGD lookup table from `mgi_lookuptable()` or `rgd_lookuptable()`
 #' @param use_symbols boolean; use symbols to map from proteins_long to the idmap table? if FALSE, only matches by uniprot identifier
 idmap_uniprotid = function(proteins_long, hgnc, idmap, use_symbols = TRUE) {
   if(!is.data.frame(proteins_long) || nrow(proteins_long) == 0 || !all(c("uniprot_id", "symbol") %in% colnames(proteins_long)) ) {
-    append_log("proteins_long parameter must be a data.frame with columns 'protein_id' and 'symbol'", type = "error")
+    append_log("proteins_long parameter must be a data.frame with columns 'uniprot_id' and 'symbol'", type = "error")
   }
   if(!is.data.frame(hgnc) || nrow(hgnc) == 0 || !all(c("hgnc_id", "hgnc_symbol", "type", "value") %in% colnames(hgnc)) ) {
     append_log("hgnc parameter must be a data.frame with columns 'hgnc_id', 'hgnc_symbol', 'type', 'value' as typically prepared using the hgnc_lookuptable() function", type = "error")
@@ -329,10 +329,12 @@ idmap_uniprotid = function(proteins_long, hgnc, idmap, use_symbols = TRUE) {
   proteins_long$xref_id[rows] = idmap$XREF_ID_VALUES__TEMPCOL[match(proteins_long$uniprot_id[rows], idmap$uniprot_id)]
 
   # fallback to symbol matching (no `xref_id` yet)
-  rows = is.na(proteins_long$hgnc_id) & is.na(proteins_long$xref_id) & #
-    # double-check that we don't even attempt to match missing gene symbols
-    !is.na(proteins_long$symbol) & nchar(proteins_long$symbol) >= 2
-  proteins_long$xref_id[rows] = idmap$XREF_ID_VALUES__TEMPCOL[match(toupper(proteins_long$symbol[rows]), toupper(idmap$symbol))]
+  if(use_symbols) {
+    rows = is.na(proteins_long$hgnc_id) & is.na(proteins_long$xref_id) & #
+      # double-check that we don't even attempt to match missing gene symbols
+      !is.na(proteins_long$symbol) & nchar(proteins_long$symbol) >= 2
+    proteins_long$xref_id[rows] = idmap$XREF_ID_VALUES__TEMPCOL[match(toupper(proteins_long$symbol[rows]), toupper(idmap$symbol))]
+  }
 
 
   ### map to HGNC using crossreference identifiers

@@ -7,7 +7,7 @@
 idmap_uniprotid(proteins_long, hgnc, idmap, use_symbols = TRUE)
 }
 \arguments{
-\item{proteins_long}{long-format data.frame with columns protein_id and symbol pairs (i.e. no semicolon-delimted values)}
+\item{proteins_long}{long-format data.frame with columns uniprot_id and symbol pairs (i.e. no semicolon-delimited values)}
 
 \item{hgnc}{HGNC lookup table from \code{hgnc_lookuptable()}}
 

@@ -11,7 +11,8 @@ plot_sample_pca(
   samples_colors,
   sample_label_property = "auto",
   pch_as_exclude = TRUE,
-  infer_continuous_scale = TRUE
+  infer_continuous_scale = TRUE,
+  pca_dims = list(1:2, c(1, 3), 2:3)
 )
 }
 \arguments{
@@ -26,6 +27,8 @@ plot_sample_pca(
 \item{pch_as_exclude}{should exclude samples be represented with a distinct symbol shape? possible values; FALSE, TRUE (default)}
 
 \item{infer_continuous_scale}{should the legends infer continuous scale from the data? FALSE = all categorical, TRUE = automatic (default)}
+
+\item{pca_dims}{a list of integer pairs indicating PCA plots to make}
 }
 \description{
 placeholder title

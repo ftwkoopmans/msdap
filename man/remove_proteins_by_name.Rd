@@ -8,7 +8,8 @@ remove_proteins_by_name(
   dataset,
   remove_irt_peptides = FALSE,
   regular_expression = "",
-  gene_symbols = c()
+  gene_symbols = c(),
+  print_nchar_limit = 150
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ remove_proteins_by_name(
 \item{regular_expression}{careful here, regular expressions are powerful but complex matching patterns. A 'regex' that is matched against the fasta header(s) of a protein(group). case insensitive}
 
 \item{gene_symbols}{an array of gene symbols that are to be matched against the fasta header(s) of a protein(group). case insensitive}
+
+\item{print_nchar_limit}{max number of characters for the fasta headers (of removed proteins) that are shown in the log}
 }
 \description{
 Remove all peptides that match some protein-level filters

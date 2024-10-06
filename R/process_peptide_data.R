@@ -22,8 +22,9 @@ peptides_collapse_by_sequence = function(peptides, prop_peptide = "sequence_plai
 #' @param remove_irt_peptides try to find the irt spike-in peptides in the fasta file header. looking for; |IRT| and IRT_KIT and "Biognosys iRT" (case insensitive). default:FALSE
 #' @param regular_expression careful here, regular expressions are powerful but complex matching patterns. A 'regex' that is matched against the fasta header(s) of a protein(group). case insensitive
 #' @param gene_symbols an array of gene symbols that are to be matched against the fasta header(s) of a protein(group). case insensitive
+#' @param print_nchar_limit max number of characters for the fasta headers (of removed proteins) that are shown in the log
 #' @export
-remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular_expression = "", gene_symbols = c()) {
+remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular_expression = "", gene_symbols = c(), print_nchar_limit = 150) {
   # TODO: input validation
 
   # if(remove_not_present_in_fasta) {
@@ -40,6 +41,11 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
   if(remove_irt_peptides) {
     regex_filter = c(regex_filter, "\\|IRT\\||IRT_KIT|Biognosys iRT")
   }
+
+  if(length(print_nchar_limit) != 1 || !is.numeric(print_nchar_limit) || !is.finite(print_nchar_limit) || print_nchar_limit < 25) {
+    append_log("print_nchar_limit parameter must be a single number (larger than 25)", type = "error")
+  }
+  print_nchar_limit = as.integer(ceiling(print_nchar_limit))
 
   if(!is.na(regular_expression) && regular_expression != "") {
     regex_filter = c(regex_filter, regular_expression)
@@ -67,7 +73,7 @@ remove_proteins_by_name = function(dataset, remove_irt_peptides = FALSE, regular
       dataset$proteins = dataset$proteins[!rows_remove, ]
       dataset$peptides = dataset$peptides %>% filter(isdecoy | protein_id %in% dataset$proteins$protein_id)
       # optionally, print the fasta headers for proteins that were removed
-      charlim = 150
+      charlim = print_nchar_limit
       h_too_long = nchar(h) > charlim
       h[h_too_long] = paste(substr(h[h_too_long], 1, charlim-4), "...")
       # status report & return results
@@ -247,31 +253,139 @@ import_protein_metadata_from_fasta = function(protein_id, fasta_files, fasta_id_
 
 
 
-# TODO
-# #' placeholder title
-# #' @param peptides todo
-# #' @param proteins todo
-# rollup_proteins_by_gene = function(peptides, proteins) {
-#   # convert the 'peptide to protein_id' mapping -->> 'peptide to gene'
-#   i = match(peptides$protein_id, proteins$protein_id)
-#   if(any(is.na(i))) {
-#     append_log("all protein_id from peptide tibble must be in protein tibble", type = "error")
-#   }
-#
-#   peptides$protein_id = proteins$gene_symbols_or_id[i]
-#
-#   # collapse metadata by unique gene. note the hashtag separation character, so we can still distinguish proteinGroups downstream
-#   proteins = proteins %>%
-#     group_by(gene_symbols_or_id) %>%
-#     summarise(
-#       accessions = paste(accessions, collapse = "#"),
-#       fasta_headers = paste(fasta_headers, collapse = "#")
-#     )
-#   # copy gene symbols to protein_id column
-#   proteins$protein_id = proteins$gene_symbols_or_id
-#
-#   return(list(peptides = peptides, proteins = proteins))
-# }
+#' Merge protein identifiers that map to the same unique set of gene symbols
+#'
+#' @description
+#' Suppose there are 3 proteingroups that have the respective unique genes:
+#'
+#' 1) GRIA2
+#' 2) GRIA2
+#' 3) GRIA2;GRIA1
+#'
+#' Then the latter proteingroup is an ambiguous proteingroup where respective peptides were matched to 2 genes
+#' (by the upstream software that generated the dataset that you imported with e.g. `import_dataset_diann()`).
+#' This function will merge all peptides that belong to proteingroups 1 and 2 into
+#' one new proteingroup (that uniquely maps to GRIA2).
+#' Proteingroup 3 will remain a distinct proteingroup; only proteingroups with the exact same
+#' gene symbol set are matched (technical detail: this uses the definitions in `dataset$proteins$gene_symbols_or_id`).
+#'
+#' This function will fully update the dataset's protein table and the protein_id column in the peptide table.
+#'
+#' In most use-cases, this function should be used immediately after `import_fasta()` as shown in the example.
+#'
+#' @examples \dontrun{
+#' # example for using this function. You'll need to update the file paths accordingly
+#' library(msdap)
+#' dataset = import_dataset_diann("C:/data/diann_report.tsv")
+#' dataset = import_fasta(dataset, files = "C:/data/uniprot_human_2020-01.fasta")
+#' dataset = merge_proteingroups_by_gene(dataset)
+#' }
+#' @param dataset a valid dataset. Prior to calling this function, you must import protein metadata from FASTA using the `import_fasta()` function
+#' @export
+merge_proteingroups_by_gene = function(dataset) {
+
+  # double-check that a fasta has been loaded, and that the dataset object is compatible with msdap 1.2 or later (i.e. has protein data in current format)
+  if(!is.data.frame(dataset$proteins) ||
+     !all(c("protein_id", "fasta_headers", "gene_symbols", "gene_symbol_ucount", "gene_symbols_or_id") %in% colnames(dataset$proteins)) ||
+     !any(is.numeric(dataset$proteins$gene_symbol_ucount) & is.finite(dataset$proteins$gene_symbol_ucount) & dataset$proteins$gene_symbol_ucount > 0)
+  ) {
+    append_log("dataset is missing essential information in the protein table. No FASTA has been imported for this dataset or the dataset was analyzed with an outdated MS-DAP version.\nTo use this function you won't have to re-run the entire analysis pipeline for this dataset, just run the import_fasta() function to update the current dataset object (assuming this is a dataset searched against a uniprot FASTA)", type = "error")
+  }
+
+  if(anyNA(dataset$proteins)) {
+    append_log("NA values are not allowed in dataset$proteins", type = "error")
+  }
+
+
+  ### 1) create mapping table from old proteingroup identifiers to new IDs for the updated groups
+
+  protein_to_gene = dataset$peptides %>%
+    # count unique peptides per protein_id in dataset$peptides, this dictates the prio/order of uniprot symbols
+    distinct(protein_id, peptide_id) %>%
+    count(protein_id) %>%
+    # after merging proteingroups, the uniprot IDs from the proteingroup with most evidence are in front
+    arrange(desc(n)) %>%
+    # add gene symbols (using uniprot ID where gene symbols are absent)
+    left_join(dataset$proteins %>% select(protein_id, gene_symbols_or_id), by = "protein_id")
+
+  gene_to_new_proteinid__long = protein_to_gene %>%
+    select(-n) %>%
+    # unlist the uniprot accessions and find set of unique IDs per gene symbol
+    # (there may be duplicates across proteingroups, can't trust input data)
+    mutate(protein_id_new = strsplit(protein_id, " *; *")) %>%
+    tidyr::unchop(protein_id_new) %>%
+    distinct(gene_symbols_or_id, protein_id_new)
+
+  gene_to_new_proteinid = gene_to_new_proteinid__long %>%
+    # collapse into a string: these are the new protein_id for respective gene_symbols_or_id
+    group_by(gene_symbols_or_id) %>%
+    summarise(protein_id_new = paste(protein_id_new, collapse = ";"), .groups = "drop")
+
+  # finally, merge both tables and print stats to console
+  protein_to_new_proteinid = left_join(protein_to_gene, gene_to_new_proteinid, by = "gene_symbols_or_id")
+
+  tmp = sum(protein_to_new_proteinid$protein_id != protein_to_new_proteinid$protein_id_new)
+  append_log(sprintf("%d / %d (%.1f%%) proteingroups that matched to the same gene symbol(s) were merged",
+                     tmp, nrow(protein_to_new_proteinid), tmp / nrow(protein_to_new_proteinid) * 100), type = "info")
+
+
+  ### 2) update dataset$peptides : replace protein_id
+
+  i = data.table::chmatch(dataset$peptides$protein_id, protein_to_new_proteinid$protein_id)
+  stopifnot(!is.na(i))
+  dataset$peptides$protein_id = protein_to_new_proteinid$protein_id_new[i]
+
+
+  ### 3) update dataset$proteins : deconstruct and merge protein data
+
+  ## example data for a proteingroup with multiple accessions, and some of which have no gene symbol
+  # $ protein_id        : chr "A0A087WUQ1;B3KPU0;E5RGS7;H7C1D1"
+  # $ accessions        : chr "A0A087WUQ1;B3KPU0;E5RGS7;H7C1D1"
+  # $ fasta_headers     : chr ">tr|A0A087WUQ1|A0A087WUQ1_HUMAN Isoform of Q96JY6, PDZ and LIM domain 2 OS=Homo sapiens OX=9606 GN=PDLIM2 PE=1 "| __truncated__
+  # $ gene_symbols      : chr "PDLIM2;PDLIM2;-;-"
+  # $ gene_symbol_ucount: int 1
+  # $ gene_symbols_or_id: chr "PDLIM2"
+
+  # first, unpack the current protein data. These columns are semicolon-delimited and assumed to have same length
+  p = dataset$proteins %>%
+    select(protein_id, fasta_headers, gene_symbols) %>%
+    mutate(
+      protein_id = strsplit(protein_id, ";", fixed = TRUE),
+      fasta_headers = strsplit(fasta_headers, ";", fixed = TRUE),
+      gene_symbols = strsplit(gene_symbols, ";", fixed = TRUE)
+    )
+  stopifnot(lengths(p$protein_id) == lengths(p$fasta_headers))
+  stopifnot(lengths(p$protein_id) == lengths(p$gene_symbols))
+
+  p = p %>%
+    tidyr::unchop(cols = c(protein_id, fasta_headers, gene_symbols)) %>%
+    # importantly, take unique: the same uniprot ID may be part of multiple proteingroups
+    distinct(protein_id, .keep_all = TRUE)
+
+  # join the fasta/symbol metadata to the new proteingroup identifiers
+  newproteins = gene_to_new_proteinid__long %>%
+    rename(protein_id = protein_id_new) %>%
+    left_join(p, by = "protein_id") %>%
+    group_by(gene_symbols_or_id) %>%
+    summarise(
+      fasta_headers = paste(fasta_headers, collapse = ";"),
+      gene_symbols = paste(gene_symbols, collapse = ";"),
+      ## definition of ucount analogous to import_protein_metadata_from_fasta()
+      gene_symbol_ucount = n_distinct(gene_symbols[gene_symbols != "-"])
+    )
+
+  dataset$proteins = gene_to_new_proteinid %>%
+    rename(protein_id = protein_id_new) %>%
+    mutate(accessions = protein_id) %>%
+    left_join(newproteins, by = "gene_symbols_or_id") %>%
+    select(protein_id, accessions, fasta_headers, gene_symbols, gene_symbol_ucount, gene_symbols_or_id)
+
+  # QC: no NA's (i.e. no issues while joining tables)  +  all updated protein_id in peptide table are present in protein table
+  stopifnot(!anyNA(dataset$proteins))
+  stopifnot(unique(dataset$peptides$protein_id) %in% dataset$proteins$protein_id)
+
+  return(dataset)
+}
 
 
 

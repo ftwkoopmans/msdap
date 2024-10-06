@@ -18,5 +18,6 @@ example; >sp|Q9Y2S6|TMA7_HUMAN Translation machinery-associated protein 7 OS=Hom
 \details{
 uniprot headers may contain "GN=-" or no GN tag at all !
 example; >sp|Q6ZSR9|YJ005_HUMAN Uncharacterized protein FLJ45252 OS=Homo sapiens (Human) OX=9606 GN=- PE=2 SV=2
+example; >tr|A2ALT2|A2ALT2_MOUSE Isoform of Q03288, Nonagouti (Fragment) OS=Mus musculus OX=10090 GN=a PE=4 SV=1
 example; >sp|P15252|REF_HEVBR Rubber elongation factor protein OS=Hevea brasiliensis PE=1 SV=2
 }

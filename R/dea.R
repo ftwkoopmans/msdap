@@ -210,6 +210,10 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
     peptides_for_contrast = dataset$peptides %>%
       select(sample_id, protein_id, peptide_id, sequence_plain, sequence_modified, detect, intensity=!!as.character(col_contr_intensity), any_of(c("confidence","charge"))) %>%
       filter(sample_id %in% samples_for_contrast$sample_id & is.finite(intensity))
+    # if(!all(samples_for_contrast$sample_id %in% unique(peptides_for_contrast$sample_id)) ) {
+    #   append_log("some samples that are defined in the current contrast do not have any datapoints in the dataset$peptides table (at currently selected 'peptide filter') column", type = "error")
+    # }
+
     # peptide ExpressionSet
     eset_peptides = tibble_as_eset(peptides_for_contrast, dataset$proteins, samples_for_contrast)
     # rollup peptide abundance matrix to protein-level

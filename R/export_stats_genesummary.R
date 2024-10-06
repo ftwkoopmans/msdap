@@ -215,9 +215,70 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
   )
 
 
+  # the allstats table is already sorted by "best hits on top" (last few lines @ summarise_stats() function; `arrange(desc(signif), pvalue)` )
+  result = disambiguate_protein_table_by_gene(protein_data = allstats, hgnc = hgnc, gene_ambiguity = gene_ambiguity, xref = xref, distinct_factors = c("contrast", "dea_algorithm"), remove_nohgnc = remove_nohgnc) %>%
+    arrange(desc(signif), pvalue, gene_symbols_or_id)
+
+
+  ### print output tables
+  if(is.na(output_dir)) {
+    append_log("output_dir parameter set to NA, skip writing Excel output tables", type = "info")
+  } else {
+    for(contr in unique(result$contrast)) {
+      for(algo_dea in unique(result$dea_algorithm)) {
+        tmp = result %>% filter(contrast == contr & dea_algorithm == algo_dea)
+        f = sprintf("%s/%s__%s.xlsx", output_dir, filename_strip_illegal_characters(sub("contrast: *", "", contr), strict = TRUE), algo_dea)
+        openxlsx::write.xlsx(tmp, f)
+      }
+    }
+  }
+
+  return(invisible(result))
+}
+
+
+
+#' given some table with protein-level data, map to HGNC genes and deal with redundant or ambiguous gene-level results
+#'
+#' @description
+#' The order of the data table is pivotal: the first row for each unique gene (criteria in parameter `gene_ambiguity`)) is selected !
+#'
+#' @param protein_data a data.frame with columns (from dataset$proteins) protein_id, gene_symbols, gene_symbols_or_id.
+#' Importantly, if you opt to return only unique entries per gene then the row of the FIRST matching protein_id is
+#' returned, so sort your data table by pvalue upstream !
+#' @param hgnc see `export_stats_genesummary()`
+#' @param gene_ambiguity see `export_stats_genesummary()`
+#' @param xref see `export_stats_genesummary()`
+#' @param remove_nohgnc see `export_stats_genesummary()`
+#' @param distinct_factors a set of columns in protein_data that should be considered (together with protein_id) factors that describe subsets of data (to return unique gene-level data within)
+disambiguate_protein_table_by_gene = function(protein_data, hgnc, gene_ambiguity, xref = NULL, remove_nohgnc = FALSE, distinct_factors = NULL) {
+
+  ### input validation
+  if(!(is.data.frame(hgnc) && all(c("hgnc_id", "hgnc_symbol", "type", "value") %in% colnames(hgnc)))) {
+    append_log("hgnc parameter should be a data.frame with columns hgnc_id, hgnc_symbol, type, value (output from hgnc_lookuptable() function)", type = "error")
+  }
+  if(!(length(gene_ambiguity) == 1 && all(gene_ambiguity %in% c("leading_gene", "prio_specific", "only_specific")))) {
+    append_log("gene_ambiguity parameter should be 1 of the following options: leading_gene, prio_specific, only_specific", type = "error")
+  }
+  if(!is.null(xref) && !(is.data.frame(xref) && nrow(xref) > 0 && ncol(xref) >= 3 && all(c("symbol", "uniprot_id") %in% colnames(xref)))) {
+    append_log("xref parameter should be a data.frame with columns mgi_id/rgd_id, symbol, uniprot_id (output from mgi_lookuptable() or rgd_lookuptable() function)", type = "error")
+  }
+  if(!is.null(xref) && !colnames(xref)[1] %in% c("mgi_id", "rgd_id")) {
+    append_log("xref parameter only works with MGI and RGD atm (output from mgi_lookuptable() or rgd_lookuptable() function): first column must be mgi_id or rgd_id", type = "error")
+  }
+  if(!(length(remove_nohgnc) == 1 && remove_nohgnc %in% c(TRUE, FALSE))) {
+    append_log("remove_nohgnc parameter should be TRUE or FALSE", type = "error")
+  }
+  if(!(is.data.frame(protein_data) && all(c("protein_id", "gene_symbols", "gene_symbols_or_id") %in% colnames(protein_data)))) {
+    append_log("protein_data parameter should be a data.frame with columns protein_id, gene_symbols and gene_symbols_or_id", type = "error")
+  }
+  if(!(is.null(distinct_factors) || (is.character(distinct_factors) & all(distinct_factors %in% colnames(protein_data))))) {
+    append_log("distinct_factors parameter should be NULL or a set of columns in protein_data that should be considered (together with protein_id) factors that describe subsets of data (to return unique gene-level data within)", type = "error")
+  }
+
 
   ### create long-format table of uniprot_id*symbol for each unique proteingroup
-  proteins = allstats %>%
+  proteins = protein_data %>%
     select(protein_id, gene_symbols) %>%
     distinct(protein_id, .keep_all = TRUE) %>%
     mutate(uniprot_id = strsplit(protein_id, "[ ,;]+"),
@@ -242,24 +303,24 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
 
 
 
-  ### now join the unique proteingroup-to-HGNC mappings with table `allstats`
+  ### now join the unique proteingroup-to-HGNC mappings with table `protein_data`
   # hgnc_list = a list column where each protein_id has an array of HGNC identifiers (length > 0), NA where missing/failed
-  allstats = allstats %>%
+  protein_data = protein_data %>%
     left_join(proteins_long %>% select(protein_id, hgnc_list = hgnc_id) %>% tidyr::chop(cols = "hgnc_list"), by = "protein_id")
 
 
 
   ### apply mapping rules
-  ### importantly, sorting of `allstats` table prior to running below code MUST be ascending by pvalue
+  ### importantly, sorting of `protein_data` table prior to running below code MUST be ascending by pvalue
 
-  allstats$hgnc_list_unique_notna = lapply(allstats$hgnc_list, function(g) { unique(na.omit(g)) }) # naive/slow, but prefer simple code
-  # dev note: don't use `allstats %>% filter(lengths(hgnc_list) == 1)` because a proteingroup can contain multiple uniprot identifiers that all map to the same gene --> hgnc_list will not be length 1
+  protein_data$hgnc_list_unique_notna = lapply(protein_data$hgnc_list, function(g) { unique(na.omit(g)) }) # naive/slow, but prefer simple code
+  # dev note: don't use `protein_data %>% filter(lengths(hgnc_list) == 1)` because a proteingroup can contain multiple uniprot identifiers that all map to the same gene --> hgnc_list will not be length 1
 
-  allstats$isambiguous = grepl(";", allstats$gene_symbols_or_id, fixed = TRUE) # infer ambiguous directly from uniprot gene symbols (i.e. failed mapping to HGNC have no effect)
-  #  allstats$isambiguous = lengths(allstats$hgnc_list_unique_notna) > 1  # alternatively, determine "ambiguous" from successful HGNC mappings @ hgnc_list_unique_notna
+  protein_data$isambiguous = grepl(";", protein_data$gene_symbols_or_id, fixed = TRUE) # infer ambiguous directly from uniprot gene symbols (i.e. failed mapping to HGNC have no effect)
+  #  protein_data$isambiguous = lengths(protein_data$hgnc_list_unique_notna) > 1  # alternatively, determine "ambiguous" from successful HGNC mappings @ hgnc_list_unique_notna
 
   # take the first non-NA HGNC identifier (NA if none)
-  allstats$hgnc_id = unlist(lapply(allstats$hgnc_list_unique_notna, function(g) {
+  protein_data$hgnc_id = unlist(lapply(protein_data$hgnc_list_unique_notna, function(g) {
     # always return exactly 1 value, thus downstream unlist() will yield an array that exactly matches table length
     if(length(g) == 0) return(NA_character_)
     return(g[1])
@@ -268,26 +329,25 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
   if(gene_ambiguity == "only_specific") {
     # invalidate all entries that are ambiguous
     # importantly, do this before computing `hgnc_id_FORUNIQUE`
-    allstats$hgnc_id[allstats$isambiguous] = NA_character_
+    protein_data$hgnc_id[protein_data$isambiguous] = NA_character_
   }
 
   if(gene_ambiguity == "prio_specific") {
     # sort table such that ambiguous hits are at the bottom; importantly, ties-of-ambiguity are still sorted as-is
     # taking first match per gene downstream = prio specific/unambiguous over ambiguous proteingroup that has a "better pvalue"
-    allstats = allstats %>% arrange(isambiguous)
+    protein_data = protein_data %>% arrange(isambiguous)
   }
 
   # ! importantly, add a unique ID to proteingroups not mapped to HGNC so we can use distinct() downstream without grouping NA values (failed mappings)
-  allstats$hgnc_id_FORUNIQUE = ifelse(is.na(allstats$hgnc_id), allstats$gene_symbols_or_id, allstats$hgnc_id)
+  protein_data$hgnc_id_FORUNIQUE = ifelse(is.na(protein_data$hgnc_id), protein_data$gene_symbols_or_id, protein_data$hgnc_id)
   # result table: retain unique rows per gene*contrast*dea_algorithm (assuming table has been sorted upstream)
-  result = allstats %>% distinct(hgnc_id_FORUNIQUE, contrast, dea_algorithm, .keep_all = TRUE)
+  distinct_factors = unique(c("hgnc_id_FORUNIQUE", distinct_factors))
+  result = protein_data %>% distinct(dplyr::across(tidyselect::all_of(distinct_factors)), .keep_all = TRUE)
 
 
 
-  ### finally, stable sort result table + add gene database crossreferences
-  # sort table again ("prio_specific" option affects sorting, so here enforce stable ordering)
+  ### add gene database crossreferences
   result = result %>%
-    arrange(desc(signif), pvalue) %>%
     select(-tidyselect::any_of(c("gene_symbols", "symbol", "hgnc_list", "hgnc_list_unique_notna", "hgnc_id_FORUNIQUE", "isambiguous"))) %>%
     hgnc_add_xrefs(hgnc = hgnc)
   # add named column specifically for GOAT
@@ -295,7 +355,7 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
 
 
 
-  tmp = allstats %>% distinct(protein_id, .keep_all = TRUE)
+  tmp = protein_data %>% distinct(protein_id, .keep_all = TRUE)
   log_pg_ambiguous = sum(tmp$isambiguous)
 
   if(gene_ambiguity == "only_specific") {
@@ -332,20 +392,5 @@ export_stats_genesummary = function(dataset, gene_ambiguity = "prio_specific", d
     result = result %>% filter(!is.na(hgnc_id))
   }
 
-
-
-  ### print output tables
-  if(is.na(output_dir)) {
-    append_log("output_dir parameter set to NA, skip writing Excel output tables", type = "info")
-  } else {
-    for(contr in unique(result$contrast)) {
-      for(algo_dea in unique(result$dea_algorithm)) {
-        tmp = result %>% filter(contrast == contr & dea_algorithm == algo_dea)
-        f = sprintf("%s/%s__%s.xlsx", output_dir, filename_strip_illegal_characters(sub("contrast: *", "", contr), strict = TRUE), algo_dea)
-        openxlsx::write.xlsx(tmp, f)
-      }
-    }
-  }
-
-  return(invisible(result))
+  return(result)
 }

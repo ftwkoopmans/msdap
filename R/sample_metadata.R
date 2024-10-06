@@ -13,6 +13,7 @@ import_sample_metadata = function(dataset, filename) {
   dataset = invalidate_cache(dataset)
 
   dataset$samples = sample_metadata_from_file(sample_id = unique(dataset$peptides$sample_id), filename = filename)
+  dataset$samples = tibble::as_tibble(dataset$samples)
   # add peptide and protein counts to samples tibble, so downstream code includes this in output tables and report figures relating to sample metadata
   dataset$samples = peptide_and_protein_counts_per_sample(dataset$peptides, dataset$samples, is_dia_dataset(dataset))
   return(dataset)
@@ -664,6 +665,10 @@ add_contrast = function(dataset, colname_condition_variable, values_condition1, 
   }
   if(!"contrasts" %in% names(dataset)) {
     dataset = remove_contrasts(dataset) # inits a new list
+  }
+
+  if(!tibble::is_tibble(dataset$samples)) {
+    dataset$samples = as_tibble(dataset$samples)
   }
 
   # validate condition colname
