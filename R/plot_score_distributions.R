@@ -65,6 +65,7 @@ plot_dia_cscore_histograms = function(tib_input) {
     }
 
     legend_text = sprintf("\n\nCscore: %.3f\n#pep: %d  %d%%", target_cscore_min, sum(is_target_qval_filtered), round(sum(is_target_qval_filtered) / length(is_target_qval_filtered) * 100))
+    xcoord_annotation = max(tib_xlim[1], target_cscore_min, na.rm = TRUE)
 
     # plot
     p = ggplot(tib, aes(x = cscore, y = ..density.., fill = type)) +
@@ -76,7 +77,7 @@ plot_dia_cscore_histograms = function(tib_input) {
     }
 
     p = p +
-      annotate(geom = "text", label = legend_text, x = max(tib_xlim[1], target_cscore_min, na.rm = TRUE), y = Inf, hjust = -0.1, vjust = 0.6, size = 2) +
+      ggplot2::annotate(geom = "label", x = tib_xlim[2], y = Inf, hjust = 1.1, vjust = 1, label = legend_text, label.size = NA, fill = "white") +
       scale_x_continuous(limits = tib_xlim, expand = ggplot2::expansion()) +
       labs(x = "", y = "", title = sid, fill = "") +
       ggpubr::theme_classic2() +
