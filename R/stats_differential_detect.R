@@ -12,6 +12,7 @@
 #' @param return_wide_format boolean, return table in simplified wide-format (TRUE) or return all data in long-format table (FALSE, default)
 #' @export
 differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_observed = 3, min_fraction_observed = 0.5, count_mode = "auto", rescale_counts_per_sample = TRUE, return_wide_format = FALSE) {
+  start_time = Sys.time()
 
   # helper function
   summarize_proteins = function(mat, mat_scaled, sid1, sid2, min_peptides_observed, min_samples_observed, min_fraction_observed, rescale_counts_per_sample) {
@@ -135,8 +136,8 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
     return(dataset)
   }
 
-
-  append_log(sprintf("differential detection analysis: min_samples_observed=%d min_fraction_observed=%.2f", min_samples_observed, min_fraction_observed), type = "info")
+  append_log(sprintf("differential detection analysis: min_peptides_observed=%d min_samples_observed=%d min_fraction_observed=%.2f count_mode=%s rescale_counts_per_sample=%s",
+                     min_peptides_observed, min_samples_observed, min_fraction_observed, count_mode, rescale_counts_per_sample), type = "info")
   only_detected_peptides = FALSE
   if(count_mode == "auto") {
     # for DIA data, count only peptides that are confidently detected (i.e. disregard MBR)
@@ -171,14 +172,16 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
   compute_quant_counts = only_detected_peptides == FALSE && any(m_detect != m_quant)
 
   # normalize
-  sample_count_detect = matrixStats::colSums2(m_detect)
-  sample_count_detect__scaling_factor = sample_count_detect / mean(sample_count_detect)
+  sample_count_detect = matrixStats::colSums2(m_detect) # number of detects per sample/column
+  tmp = sample_count_detect[sample_count_detect > 0] # non-zero values
+  tmp2 = ifelse(length(tmp) == 0, 1, mean(tmp)) # mean of non-zero values, or 1 if there are none
+  sample_count_detect__scaling_factor = sample_count_detect / tmp2
+  rm(tmp, tmp2)
+  # if a sample has 0 detected peptides, the scaling factor will also be 0 which will cause NA's downstream
+  sample_count_detect__scaling_factor[!is.finite(sample_count_detect__scaling_factor) | sample_count_detect__scaling_factor <= 0.001] = 1 # don't scale samples with invalid scaling factors
 
   # protein*sample count matrices
-  df_detect = stats::aggregate(m_detect, by = list(protein_id = m__protein_id), FUN = sum) # slow !
-  count_detect = as.matrix(df_detect[,-1])
-  rownames(count_detect) = df_detect$protein_id
-  rm(df_detect)
+  count_detect = matrix_grouped_column_aggregate(m_detect, m__protein_id, FUN = sum)
   # rescale by total count events per sample
   count_detect__scaled = count_detect
   for(j in 1L:ncol(count_detect)) {
@@ -188,11 +191,14 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
   # analogous
   if(compute_quant_counts) {
     sample_count_quant = matrixStats::colSums2(m_quant)
-    sample_count_quant__scaling_factor = sample_count_quant / mean(sample_count_quant)
-    df_quant = stats::aggregate(m_quant, by = list(protein_id = m__protein_id), FUN = sum)
-    count_quant = as.matrix(df_quant[,-1])
-    rownames(count_quant) = df_quant$protein_id
-    rm(df_quant)
+    tmp = sample_count_quant[sample_count_quant > 0] # non-zero values
+    tmp2 = ifelse(length(tmp) == 0, 1, mean(tmp)) # mean of non-zero values, or 1 if there are none
+    sample_count_quant__scaling_factor = sample_count_quant / tmp2
+    rm(tmp, tmp2)
+    # if a sample has 0 detected peptides, the scaling factor will also be 0 which will cause NA's downstream
+    sample_count_quant__scaling_factor[!is.finite(sample_count_quant__scaling_factor) | sample_count_quant__scaling_factor <= 0.001] = 1 # don't scale samples with invalid scaling factors
+
+    count_quant = matrix_grouped_column_aggregate(m_quant, m__protein_id, FUN = sum)
     count_quant__scaled = count_quant
     for(j in 1L:ncol(count_quant)) {
       count_quant__scaled[,j] = count_quant[,j] / sample_count_quant__scaling_factor[j]
@@ -237,7 +243,235 @@ differential_detect = function(dataset, min_peptides_observed = 1L, min_samples_
     dataset$dd_proteins = tib_results
   }
 
+  append_log_timestamp("differential detection analysis", start_time)
   return(dataset)
+}
+
+
+
+#' Protein differential detection filtering using a hardcoded number of peptide observations per condition
+#'
+#' @description
+#' ## Pseudocode
+#'
+#' Number of peptides differentially detected in condition 1 as compared to condition 2:
+#'
+#' `npep_pass1 = sum(n1 - n2 >= k1_diff)`
+#'
+#' Where n1 and n2 are vectors with the number of detects per peptide in conditions 1 and 2, respectively,
+#' and k1_diff is the sample count threshold for differential detection.
+#'
+#' Now we can test at protein-level, directionally!
+#' We're looking for proteins that are near-exclusively detected in condition 1 and their nobs ratio is in the same direction.
+#'
+#' `npep_pass1 >= npep_pass & nobs1 > nobs_ratio * nobs2`
+#'
+#' Where npep_pass and nobs_ratio are user-provided thresholds, nobs1 is the sum of n1 (see further return value specification for this function).
+#' Above rule tests enrichment in condition 1, afterwards we also test analogously with conditions 1 and 2 swapped.
+#'
+#'
+#' ## real-world example data:
+#'
+#' 2 conditions, 6 replicates each:
+#'
+#' \tabular{llrr}{
+#' \strong{protein_id} \tab \strong{peptide_id} \tab \strong{n1} \tab \strong{n2} \cr
+#' P09041 \tab ALMDEVVK_2 \tab 2 \tab 6 \cr
+#' P09041 \tab LTLDKVDLK_2 \tab 1 \tab 5
+#' }
+#'
+#' n2-n1 diff is 4 for both peptides, nobs ratio was 3.7-fold enrichment in condition 2.
+#'
+#' @param dataset your dataset. At least 1 contrast should have been specified prior
+#' @param k_diff peptide-level criterium: peptide must be detected in at least k more samples in condition 1 versus condition 2, or vice versa
+#' @param frac_diff peptide-level criterium: peptide must be detected in at least x% more samples in condition 1 versus condition 2, or vice versa
+#' @param npep_pass minimum number of peptides that must pass the peptide-level differential detection criteria. Default: 2
+#' @param nobs_ratio minimum enrichment ratio between experimental conditions for the total peptide detection count per protein (see output table specification, `nobs1` and `log2fc_nobs2/nobs1` to which this filter is applied). Note that this value is NOT on log2 scale, i.e. set 2 for 2-fold enrichment. Default: 4
+#' @param int_ratio analogous to `nobs_ratio`, but for the enrichment in sum peptide intensity values. Default: 0 (disabled)
+#' @param normalize_intensities normalize the protein intensity matrix prior to computing sum intensities and intensity ratios. Default: TRUE
+#' @examples \dontrun{
+#' ## example 1:
+#' # default / stringent: find proteins that have at least 2 peptides
+#' # detected in 66% more samples in either condition (with a minimum of 3 samples)
+#' # AND the overall detection rate is larger than 3-fold
+#' x = differential_detection_filter(
+#'   dataset, k_diff = 3, frac_diff = 0.66, npep_pass = 2, nobs_ratio = 3
+#' )
+#'
+#' # code snippet to create a pretty-print table with resulting proteins
+#' y = x %>%
+#'   # only retain proteins that match input criteria
+#'   filter(pass) %>%
+#'   # add protein metadata and rearrange columns
+#'   left_join(dataset$proteins %>%
+#'     select(protein_id, fasta_headers, gene_symbols_or_id),
+#'     by = "protein_id") %>%
+#'   select(contrast, protein_id, fasta_headers, gene_symbols_or_id,
+#'          tidyselect::everything()) %>%
+#'   # for prettyprint, trim the contrast names
+#'   mutate(contrast = gsub(" *#.*", "", sub("^contrast: ", "", contrast))) %>%
+#'   # sort data by column, then by ratio
+#'   arrange(contrast, `log2fc_nobs2/nobs1`)
+#' print(y)
+#'
+#' ## example 2:
+#' # a more lenient filter: apply criteria to only 1 (or 0) peptides but
+#' # rely mostly on the nobs_ratio criterium and additionally
+#' # add post-hoc filtering on the total number of peptides per protein
+#' # and require either protein to have an overall 50% detection rate
+#' # (across peptides and samples)
+#' x = differential_detection_filter(
+#'   dataset, nobs_ratio = 3, npep_pass = 1, k_diff = 3, frac_diff = 0.66
+#' ) %>%
+#'   mutate(pass = pass & npep_total > 1 & pmax(fracobs1, fracobs1) >= 0.5)
+#' }
+#' @returns A tibble where each row describes 1 proteingroup ("protein_id") in 1 contrast, with the following columns:
+#'
+#' - `npep_total` = total number of peptides detected across any of the samples in the current contrast. Useful for post-hoc filtering, e.g. when you do not set stringent criteria for `npep_pass`
+#' - `npep_pass1` = number of peptides that pass the specified filtering rules in condition 1 of the current contrast
+#' - `npep_pass2` = analogous to `npep_pass1`, but for condition 2
+#' - `nobs1` = sum of peptide detections across all samples in condition 1 (i.e. each detected peptide is counted once per sample, this is the total sum across peptides*samples for respective protein_id and condition). Useful for post-hoc filtering, e.g. when you do not set stringent criteria for `npep_pass`
+#' - `nobs2` = analogous to `nobs1`, but for condition 2
+#' - `fracobs1` = percentage of all possible detections made within condition 1 = number of observed datapoints / (#peptide * #sample)
+#' - `fracobs2` = analogous to `fracobs1`, but for condition 2
+#' - `log2fc_nobs2/nobs1` = log2 foldchange of observation counts. Positive values are enriched in condition 2. Proteins exclusive to condition 2 have value `Inf` and exclusive to condition 1 have value `-Inf`
+#' - `int1` = sum peptide intensity across all samples in condition 1
+#' - `int2` = sum peptide intensity across all samples in condition 2
+#' - `log2fc_int2/int1` = log2 foldchange of protein intensities, analogous to `log2fc_nobs2/nobs1`
+#' - `pass` = protein matches input filtering
+#' @export
+differential_detection_filter = function(dataset, k_diff = NA, frac_diff = NA, npep_pass = 2L, nobs_ratio = 3, int_ratio = 0, normalize_intensities = TRUE) {
+  # input validation
+  has_kdiff = length(k_diff) == 1 && is.numeric(k_diff) && !is.na(k_diff) && k_diff >= 0
+  has_fracdiff = length(frac_diff) == 1 && is.numeric(frac_diff) && !is.na(frac_diff) && frac_diff >= 0 && frac_diff <= 1
+  stopifnot("k_diff and frac_diff parameters are both invalid" = has_kdiff | has_fracdiff)
+  stopifnot("nobs_ratio parameter is invalid" = length(nobs_ratio) == 1 && is.numeric(nobs_ratio) && !is.na(nobs_ratio) && nobs_ratio >= 0)
+  stopifnot("int_ratio parameter is invalid" = length(int_ratio) == 1 && is.numeric(int_ratio) && !is.na(int_ratio) && int_ratio >= 0)
+  stopifnot("npep_pass parameter is invalid" = length(npep_pass) == 1 && is.numeric(npep_pass) && !is.na(npep_pass) && npep_pass >= 0)
+  if (!is.list(dataset$contrasts) || length(dataset$contrasts) == 0) {
+    append_log("no contrasts have been defined, differential detection analysis is cancelled", type = "warning")
+    return(NULL)
+  }
+
+  # round up and enforce integer types for some params
+  npep_pass = as.integer(ceiling(npep_pass))
+  if(has_kdiff) {
+    k_diff = as.integer(ceiling(k_diff))
+  }
+
+  # prepare count table for faster computation downstream
+  count_table = dataset$peptides %>%
+    filter(detect == TRUE) %>%
+    select(protein_id, peptide_id, sample_id, detect) %>%
+    mutate(detect = as.integer(detect)) %>%
+    pivot_wider(id_cols = c("protein_id", "peptide_id"), names_from = "sample_id", values_from = "detect", values_fill = 0L)
+
+  # in matrix format for fast summarization
+  count_matrix = as.matrix(count_table %>% select(-protein_id, -peptide_id))
+  stopifnot(is.finite(count_matrix) & count_matrix %in% c(0L, 1L))
+
+
+  # analogous; intensity table
+  abundance_table = dataset$peptides %>%
+    filter(is.finite(intensity)) %>%
+    select(protein_id, peptide_id, sample_id, intensity) %>%
+    pivot_wider(id_cols = c("protein_id", "peptide_id"), names_from = "sample_id", values_from = "intensity", values_fill = NA)
+
+  if(normalize_intensities) {
+    tmp = as.matrix(abundance_table %>% select(-protein_id, -peptide_id))
+    tmp = normalize_matrix(tmp, algorithm = "mwmb", group_by_cols = dataset$samples$group[match(colnames(tmp), dataset$samples$sample_id)])
+    tmp = normalize_matrix(tmp, algorithm = "modebetween_protein", group_by_rows = abundance_table$protein_id, group_by_cols = dataset$samples$group[match(colnames(tmp), dataset$samples$sample_id)])
+    abundance_matrix_nonlog = 2^tmp
+    rm(tmp)
+  } else {
+    abundance_matrix_nonlog = 2^as.matrix(abundance_table %>% select(-protein_id, -peptide_id))
+  }
+
+
+  result = NULL
+  for(contr in dataset$contrasts) {
+    # set of sample_id for condition 1 and 2
+    sid1 = contr$sampleid_condition1
+    sid2 = contr$sampleid_condition2
+    k1 = length(sid1)
+    k2 = length(sid2)
+
+    # determine count threshold
+    k1_diff = ifelse(has_kdiff, k_diff, 0L)
+    k2_diff = ifelse(has_kdiff, k_diff, 0L)
+    if(has_fracdiff) {
+      k1_diff = max(k1_diff, as.integer(ceiling(k1 * frac_diff)))
+      k2_diff = max(k2_diff, as.integer(ceiling(k2 * frac_diff)))
+    }
+
+    # log current contrast and settings, then issue warnings if needed
+    append_log(sprintf("contrast: %s - differential detection Nobs_ratio=%.1f, Npep_pass=%d, Nsample1 (max %d) >= %d, Nsample2 (max %d) >= %d", contr$label_contrast, nobs_ratio, npep_pass, k1, k1_diff, k2, k2_diff), type = "info")
+    if(k1_diff > k1) {
+      append_log(sprintf("not enough samples in condition 1 at given parameters, k1=%d with threshold %d, finding differential detection hits in condition 1 impossible in contrast: %s", k1, k1_diff, contr$label_contrast), type = "warning")
+    }
+    if(k2_diff > k2) {
+      append_log(sprintf("not enough samples in condition 2 at given parameters, k2=%d with threshold %d, finding differential detection hits in condition 2 impossible in contrast: %s", k2, k2_diff, contr$label_contrast), type = "warning")
+    }
+
+    # for each condition, count #samples per peptide
+    d = count_table %>%
+      select(protein_id, peptide_id) %>%
+      mutate(
+        n1 = matrixStats::rowSums2(count_matrix[ , colnames(count_matrix) %in% sid1, drop = FALSE]),
+        n2 = matrixStats::rowSums2(count_matrix[ , colnames(count_matrix) %in% sid2, drop = FALSE])
+      ) %>%
+      # remove peptides not detected in currently relevant samples (makes the total peptide count per protein specific to this contrast)
+      filter(n1 >= 0 | n2 >= 0)
+
+    i = abundance_table %>%
+      select(peptide_id) %>%
+      mutate(
+        int1 = matrixStats::rowSums2(abundance_matrix_nonlog[ , colnames(abundance_matrix_nonlog) %in% sid1, drop = FALSE], na.rm = TRUE),
+        int2 = matrixStats::rowSums2(abundance_matrix_nonlog[ , colnames(abundance_matrix_nonlog) %in% sid2, drop = FALSE], na.rm = TRUE)
+      )
+    i$int1[!is.finite(i$int1)] = 0
+    i$int2[!is.finite(i$int2)] = 0
+
+    # classify differentially detected proteins
+    x = d %>%
+      left_join(i, by = "peptide_id") %>%
+      group_by(protein_id) %>%
+      summarise(
+        npep_total = n(),
+        # number of peptides differentially detected in condition 1 as compared to condition 2
+        npep_pass1 = sum(n1 - n2 >= k1_diff),
+        # vice versa
+        npep_pass2 = sum(n2 - n1 >= k2_diff),
+        # total number of peptide*sample detection counts
+        nobs1 = sum(n1),
+        nobs2 = sum(n2),
+        # total intensity across peptides*samples
+        int1 = sum(int1, na.rm = TRUE),
+        int2 = sum(int2, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      mutate(
+        # % of all possible detections made = number of observed datapoints / (#peptide * #sample)
+        fracobs1 = nobs1/(npep_total*k1),
+        fracobs2 = nobs2/(npep_total*k2),
+        contrast = contr$label,
+        `log2fc_nobs2/nobs1` = log2(nobs2/nobs1),
+        `log2fc_int2/int1` = log2(int2/int1),
+        # test directionally !
+        # so more detected in condition 1 and the nobs ratio is in the same direction (and vice versa)
+        pass = (npep_pass1 >= npep_pass & nobs1 > nobs_ratio * nobs2 & int1 > int_ratio * int2) |
+          (npep_pass2 >= npep_pass & nobs2 > nobs_ratio * nobs1 & int2 > int_ratio * int1)
+      ) %>%
+      # reorder output
+      select(contrast, protein_id, npep_total, npep_pass1, npep_pass2, nobs1, nobs2, fracobs1, fracobs2, `log2fc_nobs2/nobs1`, int1, int2, `log2fc_int2/int1`, pass)
+
+    x$int1[!is.finite(x$int1)] = NA
+    x$int2[!is.finite(x$int2)] = NA
+
+    result = bind_rows(result, x)
+  }
+
+  return(result)
 }
 
 

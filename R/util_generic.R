@@ -9,6 +9,32 @@ msdap_version = function() {
 
 
 
+#' Reduce the memory footprint of ggplot objects
+#'
+#' it seems like ggplot objects retain copies of source data, which can result in out of control RAM and RData file sizes.
+#' For example, Cscore histograms from 200 Spectronaut files (i.e. 200 basic histograms of ~50k peptides) will results in 100+ GB RData files
+#'
+#' Reference; https://stackoverflow.com/questions/75594274/why-are-my-ggplot-objects-getting-so-large-in-size
+#' Reference; https://github.com/tidyverse/ggplot2/issues/4056#issue-636077598
+#' @param x a ggplot object, or a (nested) list of ggplot objects
+reduce_ggplot_object_size = function(x) {
+  # current param is a single list
+  if("ggplot" %in% class(x)) {
+    x = ggplot2::ggplotGrob(x)
+    x = ggpubr::as_ggplot(x)
+  } else {
+    # if plain list, iterate elements and call this function recursively
+    if(is.list(x)) {
+      for(i in seq_along(x)) {
+        x[[i]] = reduce_ggplot_object_size(x[[i]])
+      }
+    }
+  }
+  return(x)
+}
+
+
+
 #' add short prettyprint labels to a protein tibble using gene symbols, if available
 #'
 #' @param tib tibble with at least a protein_id column, but should also contain a gene_symbols_or_id column for truly pretty-print names
@@ -178,6 +204,40 @@ matrix_to_long = function(mat, value_name = "value", column_name = "sample", row
   names(res)[2] = column_name
   names(res)[3] = value_name
   return(res)
+}
+
+
+
+#' fast grouped matrix aggregation using data.table
+#' @examples \dontrun{
+#' x = my_integer_matrix
+#' x_rowgroups = my_grouping_var
+#' result = matrix_grouped_column_aggregate(x, x_rowgroups, FUN = sum)
+#'
+#' # validate this function yields the same as (slower) stats::aggregate()
+#' df = stats::aggregate(x, by = list(groupid = x_rowgroups), FUN = sum)
+#' i = match(rownames(result), df$groupid)
+#' stopifnot(!is.na(i))
+#' stopifnot(count_detect == as.matrix(df[,-1])[i,])
+#' stopifnot(rownames(count_detect) == df$groupid[i])
+#' }
+#' @param x a matrix
+#' @param x_rowgroups grouping variable
+#' @param FUN function to apply, e.g. `sum`
+#' @return a matrix, where rownames match the (unique values of the) grouping variable
+matrix_grouped_column_aggregate = function(x, x_rowgroups, FUN) {
+  dt = data.table::as.data.table(x)
+  # use set() function to add column (fastest according to data.table manual)
+  data.table::set(dt, j = "groupid", value = x_rowgroups)
+  # aggregate each column by provided function, overwriting dt
+  dt = dt[, lapply(.SD, FUN), by = groupid]
+  # extract grouping var and the column by setting NULL  (fastest according to data.table manual)
+  result_groupid = dt$groupid
+  dt[,groupid := NULL]
+  # convert to matrix and return
+  dt = as.matrix(dt)
+  rownames(dt) = result_groupid
+  return(dt)
 }
 
 

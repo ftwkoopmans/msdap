@@ -8,7 +8,8 @@ subset_protein_eset_for_dea(
   eset,
   model_matrix_result_prop,
   is_peptide,
-  method_name
+  method_name,
+  min_values = NULL
 )
 }
 \arguments{
@@ -19,6 +20,8 @@ subset_protein_eset_for_dea(
 \item{is_peptide}{boolean indicating peptide-level (FALSE = protein-level)}
 
 \item{method_name}{label for printing error messages}
+
+\item{min_values}{minimum number of data points in each condition. Alternatively, use \code{options(msdap.dea.minvalue = 5)}}
 }
 \description{
 helper function to double-check we don't submit an ExpressionSet with too few values to DEA

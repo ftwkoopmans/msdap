@@ -360,10 +360,11 @@ dea = function(dataset, qval_signif = 0.01, fc_signif = 0, dea_algorithm = "deqm
 #' @param samples_cond2 analogous to samples_cond1, but for condition 2
 #' @param probs upper limit for the quantile cutoff, automatically translated to mirror the lower limit; c(1-probs, probs)
 #' @param max_permutations maximum number of unique configurations used for the permuted datasets
+#' @param return_fc_matrix set TRUE to return the bootstrapped data, set FALSE to return only the computed threshold (default)
 #' @importFrom Biobase pData exprs
 #' @importFrom matrixStats rowMeans2
 #' @export
-dea_protein_background_foldchange_limits = function(x, samples_cond1 = NULL, samples_cond2 = NULL, probs = 0.95, max_permutations = 100) {
+dea_protein_background_foldchange_limits = function(x, samples_cond1 = NULL, samples_cond2 = NULL, probs = 0.95, max_permutations = 100, return_fc_matrix = FALSE) {
   x_ismatrix = is.matrix(x) && is.numeric(x) && length(samples_cond1) > 0 && length(samples_cond2) > 0 && all(samples_cond1 %in% colnames(x)) && all(samples_cond2 %in% colnames(x))
   x_iseset = "ExpressionSet" %in% class(x) && "condition" %in% colnames(Biobase::pData(x)) && all(c(1L,2L) %in% as.integer(Biobase::pData(x)$condition))
   if(!x_ismatrix && !x_iseset) {
@@ -405,6 +406,9 @@ dea_protein_background_foldchange_limits = function(x, samples_cond1 = NULL, sam
     fc_matrix[,i] = x1 - x2
   }
 
+  if(return_fc_matrix) {
+    return(fc_matrix)
+  }
   # we should not infer a-symmetric foldchange thresholds from the permutation data, so take the largest absolute value
   return(max(abs(quantile(fc_matrix, probs = c(1-probs, probs), na.rm = T))))
 }
@@ -418,7 +422,7 @@ dea_protein_background_foldchange_limits = function(x, samples_cond1 = NULL, sam
 #' permute_ab(as.integer(c(1,1,1, 2,2,2))) # most basic
 #' permute_ab(as.integer(c(1,1,1,1, 2,2,2,2,2))) # uneven groups
 #'
-#' @param x integer vector of {1,2} group IDs, at least two of each
+#' @param x integer vector of (1,2) group IDs, at least two of each
 #' @param nmax maximum number of permuted sets
 #' @return integer matrix where rows are permutations and columns are indices in input x
 permute_ab = function(x, nmax = 100) {

@@ -9,7 +9,8 @@ dea_protein_background_foldchange_limits(
   samples_cond1 = NULL,
   samples_cond2 = NULL,
   probs = 0.95,
-  max_permutations = 100
+  max_permutations = 100,
+  return_fc_matrix = FALSE
 )
 }
 \arguments{
@@ -22,6 +23,8 @@ dea_protein_background_foldchange_limits(
 \item{probs}{upper limit for the quantile cutoff, automatically translated to mirror the lower limit; c(1-probs, probs)}
 
 \item{max_permutations}{maximum number of unique configurations used for the permuted datasets}
+
+\item{return_fc_matrix}{set TRUE to return the bootstrapped data, set FALSE to return only the computed threshold (default)}
 }
 \description{
 note; this function hardcodes set.seed()

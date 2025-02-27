@@ -501,6 +501,119 @@ filter_dataset = function(dataset,
 
 
 
+
+
+
+#' Custom dataset filtering rules that also enable one-sided filtering
+#'
+#' @description
+#' Apply filtering rules to the peptide table and store results in a new intensity column. Normalization must be applied separately, see example below.
+#'
+#' You can tweak columns "group" and "exclude" in the samples table to define desired groups and
+#' exclude either outlier samples, or entire conditions, as desired.
+#'
+#' @examples \dontrun{
+#' dataset$peptides = dataset_filter_custom(
+#'   dataset$peptides,
+#'   dataset$samples %>% mutate(group = tissue_type),
+#'   col_intensity = "intensity_all_group",
+#'   peptide_min_detect = 5,
+#'   peptide_frac_detect = 0.75,
+#'   protein_min_peptides = 2,
+#'   groups_min_pass = 1  # one-sided group filtering
+#' )
+#'
+#' dataset = normalize_peptide_intensity_column(
+#'   dataset,
+#'   col_intensity = "intensity_all_group",  # same column name as above !
+#'   norm_algorithm = c("mwmb", "modebetween_protein"),
+#'   rollup_algorithm = "maxlfq"
+#' )
+#' }
+#' @param peptides typically `dataset$peptides`
+#' @param samples typically `dataset$samples` , but with mutations to the `group` and `exclude` columns
+#' @param col_intensity designated intensity column in `dataset$peptides` table that will contain the output/results. Naming convention is very strict, must start with "intensity_" and be followed only by lowercase letters, numbers or underscores
+#' @param peptide_min_detect minimum number of samples, per group (in samples table), where a peptide must be detected to count as 'valid' (per group). Value > 0
+#' @param peptide_frac_detect minimum fraction of samples, per group (in samples table), where a peptide must be detected to count as 'valid' (per group). Value between 0 and 1
+#' @param protein_min_peptides minimum number of 'valid' peptides, per group (in samples table), that a protein must have to count as 'valid' (per group). Value > 0
+#' @param groups_min_pass minimum number of groups in which a protein must be 'valid' in order to be retained in the results. Value > 0
+#' @returns `peptides` input table with results stored in column `col_intensity`
+dataset_filter_custom = function(peptides, samples, col_intensity, peptide_min_detect, peptide_frac_detect, protein_min_peptides, groups_min_pass) {
+  # input validation
+  stopifnot(is.data.frame(peptides) && all(c("peptide_id", "protein_id", "detect", "intensity") %in% colnames(peptides)))
+  stopifnot(is.data.frame(samples) && all(c("sample_id", "group", "exclude") %in% colnames(samples)))
+  stopifnot(length(col_intensity) == 1 && is.character(col_intensity) && grepl("^intensity_[a-z0-9_]+$", col_intensity, ignore.case = FALSE))
+  stopifnot(length(peptide_min_detect) == 1 && is.numeric(peptide_min_detect) && is.finite(peptide_min_detect) && peptide_min_detect > 0)
+  stopifnot(length(peptide_frac_detect) == 1 && is.numeric(peptide_frac_detect) && is.finite(peptide_frac_detect) && peptide_frac_detect >= 0 && peptide_frac_detect <= 1)
+  stopifnot(length(groups_min_pass) == 1 && is.numeric(groups_min_pass) && is.finite(groups_min_pass) && groups_min_pass > 0)
+  stopifnot(length(protein_min_peptides) == 1 && is.numeric(protein_min_peptides) && is.finite(protein_min_peptides) && protein_min_peptides > 0)
+
+  # round up and convert to integer (might not be strictly needed, but enforce for clarity at least)
+  peptide_min_detect = as.integer(ceiling(peptide_min_detect))
+  groups_min_pass = as.integer(ceiling(groups_min_pass))
+  protein_min_peptides = as.integer(ceiling(protein_min_peptides))
+
+  # input data for filtering; peptide*sample pairs + group identifier
+  samples = samples %>% filter(exclude == FALSE) # importantly, subset up-front
+  sample_group_counts = samples %>% count(group, name = "group_size")
+  sid_retain = samples$sample_id
+  x = peptides %>%
+    filter(detect == TRUE & sample_id %in% sid_retain) %>%
+    select(peptide_id, sample_id) %>%
+    left_join(samples %>% select(sample_id, group), by = "sample_id")
+
+  # valid peptide*group pairs; remove all peptide*group combinations that are not found in sufficient samples (per group)
+  filter_pep_groups = x %>%
+    count(peptide_id, group, name = "nrep") %>%
+    left_join(sample_group_counts, by = "group") %>%
+    filter(nrep >= peptide_min_detect & nrep >= peptide_frac_detect * group_size) %>%
+    select(-nrep, -group_size)
+
+  # valid protein*group pairs; at least N peptides per protein
+  if(protein_min_peptides > 1) { # for efficiency, skip code block when this filter is disabled
+    filter_pep_groups = filter_pep_groups %>%
+      # count the number of times each protein is seen per group = peptide count
+      left_join(peptides %>% distinct(peptide_id, protein_id), by = "peptide_id") %>%
+      add_count(protein_id, group, name = "npep_within_group") %>%
+      # apply filtering
+      filter(npep_within_group >= protein_min_peptides) %>%
+      select(-npep_within_group)
+
+    pepid_retain = unique(filter_pep_groups$peptide_id)
+    protid_retain = unique(filter_pep_groups$protein_id)
+  } else {
+    # no protein-level filtering: lookup protein_id for the set of filtered peptides
+    pepid_retain = unique(filter_pep_groups$peptide_id)
+    protid_retain = unique(peptides$protein_id[match(pepid_retain, peptides$peptide_id)])
+  }
+
+  # resulting intensity column in peptide table: set NA for peptides/proteins/samples that should not be retained
+  tmp = peptides$intensity
+  tmp[ ! peptides$peptide_id %in% pepid_retain |
+         ! peptides$protein_id %in% protid_retain | # not strictly needed, should be covered by peptide filter
+         ! peptides$sample_id %in% sid_retain] = NA
+  peptides[[col_intensity]] = tmp # syntax works with data.frame and tibble
+
+  # report number of peptides and proteins after filtering
+  log_total_pepid = n_distinct(peptides$peptide_id)
+  log_total_protid = n_distinct(peptides$protein_id)
+  append_log(sprintf(
+    "custom filtering: column=%s min_detect=%d frac_detect=%s min_group=%d min_peptides=%d\ngroups: %s\n%d/%d (%.1f%%) peptide_id and %d/%d (%.1f%%) protein_id remain after filtering",
+    col_intensity, peptide_min_detect, peptide_frac_detect, groups_min_pass, protein_min_peptides,
+    paste(paste0(sample_group_counts$group, "(", sample_group_counts$group_size, ")"), collapse = ", "),
+    length(pepid_retain), log_total_pepid, length(pepid_retain) / log_total_pepid * 100,
+    length(protid_retain), log_total_protid, length(protid_retain) / log_total_protid * 100
+  ), type = "info")
+
+  return(peptides)
+}
+
+
+
+###########
+
+
+
 filter_proteins_by_pepcount = function(peptides, col_intensity, min_peptides) {
   protein_filter = peptides %>%
     select(key_peptide, key_protein, value=!!col_intensity) %>%

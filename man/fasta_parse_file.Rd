@@ -18,5 +18,5 @@ fasta_parse_file(
 \item{uppercase_symbols}{convert all gene symbols to upper case? default: TRUE}
 }
 \description{
-Read non-redundant headers from all fasta files
+note that this function replaces semicolons in fasta headers with colons (since we use semicolons as delimiters upstream)
 }

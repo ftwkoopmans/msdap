@@ -498,6 +498,8 @@ import_dataset_in_long_format = function(filename = NULL, x = NULL, attributes_r
   plotlist = list()
   if(do_plot && "cscore" %in% colnames(DT)) {
     plotlist$ggplot_cscore_histograms = plot_dia_cscore_histograms(as_tibble(DT))
+    # bugfix; ggplot objects can have huge memory footprints, esp. when writing these objects to RData file. So we here render the plot and store only the resulting grob
+    plotlist$ggplot_cscore_histograms = reduce_ggplot_object_size(plotlist$ggplot_cscore_histograms)
   }
 
   if(!return_decoys) {

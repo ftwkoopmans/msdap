@@ -42,7 +42,29 @@ validate_eset_fitdata = function(eset, model_matrix, model_matrix_result_prop) {
 #' @param model_matrix_result_prop the column name in `model_matrix` that should be returned as the resulting coefficient estimated by `eBayes()`. In MS-DAP workflows this is typically "condition"
 #' @param is_peptide boolean indicating peptide-level (FALSE = protein-level)
 #' @param method_name label for printing error messages
-subset_protein_eset_for_dea = function(eset, model_matrix_result_prop, is_peptide, method_name) {
+#' @param min_values minimum number of data points in each condition. Alternatively, use `options(msdap.dea.minvalue = 5)`
+subset_protein_eset_for_dea = function(eset, model_matrix_result_prop, is_peptide, method_name, min_values = NULL) {
+  # use min_values parameter if set
+  if(!is.null(min_values)) {
+    if(length(min_values) != 1 || !is.numeric(min_values) || !is.finite(min_values) || min_values < 2) {
+      append_log("parameter min_values must be NULL or a single integer value >= 2", type = "error")
+    }
+  } else {
+    # otherwise, use global option (if set)
+    min_values_global = getOption("msdap.dea.minvalue")
+    if(!is.null(min_values_global)) {
+      min_values = min_values_global
+      if(length(min_values) != 1 || !is.numeric(min_values) || !is.finite(min_values) || min_values < 2) {
+        append_log("options setting for 'msdap.dea.minvalue' must be NULL or a single integer value >= 2", type = "error")
+      }
+    }
+  }
+  # default to 2
+  if(is.null(min_values)) {
+    min_values = 2
+  }
+  min_values = as.integer(ceiling(min_values))
+
   x = Biobase::exprs(eset)
   ptmp = Biobase::pData(eset)
   stopifnot("subset_protein_eset_for_dea invalid eset * model_matrix_result_prop combination" = model_matrix_result_prop %in% colnames(ptmp))
@@ -52,8 +74,8 @@ subset_protein_eset_for_dea = function(eset, model_matrix_result_prop, is_peptid
   # test for both NA and zeros
   # (compatible with eBayes/DEqMS/MSqRob ExpressionSets that have log2 intensities,
   #  and with MS-EmpiRe dataset with plain intensities sans log transformation that contain zeros for missing values)
-  rows = rowSums(is.finite(x[,cols1,drop=FALSE] > 0) & x[,cols1,drop=FALSE] > 0) >= 2 &
-    rowSums(is.finite(x[,cols2,drop=FALSE]) & x[,cols2,drop=FALSE] > 0) >= 2
+  rows = rowSums(is.finite(x[,cols1,drop=FALSE]) & x[,cols1,drop=FALSE] > 0) >= min(min_values, sum(cols1)) &
+         rowSums(is.finite(x[,cols2,drop=FALSE]) & x[,cols2,drop=FALSE] > 0) >= min(min_values, sum(cols2))
 
   if(sum(rows) < 10) {
     append_log(sprintf("less than 10 %s have a non-zero value in both conditions: too little input data for DEA", ifelse(is_peptide, "peptides", "proteins")), type = "error")
@@ -71,8 +93,8 @@ subset_protein_eset_for_dea = function(eset, model_matrix_result_prop, is_peptid
     Biobase::pData(eset) = ptmp
     Biobase::fData(eset) = ftmp
 
-    append_log(sprintf("DEA requires at least 2 values per experimental condition; %d / %d %s were removed prior to applying %s\n(in typical MS-DAP workflows one would apply peptide-filtering upstream, e.g. with parameters in the analysis_quickstart() function)",
-                       sum(!rows), length(rows), ifelse(is_peptide, "peptides", "proteins"), method_name), type = "warning")
+    append_log(sprintf("DEA requires at least %d values per experimental condition; %d / %d %s were removed prior to applying %s\n(in typical MS-DAP workflows one would apply peptide-filtering upstream, e.g. with parameters in the analysis_quickstart() function)",
+                       min_values, sum(!rows), length(rows), ifelse(is_peptide, "peptides", "proteins"), method_name), type = "warning")
   }
 
   return(eset)
@@ -375,6 +397,58 @@ de_msqrobsum_msqrob = function(eset, model_matrix, model_matrix_result_prop, use
     select(protein_id, pvalue, qvalue, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation = sigma_post, standarderror = se, dea_algorithm)
 
   append_log_timestamp(algorithm_name, start_time)
+  return(result)
+}
+
+
+
+#' MSqRob test function for internal use
+#'
+#' @param peptides TODO
+#' @param proteins TODO
+#' @param samples TODO
+#' @param main_variable TODO
+#' @param ordered_variables TODO
+#' @param min_values minimum number of data points in each condition. Alternatively, use `options(msdap.dea.minvalue = 5)`
+de_msqrob_customformula = function(peptides, proteins, samples, main_variable = "condition", ordered_variables = c("batch", "condition"), min_values = NULL) {
+  start_time = Sys.time()
+
+  tmp = samples |> pull(!!main_variable)
+  stopifnot(!anyNA(tmp) && n_distinct(tmp) >= 2)
+
+  stopifnot(main_variable %in% ordered_variables)
+  eset = tibble_as_eset(peptides, proteins, samples)
+  # ensure there are at least 2 valid data points per condition / group (subset the expressionset otherwise)
+  eset = subset_protein_eset_for_dea(eset, main_variable, is_peptide = TRUE, method_name = "de_msqrob_customformula", min_values = min_values)
+  # just to be sure, fix random seed
+  set.seed(123)
+  msnset = MSnbase::as.MSnSet.ExpressionSet(eset)
+
+  allranvar = paste(paste0("(1 | ", ordered_variables, ")"), collapse = " + ")
+  form_string = c(sprintf("expression ~ %s + (1 | sample_id) + (1 | peptide_id)", allranvar), sprintf("expression ~ %s", allranvar))
+  # always add y~(1|condition) without any optional random_variables as a last-resort model if all other model specifications fail (due to lack of data) -->> then convert from string to formula/expression
+  form_string = unique(c(form_string, sprintf("expression ~ (1 | %s)", main_variable)))
+  form_eval = sapply(form_string, function(x) eval(parse(text=x)), USE.NAMES = FALSE)
+  append_log(paste("de_msqrob_customformula;", paste(form_string, collapse = "  ,  ")), type = "info")
+
+  result = suppressWarnings(msqrobsum(data = msnset, formulas = form_eval, group_vars = "protein_id", contrasts = main_variable, mode = "msqrob"))
+
+  ########################################################### analogous to main function ###########################################################
+  result_unpacked = as_tibble(result) %>%
+    dplyr::select(protein_id, contrasts) %>%
+    tidyr::unnest(cols = contrasts)
+
+  result_unpacked$sigma_post = result_unpacked$se / result_unpacked$sigma_contrast
+  result_unpacked$effectsize = result_unpacked$logFC / result_unpacked$sigma_post
+
+  # prepare output table in our standard format
+  result = as_tibble(result_unpacked) %>%
+    mutate(protein_id = as.character(protein_id),
+           dea_algorithm = "msqrob") %>%
+    select(protein_id, pvalue, qvalue, foldchange.log2 = logFC, effectsize, tstatistic = t, standarddeviation = sigma_post, standarderror = se, dea_algorithm)
+
+  append_log_timestamp("msqrob", start_time)
+  ########################################################### analogous to main function ###########################################################
   return(result)
 }
 

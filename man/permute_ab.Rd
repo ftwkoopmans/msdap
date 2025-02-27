@@ -7,7 +7,7 @@
 permute_ab(x, nmax = 100)
 }
 \arguments{
-\item{x}{integer vector of {1,2} group IDs, at least two of each}
+\item{x}{integer vector of (1,2) group IDs, at least two of each}
 
 \item{nmax}{maximum number of permuted sets}
 }

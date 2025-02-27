@@ -2,35 +2,84 @@
 % Please edit documentation in R/process_peptide_data.R
 \name{remove_proteins_by_name}
 \alias{remove_proteins_by_name}
-\title{Remove all peptides that match some protein-level filters}
+\title{Completely remove proteins, and all their peptides, that match some filter from the dataset}
 \usage{
 remove_proteins_by_name(
   dataset,
-  remove_irt_peptides = FALSE,
+  irt_peptides = FALSE,
+  fasta_contaminants = FALSE,
   regular_expression = "",
-  gene_symbols = c(),
+  gene_symbols = NULL,
   print_nchar_limit = 150
 )
 }
 \arguments{
-\item{dataset}{the dataset to filter}
+\item{dataset}{the dataset to filter. Note that prior to calling this function, you must have applied \code{import_fasta()} such that this function has access to the fasta headers of each proteingroup}
 
-\item{remove_irt_peptides}{try to find the irt spike-in peptides in the fasta file header. looking for; |IRT| and IRT_KIT and "Biognosys iRT" (case insensitive). default:FALSE}
+\item{irt_peptides}{try to find the irt spike-in peptides in the fasta file header.
+This requires inclusion of the IRT peptides in the samples, using the IRT FASTA during Spectronaut/DIA-NN/x data search, including the IRT FASTA in \code{import_fasta()}.
+This specifically matches all proteins where the fasta header contains any of; "|IRT|", "IRT_KIT", "Biognosys iRT" (case insensitive). default:FALSE}
 
-\item{regular_expression}{careful here, regular expressions are powerful but complex matching patterns. A 'regex' that is matched against the fasta header(s) of a protein(group). case insensitive}
+\item{fasta_contaminants}{remove proteins that are flagged as a contaminant in the fasta files.
+Note that this only protein matches from specific "contaminants" FASTA files that were included in your DIA-NN/MaxQuant/etc. search.
+This specifically matches all proteins where the protein identifier contains any of; "con_", "_con", "|crap-" (case insensitive). default:FALSE}
 
-\item{gene_symbols}{an array of gene symbols that are to be matched against the fasta header(s) of a protein(group). case insensitive}
+\item{regular_expression}{careful here, regular expressions are powerful but complex matching patterns. Here you can provide a 'regex' that is matched against the fasta header(s) of a proteingroup. case insensitive!}
+
+\item{gene_symbols}{an array of gene symbols that are to be matched against the fasta header(s) of a proteingroup. Symbols must be at least 2 characters long and match exactly, but matching is case insensitive}
 
 \item{print_nchar_limit}{max number of characters for the fasta headers (of removed proteins) that are shown in the log}
 }
 \description{
-Remove all peptides that match some protein-level filters
+Completely remove proteins, and all their peptides, that match some filter from the dataset
 }
 \examples{
-# remove all gene symbols that start with krt (eg; keratins)
-\dontrun{gene_symbols = "krt"}
-#remove keratins and IGGs using regular expression against uniprot fasta headers
-#(particularly useful for IP experiments);
-\dontrun{regular_expression = "ig \\\\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)"}
+\dontrun{
+### example 1:
+# If you included a contaminant FASTA in DIA-NN/MaxQuant/etc.,
+# you can use this function remove these proteins from the dataset before
+# running the MS-DAP analysis_quickstart() function.
+#
+# First, use DIA-NN to analyze raw files while providing as FASTA files
+# 1) The uniprot fasta file(s) that describe your experiment's proteome
+#   (e.g. uniprot Human proteome, both the canonical and additional files)
+# 2) Check the "Contaminants" box in DIA-NN to include the cRAP proteins
+#
+# Next, we can use MS-DAP to import this dataset and remove the contaminant proteins.
+
+# I) import the dataset as per usual
+library(msdap)
+dataset = import_dataset_diann(filename = "C:/data/report.parquet")
+
+# II) import all fasta FASTA files that were used in DIA-NN
+# Importantly, you have to include all FASTA files in a single import_fasta() call.
+# Note that this includes the contaminant FASTA that is bundled with DIA-NN,
+# but only if it was used during DIA-NN analysis.
+dataset = import_fasta(dataset, files = c(
+  "C:/uniprot/2024_01/UP000005640_9606.fasta",
+  "C:/uniprot/2024_01/UP000005640_9606_additional.fasta",
+  "C:/DIA-NN/1.9.1/camprotR_240512_cRAP_20190401_full_tags.fasta"
+))
+
+# III) If so desired, remove contaminant proteins
+# If you want to remove all the cRAP proteins up-front, you can completely remove
+# them from the dataset using a regular expression matched against FASTA headers.
+# Proteins removed by this function will be fully erased from the dataset,
+# i.e. matches that are printed to the console will not be used in any downstream step.
+dataset = remove_proteins_by_name(dataset, fasta_contaminants = TRUE)
+
+# note: if the fasta_contaminants option does not catch all proteins
+# that you intend to remove, for example when you are using a different contaminant
+# FASTA, you can add additional filters using the "regular_expression" parameter.
+
+
+### example 2: remove keratins and IGGs
+# This example uses a regular expression, matched against uniprot fasta headers
+# (particularly useful for IP experiments);
+dataset = remove_proteins_by_name(
+  dataset,
+  regular_expression = "ig \\\\S+ chain|keratin|GN=(krt|try|igk|igg|igkv|ighv|ighg)"
+)
+}
 
 }

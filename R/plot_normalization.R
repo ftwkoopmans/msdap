@@ -416,7 +416,7 @@ ggplot_coefficient_of_variation = function(tib_input, samples, samples_colors) {
   groups = unique(samples$group)
   mat_cov = matrix(NA, nrow=nrow(tibw_abundance_naturallog), ncol=length(groups), dimnames = list(tibw_abundance_naturallog$peptide_id, groups))
   dropcols = NULL
-  for(grp in unique(samples$group)) {
+  for(grp in groups) {
     # samples for current group
     sid = intersect(samples %>% filter(group == grp) %>% pull(sample_id),
                     colnames(tibw_abundance_naturallog))

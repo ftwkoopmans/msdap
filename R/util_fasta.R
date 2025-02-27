@@ -57,7 +57,8 @@ fasta_header_to_gene = function(x, fasta_id_type = "uniprot") {
 
 
 #' Read non-redundant headers from all fasta files
-#
+#'
+#' @description note that this function replaces semicolons in fasta headers with colons (since we use semicolons as delimiters upstream)
 #' @param fasta_files array of fill paths to fasta files
 #' @param fasta_id_type fasta type, typically this is 'uniprot'
 #' @param uppercase_symbols convert all gene symbols to upper case? default: TRUE
@@ -76,6 +77,12 @@ fasta_parse_file = function(fasta_files, fasta_id_type = "uniprot", uppercase_sy
     char1 = substr(l, 1, 1)
     fasta = c(fasta, l[char1 == ">"]) # only fasta header lines
   }
+
+  ### uniprot now includes semicolons in protein descriptions
+  # importantly, this conflicts with using semicolons as a separation character
+  # solution: replace all semicolons in fasta headers with colon symbols
+  # example: >tr|B1AR09|B1AR09_MOUSE Isoform of B1AR10, Myeloid/lymphoid or mixed-lineage leukemia; translocated to, 6 OS=Mus musculus OX=10090 GN=Mllt6 PE=1 SV=1
+  fasta = gsub(";", ":", fasta, fixed = TRUE)
 
   result = tibble(
     idlong = fasta_header_to_id(fasta),
