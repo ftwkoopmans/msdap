@@ -76,8 +76,16 @@ plot_dia_cscore_histograms = function(tib_input) {
       p = p + geom_vline(linetype = "dashed", color = "black", xintercept = max(tib_xlim[1], target_cscore_min))
     }
 
+    annotation_args = list(geom = "label", x = tib_xlim[2], y = Inf, hjust = 1.1, vjust = 1, label = legend_text, fill = "white")
+    # ggplot2 4.0.0 renamed the label border parameter from `label.size` to `linewidth`.
+    if(utils::packageVersion("ggplot2") >= "4.0.0") {
+      annotation_args$linewidth = NA
+    } else {
+      annotation_args$label.size = NA
+    }
+
+    p = p + do.call(ggplot2::annotate, annotation_args)
     p = p +
-      ggplot2::annotate(geom = "label", x = tib_xlim[2], y = Inf, hjust = 1.1, vjust = 1, label = legend_text, label.size = NA, fill = "white") +
       scale_x_continuous(limits = tib_xlim, expand = ggplot2::expansion()) +
       labs(x = "", y = "", title = sid, fill = "") +
       ggpubr::theme_classic2() +
@@ -110,4 +118,3 @@ plot_dia_cscore_histograms = function(tib_input) {
   append_log_timestamp("histogram Cscore distributions", start_time)
   return(result)
 }
-
