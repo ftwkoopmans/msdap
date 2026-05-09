@@ -4,10 +4,12 @@
 \alias{minlog10}
 \title{Accept pvalues that are exactly zero as the 'best pvalue'}
 \usage{
-minlog10(x)
+minlog10(x, default_maxval = 16)
 }
 \arguments{
 \item{x}{values to transform}
+
+\item{default_maxval}{for zero values in x (i.e. p-values of exactly zero), output -log10 values are set to the maximum of \code{default_maxval} and max -log10 of all values in x}
 }
 \description{
 Accept pvalues that are exactly zero as the 'best pvalue'

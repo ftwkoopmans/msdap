@@ -84,8 +84,8 @@ plot_dia_cscore_histograms = function(tib_input) {
       annotation_args$label.size = NA
     }
 
-    p = p + do.call(ggplot2::annotate, annotation_args)
     p = p +
+      do.call(ggplot2::annotate, annotation_args) +
       scale_x_continuous(limits = tib_xlim, expand = ggplot2::expansion()) +
       labs(x = "", y = "", title = sid, fill = "") +
       ggpubr::theme_classic2() +
@@ -118,3 +118,4 @@ plot_dia_cscore_histograms = function(tib_input) {
   append_log_timestamp("histogram Cscore distributions", start_time)
   return(result)
 }
+

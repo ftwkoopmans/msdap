@@ -501,7 +501,7 @@ error_legacy_contrast_definitions = function(dataset) {
 #' also removes contrast-related information from the dataset that was used in older MS-DAP version (prior to version 1.2)
 #'
 #' @param dataset your dataset
-#' @seealso [print_contrasts()], [add_contrast()]
+#' @seealso [msdap::print_contrasts()], [msdap::add_contrast()]
 #' @export
 remove_contrasts = function(dataset) {
   if(!is.list(dataset)) {
@@ -530,7 +530,7 @@ remove_contrasts = function(dataset) {
 #' Print an overview of all defined contrasts and their respective sample metadata tables to the console
 #'
 #' @param dataset your dataset
-#' @seealso [add_contrast()], [remove_contrasts()]
+#' @seealso [msdap::add_contrast()], [msdap::remove_contrasts()]
 #' @export
 print_contrasts = function(dataset) {
   if(!is.list(dataset)) {
@@ -649,7 +649,7 @@ print_contrasts = function(dataset) {
 #' @param values_condition1 array of values from column `colname_condition_variable` that are the first group in the contrast. Note that
 #' @param values_condition2 analogous to `values_condition1`, but for the second group. Note that you can set this to NA to indicate "everything except values in values_condition1"
 #' @param colname_additional_variables optionally, sample metadata column names that should be used as additional regression variables (only the subset of `user_provided_metadata(dataset$samples)`, NOT including the value provided as parameter `colname_condition_variable`)
-#' @seealso [print_contrasts()] to print an overview of defined contrasts, [remove_contrasts()] to remove all current contrasts (and respective filtering and DEA results)
+#' @seealso [msdap::print_contrasts()] to print an overview of defined contrasts, [msdap::remove_contrasts()] to remove all current contrasts (and respective filtering and DEA results)
 #' @export
 add_contrast = function(dataset, colname_condition_variable, values_condition1, values_condition2, colname_additional_variables = NULL) {
   # validate dataset

@@ -34,4 +34,6 @@ modebetween_protein  (also referred to as "MBprot", e.g. in the MS-DAP manuscrip
 vw: only perform peptide-level variation-within normalization. This rescales samples such that the peptide standard deviations (intensity values across samples in the same sample group) are minimized.  i.e. this is only the first part of the VWMB algorithm. Note that in most cases / experimental designs, you want to end your normalizations with modebetween_protein  (only normalization variation within group is often not the most suitable normalization solution)
 
 mw: analogous to the "vw" option, but here performing peptide-level normalization that uses mode normalization within groups (first part of MWMB). No between group rescaling. Same recommendations/notes as with "vm" apply
+
+pairscale_mode_protein: protein-level rescaling within and between groups using the pairscale R package (https://github.com/ftwkoopmans/pairscale). First perform peptide-to-protein rollup, then normalize the protein matrix using pairscale::pairscale_mode() and finally rescale columns of the input (peptide) data matrix by the respective scaling factors computed by pairscale (at protein level).
 }

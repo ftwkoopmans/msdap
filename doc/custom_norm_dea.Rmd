@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 devtools::load_all()
 
 # ! change to some temporary working directory on your computer !
-setwd("C:/temp/")
+setwd("~/temp/")
 ```
 
 
@@ -207,4 +207,3 @@ A simple Venn diagram of proteins at 1% FDR for each method shows our custom fun
 gplots::venn(list(ebayes=dataset$de_proteins %>% filter(dea_algorithm=="ebayes" & qvalue <= 0.01) %>% pull(protein_id),
                   my_dea_stats=dataset$de_proteins %>% filter(dea_algorithm=="my_dea_stats" & qvalue <= 0.01) %>% pull(protein_id)))
 ```
-

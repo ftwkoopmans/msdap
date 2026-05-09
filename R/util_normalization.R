@@ -29,9 +29,11 @@
 #'
 #' mw: analogous to the "vw" option, but here performing peptide-level normalization that uses mode normalization within groups (first part of MWMB). No between group rescaling. Same recommendations/notes as with "vm" apply
 #'
+#' pairscale_mode_protein: protein-level rescaling within and between groups using the pairscale R package (https://github.com/ftwkoopmans/pairscale). First perform peptide-to-protein rollup, then normalize the protein matrix using pairscale::pairscale_mode() and finally rescale columns of the input (peptide) data matrix by the respective scaling factors computed by pairscale (at protein level).
+#'
 #' @export
 normalization_algorithms = function() {
-  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein", "vw", "mw")
+  c("median", "loess", "vsn", "rlr", "msempire", "vwmb", "mwmb", "modebetween", "modebetween_protein", "vw", "mw", "pairscale_mode_protein")
 }
 
 
@@ -143,6 +145,14 @@ normalize_matrix = function(x_as_log2, algorithm, group_by_cols = NA, group_by_r
     return(threshold_numerics(result, 1))
   }
 
+  if (algorithm == "pairscale_mode_protein") {
+    if (!valid_group_by_rows) {
+      append_log("'pairscale_mode_protein' normalization requires an array of protein identifiers (not NA or empty string), equal to the number of rows of the peptide matrix, that will be used for peptide-to-protein rollup", type = "error")
+    }
+    return(threshold_numerics( pairscale_mode_protein(x_as_log2, group_by_rows = group_by_rows, group_by_cols = group_by_cols, rollup_algorithm = rollup_algorithm), 1))
+  }
+
+
   # guess if the user provided some custom function for normalization
   f = tryCatch(match.fun(algorithm, descend = FALSE), error = function(...) NULL)
   if(!is.function(f)) {
@@ -246,4 +256,65 @@ normalize_rlr = function(x) {
   y = normalize_rlr_MSqRob_implementation(x)
   dimnames(y) = dimnames(x)
   return(y)
+}
+
+
+
+#' MS-DAP normalization plugin for pairscale mode normalization at protein-level
+#'
+#' @description first perform peptide-to-protein rollup, then normalize the protein matrix using pairscale::pairscale_mode() and
+#' finally rescale columns of the input (peptide) data matrix by the respective scaling factors computed by pairscale (at protein level).
+#'
+#' ref: https://github.com/ftwkoopmans/pairscale
+#' @param x_as_log2 peptide abundance matrix containing log2 transformed values and NA's
+#' @param group_by_rows character array of the same length as the number of rows in the provided data matrix, describing the grouping of each row/proteingroup
+#' @param group_by_cols character array of the same length as the number of columns in the provided data matrix, describing the grouping of each column/sample
+#' @param rollup_algorithm name of the rollup algorithm, typically "maxlfq"
+#' @param ... additional parameters that aren't used here
+#' @return x_as_log2 post normalization
+pairscale_mode_protein = function(x_as_log2, group_by_rows = NULL, group_by_cols = NULL, rollup_algorithm = NULL, ...) {
+  ## input validation
+  stopifnot(is.matrix(x_as_log2) && typeof(x_as_log2) == "double" && ncol(x_as_log2) > 1 && nrow(x_as_log2) > 1)
+  stopifnot(length(group_by_cols) == ncol(x_as_log2) && all(!is.na(group_by_cols)) && (all(is.character(group_by_cols) & group_by_cols != "") || all(is.integer(group_by_cols))) )
+  stopifnot(length(group_by_rows) == nrow(x_as_log2) && all(!is.na(group_by_rows)) && (all(is.character(group_by_rows) & group_by_rows != "") || all(is.integer(group_by_rows))) )
+  # rollup_algorithm parameter is validated in rollup function
+
+  start_time = Sys.time()
+  log_message = "pairscale_mode_protein: cross-comparing all samples"
+  clusters = rep(1L, ncol(x_as_log2))
+
+  if(length(group_by_cols) == ncol(x_as_log2)) {
+    log_message = paste("pairscale_mode_protein: cross-comparing within group then between", length(unique(group_by_cols)), "groups")
+    clusters = match(group_by_cols, unique(group_by_cols))
+  }
+
+  ## rollup
+  # from peptide matrix to long-format tibble
+  tib = tibble::as_tibble(x_as_log2) %>%
+    tibble::add_column(peptide_id = 1:nrow(x_as_log2), protein_id = group_by_rows) %>%
+    tidyr::pivot_longer(cols = c(-protein_id, -peptide_id), names_to = "sample_id", values_to = "intensity") %>%
+    filter(is.finite(intensity) & intensity > 0)
+  # rollup
+  mat_protein = rollup_pep2prot(tib, intensity_is_log2 = TRUE, rollup_algorithm = rollup_algorithm, return_as_matrix = TRUE)
+  rm(tib)
+
+  ## importantly, enforce consistent column order between x_as_log2 and mat_protein to preserve alignment with sample-to-group assignments
+  stopifnot(ncol(x_as_log2) == ncol(mat_protein) && all(colnames(x_as_log2) %in% colnames(mat_protein)))
+  mat_protein = mat_protein[,match(colnames(x_as_log2), colnames(mat_protein)),drop=F]
+
+  ## normalize; note that pairscale changes the input data matrix by reference
+  scaling_factors = pairscale::pairscale_mode(mat_protein, bandwidth_method = "nrd", adjust = 0.9, min_value_count = 50, niter_irls = 100)
+  # actual result in the peptide-level input data matrix. Update it with scaling factors computed from the protein matrix
+  for(j in 1:ncol(x_as_log2)) {
+    x_as_log2[,j] = x_as_log2[,j] - scaling_factors[j]
+  }
+
+  # edge-case; msdap will threshold values below 1 (normalize_matrix() -> threshold_numerics() ) ; we here increase minval post normalization
+  xmin = min(x_as_log2, na.rm = TRUE)
+  if(xmin < 1) {
+    x_as_log2 = x_as_log2 - xmin + 1
+  }
+
+  append_log_timestamp(log_message, start_time)
+  return(x_as_log2)
 }

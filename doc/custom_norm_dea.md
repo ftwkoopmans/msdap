@@ -38,7 +38,7 @@ library(msdap)
 f <- system.file("extdata", "Skyline_HYE124_TTOF5600_64var_it2.tsv.gz", package = "msdap")
 dataset = import_dataset_skyline(f, confidence_threshold = 0.01, return_decoys = F, acquisition_mode = "dia")
 #> info: reading Skyline report...
-#> info: input file: C:/VU/code/R/msdap/inst/extdata/Skyline_HYE124_TTOF5600_64var_it2.tsv.gz
+#> info: input file: /Users/frank/VU/code/R/msdap/inst/extdata/Skyline_HYE124_TTOF5600_64var_it2.tsv.gz
 #> info: 4 unique target (plain)sequences ambiguously mapped to multiple proteins and thus removed. Examples; TTDVTGTIELPEGVEMVMPGDNIK, LNIISNLDCVNEVIGIR, LMDLSINK, EVDEQMLNVQNK
 #> info: 34263/35943 precursors remain after selecting the 'best' precursor for each modified sequence
 
@@ -259,13 +259,13 @@ dataset = analysis_quickstart(
   output_dir = NA # in this example, we disable the generation of all output files
 )
 #> info: no output files will be generated, output_dir was set to NA
-#> progress: caching filter data took 2 seconds
+#> progress: caching filter data took 1 seconds
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> Example custom normalization implementation, my_norm(), scaling all samples by some quantile
 #> info: filter dataset with settings: min_detect = 2; min_quant = 3; norm_algorithm = 'my_norm'; rollup_algorithm = 'maxlfq'
 #> 12756/34263 peptides were retained after filtering over all groups
 #> 21591/34263 peptides were retained after filtering within each group independently ("by group")
-#> progress: peptide filtering and normalization took 3 seconds
+#> progress: peptide filtering and normalization took 1 seconds
 #> info: differential expression analysis for contrast: A vs B # condition_variable: group
 #> info: using data from peptide filter: global data filter
 #> progress: eBayes took 1 seconds

@@ -372,11 +372,12 @@ gg_color_hue <- function(n) {
 #' Accept pvalues that are exactly zero as the 'best pvalue'
 #'
 #' @param x values to transform
+#' @param default_maxval for zero values in x (i.e. p-values of exactly zero), output -log10 values are set to the maximum of `default_maxval` and max -log10 of all values in x
 #' @export
-minlog10 = function(x) {
+minlog10 = function(x, default_maxval = 16) {
   y = -log10(x)
   y[!is.finite(x)] = NA
-  y[is.finite(x) & x == 0] = max(y[is.finite(y)])
+  y[is.finite(x) & x == 0] = max(default_maxval, max(y[is.finite(y)]))
   return(y)
 }
 
@@ -404,7 +405,11 @@ log2_to_ln = function(x) {
 #' @param x numeric array or matrix
 #' @param threshold limit finite values below this val
 threshold_numerics = function(x, threshold) {
-  x[is.finite(x) & x < threshold] = threshold
+  flag = is.finite(x) & x < threshold
+  x[flag] = threshold
+  if(sum(flag) / sum(is.finite(x)) > 0.01) {
+    append_log("thresholding more than 1% of data to 1 post-normalization", type = "warning")
+  }
   return(x)
 }
 
